@@ -18,6 +18,7 @@
 #include "modules/tools/switch/SwitchPool.h"
 #include "modules/tools/temperatureswitch/TemperatureSwitch.h"
 #include "modules/tools/drillingcycles/Drillingcycles.h"
+#include "modules/tools/atc/ATCHandler.h"
 #include "FilamentDetector.h"
 #include "MotorDriverControl.h"
 
@@ -126,6 +127,9 @@ void init() {
 
     // Create and add main modules
     kernel->add_module( new(AHB0) Player() );
+
+    // ATC Handler
+    kernel->add_module( new(AHB0) ATCHandler() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) KillButton() );
