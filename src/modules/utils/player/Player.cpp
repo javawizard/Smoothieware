@@ -53,6 +53,7 @@ Player::Player()
     this->reply_stream = nullptr;
     this->suspended= false;
     this->suspend_loops= 0;
+    this->inner_playing = false;
 }
 
 void Player::on_module_loaded()
@@ -257,7 +258,7 @@ void Player::on_console_line_received( void *argument )
 
     string cmd = shift_parameter(possible_command);
 
-    //new_message.stream->printf("Received %s\r\n", possible_command.c_str());
+	// new_message.stream->printf("Play Received %s\r\n", possible_command.c_str());
 
     // Act depending on command
     if (cmd == "play"){
@@ -411,7 +412,7 @@ void Player::on_main_loop(void *argument)
     }
 
     if( this->playing_file ) {
-        if(THEKERNEL->is_halted()) {
+        if(THEKERNEL->is_halted() || this->inner_playing) {
             return;
         }
 
@@ -486,6 +487,10 @@ void Player::on_get_public_data(void *argument)
             pdr->set_data_ptr(&p);
             pdr->set_taken();
         }
+    } else if (pdr->second_element_is(inner_playing_checksum)) {
+    	bool b = this->inner_playing;
+        pdr->set_data_ptr(&b);
+        pdr->set_taken();
     }
 }
 
@@ -498,6 +503,10 @@ void Player::on_set_public_data(void *argument)
     if(pdr->second_element_is(abort_play_checksum)) {
         abort_command("", &(StreamOutput::NullStream));
         pdr->set_taken();
+    } else if (pdr->second_element_is(inner_playing_checksum)) {
+    	bool b = *static_cast<bool *>(pdr->get_data_ptr());
+    	this->inner_playing = b;
+    	pdr->set_taken();
     }
 }
 
@@ -555,7 +564,7 @@ void Player::suspend_part2()
         return;
     }
 
-    THEKERNEL->streams->printf("// Saving current state...\n");
+    // THEKERNEL->streams->printf("// Saving current state...\n");
 
     // save current XYZ position in WCS
     Robot::wcs_t mpos= THEROBOT->get_axis_position();

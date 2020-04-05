@@ -61,6 +61,7 @@ class Player : public Module {
             bool was_playing_file:1;
             bool leave_heaters_on:1;
             bool override_leave_heaters_on:1;
+            bool inner_playing:1;
             uint8_t suspend_loops:4;
         };
 };

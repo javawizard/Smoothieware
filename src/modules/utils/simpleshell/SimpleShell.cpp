@@ -331,6 +331,9 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
             stream->printf("\r\n");
         }
         closedir(d);
+        if(opts.find("-e", 0, 2) != string::npos) {
+            stream->puts("\004"); // ^D terminates the upload
+        }
     } else {
         stream->printf("Could not open directory %s\r\n", path.c_str());
     }
@@ -347,28 +350,70 @@ void SimpleShell::remount_command( string parameters, StreamOutput *stream )
 // Delete a file
 void SimpleShell::rm_command( string parameters, StreamOutput *stream )
 {
-    const char *fn = absolute_from_relative(shift_parameter( parameters )).c_str();
+	bool send_eof = false;
+    string path = absolute_from_relative(shift_parameter( parameters ));
+    if(!parameters.empty() && shift_parameter(parameters) == "-e") {
+    	send_eof = true;
+    }
+
+    const char *fn = absolute_from_relative(path).c_str();
     int s = remove(fn);
-    if (s != 0) stream->printf("Could not delete %s \r\n", fn);
+    if (s != 0) {
+    	stream->printf("Could not delete %s \r\n", fn);
+        if(send_eof) {
+            stream->puts("\032"); // ^Z terminates error
+        }
+    } else {
+        if(send_eof) {
+            stream->puts("\004"); // ^D terminates the upload
+        }
+    }
 }
 
 // Rename a file
 void SimpleShell::mv_command( string parameters, StreamOutput *stream )
 {
+	bool send_eof = false;
     string from = absolute_from_relative(shift_parameter( parameters ));
     string to = absolute_from_relative(shift_parameter(parameters));
+    if(!parameters.empty() && shift_parameter(parameters) == "-e") {
+    	send_eof = true;
+    }
     int s = rename(from.c_str(), to.c_str());
-    if (s != 0) stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
-    else stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
+    if (s != 0)  {
+    	stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
+    	if (send_eof) {
+    		stream->puts("\032"); // ^Z terminates error
+    	}
+    } else  {
+    	stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
+    	if (send_eof) {
+        	stream->puts("\004"); // ^D terminates the upload
+    	}
+    }
 }
 
 // Create a new directory
 void SimpleShell::mkdir_command( string parameters, StreamOutput *stream )
 {
+	bool send_eof = false;
     string path = absolute_from_relative(shift_parameter( parameters ));
+    if(!parameters.empty() && shift_parameter(parameters) == "-e") {
+    	send_eof = true;
+    }
     int result = mkdir(path.c_str(), 0);
-    if (result != 0) stream->printf("could not create directory %s\r\n", path.c_str());
-    else stream->printf("created directory %s\r\n", path.c_str());
+    if (result != 0) {
+    	stream->printf("could not create directory %s\r\n", path.c_str());
+    	if (send_eof) {
+    		stream->puts("\032"); // ^Z terminates error
+    	}
+
+    } else {
+    	stream->printf("created directory %s\r\n", path.c_str());
+    	if (send_eof) {
+        	stream->puts("\004"); // ^D terminates the upload
+    	}
+    }
 }
 
 // Change current absolute path to provided path
@@ -396,38 +441,45 @@ void SimpleShell::pwd_command( string parameters, StreamOutput *stream )
 void SimpleShell::cat_command( string parameters, StreamOutput *stream )
 {
     // Get parameters ( filename and line limit )
-    string filename          = absolute_from_relative(shift_parameter( parameters ));
-    string limit_parameter   = shift_parameter( parameters );
+    string filename = absolute_from_relative(shift_parameter(parameters));
     int limit = -1;
     int delay= 0;
-    bool send_eof= false;
-    if ( limit_parameter == "-d" ) {
-        string d= shift_parameter( parameters );
-        char *e = NULL;
-        delay = strtol(d.c_str(), &e, 10);
-        if (e <= d.c_str()) {
-            delay = 0;
+    bool send_eof = false;
+    // parse parameters
+    while (parameters != "") {
+    	string s = shift_parameter(parameters);
+        if ( s == "-d" ) {
+            string d = shift_parameter(parameters);
+            char *e = NULL;
+            delay = strtol(d.c_str(), &e, 10);
+            if (e <= d.c_str()) {
+                delay = 0;
 
-        } else {
-            send_eof= true; // we need to terminate file send with an eof
+            }
+        } else if (s == "-e") {
+            send_eof = true; // we need to terminate file send with an eof
+        } else if (s != "") {
+            char *e = NULL;
+            limit = strtol(s.c_str(), &e, 10);
+            if (e <= s.c_str())
+                limit = -1;
         }
-
-    }else if ( limit_parameter != "" ) {
-        char *e = NULL;
-        limit = strtol(limit_parameter.c_str(), &e, 10);
-        if (e <= limit_parameter.c_str())
-            limit = -1;
     }
+
 
     // we have been asked to delay before cat, probably to allow time to issue upload command
     if(delay > 0) {
-        safe_delay_ms(delay*1000);
+        safe_delay_ms(delay * 1000);
     }
 
     // Open file
     FILE *lp = fopen(filename.c_str(), "r");
     if (lp == NULL) {
-        stream->printf("File not found: %s\r\n", filename.c_str());
+        if(send_eof) {
+            stream->puts("\032"); // ^Z terminates the cat
+        } else {
+            stream->printf("File not found: %s\r\n", filename.c_str());
+        }
         return;
     }
     string buffer;
@@ -438,6 +490,15 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     while ((c = fgetc (lp)) != EOF) {
         buffer.append((char *)&c, 1);
         if ( c == '\n' || ++linecnt > 80) {
+        	// check if cancel cmd received
+            if(send_eof && stream->ready()) {
+                c = stream->_getc();
+                if (c == 26) {
+                	fclose(lp);
+                	stream->puts("\032");
+                	return;
+                }
+            }
             if(c == '\n') newlines++;
             stream->puts(buffer.c_str());
             buffer.clear();
@@ -449,10 +510,17 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
             break;
         }
     };
+    // send last line
+    if (buffer.size() > 0) {
+    	stream->puts(buffer.c_str());
+    	if (!send_eof) {
+    		stream->printf("\n");
+    	}
+    }
     fclose(lp);
 
     if(send_eof) {
-        stream->puts("\032"); // ^Z terminates the upload
+        stream->puts("\004"); // ^Z terminates the cat
     }
 }
 
@@ -474,9 +542,10 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 
     // open file to upload to
     string upload_filename = absolute_from_relative( parameters );
+
     FILE *fd = fopen(upload_filename.c_str(), "w");
     if(fd != NULL) {
-        stream->printf("uploading to file: %s, send control-D or control-Z to finish\r\n", upload_filename.c_str());
+        stream->printf("uploading to file: %s.\r\n", upload_filename.c_str());
     } else {
         stream->printf("failed to open file: %s.\r\n", upload_filename.c_str());
         return;
@@ -496,7 +565,14 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             uploading = false;
             // close file
             fclose(fd);
-            stream->printf("uploaded %d bytes\n", cnt);
+            fd = NULL;
+            if (c == 26) {
+            	// rm file
+            	remove(upload_filename.c_str());
+            	stream->printf("upload canceled, %d bytes transferred\n", cnt);
+            } else {
+                stream->printf("upload finished, %d bytes transferred\n", cnt);
+            }
             return;
 
         } else {
@@ -504,11 +580,10 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             cnt++;
             if(fputc(c, fd) != c) {
                 // error writing to file
-                stream->printf("error writing to file. ignoring all characters until EOF\r\n");
+            	stream->printf("upload error! %d bytes transferred\n", cnt);
                 fclose(fd);
                 fd = NULL;
-                uploading= false;
-
+                return;
             } else {
                 if ((cnt%1000) == 0) {
                     // we need to kick things or they die
@@ -517,16 +592,6 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             }
         }
     }
-    // we got an error so ignore everything until EOF
-    char c;
-    do {
-        if(stream->ready()) {
-            c= stream->_getc();
-        }else{
-            THEKERNEL->call_event(ON_IDLE);
-            c= 0;
-        }
-    } while(c != 4 && c != 26);
 }
 
 // loads the specified config-override file
@@ -1008,7 +1073,13 @@ void SimpleShell::switch_command( string parameters, StreamOutput *stream)
 
 void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
 {
-    string filename = absolute_from_relative(parameters);
+	bool send_eof = false;
+
+    string filename = absolute_from_relative(shift_parameter(parameters));
+    if(!parameters.empty() && shift_parameter(parameters) == "-e") {
+    	send_eof = true;
+    }
+
 
     // Open file
     FILE *lp = fopen(filename.c_str(), "r");
@@ -1024,7 +1095,13 @@ void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
         THEKERNEL->call_event(ON_IDLE);
     } while(!feof(lp));
 
-    stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
+    if(send_eof) {
+    	stream->printf("%s", md5.finalize().hexdigest().c_str());
+        stream->puts("\004"); // ^D terminates the upload
+    } else {
+        stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
+    }
+
     fclose(lp);
 }
 
@@ -1269,12 +1346,12 @@ void SimpleShell::help_command( string parameters, StreamOutput *stream )
     stream->printf("Commands:\r\n");
     stream->printf("version\r\n");
     stream->printf("mem [-v]\r\n");
-    stream->printf("ls [-s] [folder]\r\n");
+    stream->printf("ls [-s] [-e] [folder]\r\n");
     stream->printf("cd folder\r\n");
     stream->printf("pwd\r\n");
-    stream->printf("cat file [limit] [-d 10]\r\n");
-    stream->printf("rm file\r\n");
-    stream->printf("mv file newfile\r\n");
+    stream->printf("cat file [limit] [-e] [-d 10]\r\n");
+    stream->printf("rm file [-e]\r\n");
+    stream->printf("mv file newfile [-e]\r\n");
     stream->printf("remount\r\n");
     stream->printf("play file [-v]\r\n");
     stream->printf("progress - shows progress of current play\r\n");

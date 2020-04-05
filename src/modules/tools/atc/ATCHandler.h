@@ -1,47 +1,63 @@
 #ifndef _ATCHANDLER_H
 #define _ATCHANDLER_H
 
+using namespace std;
 #include "Module.h"
-#include "Pin.h"
-
-#include <stdio.h>
-#include <string>
-#include <map>
 #include <vector>
-using std::string;
-
-class StreamOutput;
-
+#include <queue>
+#include "Pin.h"
 
 class ATCHandler : public Module
 {
 public:
-	ATCHandler();
+    ATCHandler();
 
     void on_module_loaded();
-    void on_main_loop( void* argument );
     void on_gcode_received(void *argument);
+    void on_get_public_data(void *argument);
+    void on_set_public_data(void *argument);
+    void on_main_loop( void* argument );
     void on_halt(void *argument);
+    int get_active_tool() const { return active_tool; }
     void on_config_reload(void *argument);
 
+
 private:
-    void init_script();
-    string fill_vars(string source);
-    string extract_options(string& args);
-    void stop_atc( string parameters, StreamOutput* stream );
+    typedef enum {
+        NONE,
+        FULL, // M6T?
+        DROP, // M6T-1
+        PICK, // M6T?
+		CALI, // M???
+    } ATC_STATUS;
+
+    ATC_STATUS atc_status;
 
     uint32_t read_endstop(uint32_t dummy);
+    uint32_t read_detector(uint32_t dummy);
 
+    // clamp actions
     void clamp_tool();
     void loose_tool();
     void home_clamp();
 
-    std::vector<string> zprobe_script;
-    std::vector<string> clamp_tool_script;
-    std::vector<string> loose_tool_script;
-    std::vector<string> atc_script;
+    // laser detect
+    bool laser_detect();
+
+    void set_inner_playing(bool inner_playing);
+    bool get_inner_playing() const;
+
+    void fill_drop_scripts();
+    void fill_pick_scripts();
+    void fill_cali_scripts();
+
+    void clear_script_queue();
+
+    std::queue<string> script_queue;
 
     uint16_t debounce;
+    bool atc_homing;
+    bool detecting;
 
     using atc_homing_info_t = struct {
         Pin pin;
@@ -59,18 +75,36 @@ private:
     };
     atc_homing_info_t atc_home_info;
 
-
-    unsigned int played_cnt;
-
-    struct {
-        bool on_boot_gcode_enable:1;
-        bool booted:1;
-        bool playing_atc:1;
-        bool suspended:1;
-        bool was_playing_file:1;
-        bool atc_homing:1;
-        uint8_t suspend_loops:4;
+    using detector_info_t = struct {
+        Pin switch_pin;
+        Pin detect_pin;
+        float detect_rate;
+        float detect_travel;
+        bool triggered;
     };
+    detector_info_t detector_info;
+
+    float safe_z_mm;
+    float safe_z_offset_mm;
+    float fast_z_rate;
+    float slow_z_rate;
+    float probe_mx_mm;
+    float probe_my_mm;
+    float probe_mz_mm;
+
+    typedef struct {
+    	std::string name;
+    	float mx_mm;
+    	float my_mm;
+    	float mz_mm;
+    	float tool_offset;
+    } ATCTool;
+
+    vector<ATCTool> act_tools;
+
+    int new_tool;
+    int active_tool;
+    int tool_number;
 };
 
 #endif /* _ATCHANDLER_H */
