@@ -76,7 +76,6 @@ private:
     atc_homing_info_t atc_home_info;
 
     using detector_info_t = struct {
-        Pin switch_pin;
         Pin detect_pin;
         float detect_rate;
         float detect_travel;

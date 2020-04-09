@@ -25,6 +25,7 @@
 #include "libs/StreamOutputPool.h"
 #include "libs/StreamOutput.h"
 #include "ATCHandlerPublicAccess.h"
+#include "SwitchPublicAccess.h"
 
 #include "libs/SerialMessage.h"
 #include "libs/StreamOutput.h"
@@ -48,7 +49,6 @@
 #define action_rate_mm_s_checksum   CHECKSUM("action_rate_mm_s")
 
 #define detector_checksum           CHECKSUM("detector")
-#define switch_pin_checksum			CHECKSUM("switch_pin")
 #define detect_pin_checksum			CHECKSUM("detect_pin")
 #define detect_rate_mm_s_checksum	CHECKSUM("detect_rate_mm_s")
 #define detect_travel_mm_checksum 	CHECKSUM("detect_travel_mm")
@@ -178,7 +178,6 @@ void ATCHandler::on_config_reload(void *argument)
 	atc_home_info.homing_rate    = THEKERNEL->config->value(atc_checksum, homing_rate_mm_s_checksum)->by_default(1  )->as_number();
 	atc_home_info.action_rate    = THEKERNEL->config->value(atc_checksum, action_rate_mm_s_checksum)->by_default(1  )->as_number();
 
-	detector_info.switch_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, switch_pin_checksum)->by_default("nc" )->as_string())->as_input();
 	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("nc" )->as_string())->as_input();
 	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
 	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(3  )->as_number();
@@ -264,8 +263,12 @@ bool ATCHandler::laser_detect() {
     // move around and check laser detector
     detector_info.triggered = false;
     // switch on detector
-    detector_info.switch_pin.set(1);
-
+    bool switch_state = true;
+    bool ok = PublicData::set_value(switch_checksum, detector_checksum, state_checksum, &switch_state);
+    if (!ok) {
+        THEKERNEL->streams->printf("ERROR: Failed switch on detector switch.\r\n");
+        return false;
+    }
     detecting = true;
 
 	float delta[Y_AXIS + 1];
@@ -274,10 +277,18 @@ bool ATCHandler::laser_detect() {
 	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return false;
+
 	detecting = false;
 	// switch off detector
-	detector_info.switch_pin.set(0);
-    THEROBOT->reset_position_from_current_actuator_position();
+	switch_state = false;
+    ok = PublicData::set_value(switch_checksum, detector_checksum, state_checksum, &switch_state);
+    if (!ok) {
+        THEKERNEL->streams->printf("ERROR: Failed switch off detector switch.\r\n");
+        return false;
+    }
+
+    // THEROBOT->reset_position_from_current_actuator_position();
 
     return detector_info.triggered;
 }
@@ -299,6 +310,7 @@ void ATCHandler::home_clamp()
 	THEROBOT->delta_move(delta, atc_home_info.homing_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return;
 
 	atc_homing = false;
 
@@ -308,7 +320,9 @@ void ATCHandler::home_clamp()
         return;
     }
 
-    THEROBOT->reset_position_from_current_actuator_position();
+    if(atc_home_info.triggered) {
+    	THEROBOT->reset_position_from_current_actuator_position();
+    }
 
     // Move back
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;

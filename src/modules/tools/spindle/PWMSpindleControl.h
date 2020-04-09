@@ -22,6 +22,7 @@ class PWMSpindleControl: public SpindleControl {
         PWMSpindleControl();
         virtual ~PWMSpindleControl() {};
         void on_module_loaded();
+        void on_get_public_data(void* argument);
     
     private:
         
@@ -56,6 +57,8 @@ class PWMSpindleControl: public SpindleControl {
         volatile uint32_t last_time; // Time delay between last two edges
         volatile uint32_t irq_count;
         
+        float factor;
+
         void turn_on(void);
         void turn_off(void);
         void set_speed(int);
@@ -64,6 +67,8 @@ class PWMSpindleControl: public SpindleControl {
         void set_i_term(float);
         void set_d_term(float);
         void report_settings(void);
+
+        void set_factor(float);
 };
 
 #endif

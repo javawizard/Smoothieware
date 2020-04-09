@@ -15,6 +15,8 @@
 #include "SlowTicker.h"
 #include "Conveyor.h"
 #include "system_LPC17xx.h"
+#include "PublicDataRequest.h"
+#include "SpindlePublicAccess.h"
 #include "utils.h"
 
 #include "libs/Pin.h"
@@ -52,6 +54,8 @@ void PWMSpindleControl::on_module_loaded()
     
     spindle_on = false;
     
+    factor = 100;
+
     pulses_per_rev = THEKERNEL->config->value(spindle_checksum, spindle_pulses_per_rev_checksum)->by_default(1.0f)->as_number();
     target_rpm = THEKERNEL->config->value(spindle_checksum, spindle_default_rpm_checksum)->by_default(5000.0f)->as_number();
     control_P_term = THEKERNEL->config->value(spindle_checksum, spindle_control_P_checksum)->by_default(0.0001f)->as_number();
@@ -209,3 +213,22 @@ void PWMSpindleControl::report_settings() {
                                control_P_term, control_I_term, control_D_term);
 }
 
+void PWMSpindleControl::set_factor(float new_factor) {
+	factor = new_factor;
+}
+
+// returns spindle status
+void PWMSpindleControl::on_get_public_data(void* argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+    if(!pdr->starts_with(pwm_spindle_control_checksum)) return;
+    if(pdr->second_element_is(get_spindle_status_checksum)) {
+		// ok this is targeted at us, so set the requ3sted data in the pointer passed into us
+		struct spindle_status *t= static_cast<spindle_status*>(pdr->get_data_ptr());
+		t->current_rpm = this->current_rpm;
+		t->target_rpm = this->target_rpm;
+		t->current_pwm_value = this->current_pwm_value;
+		t->factor= this->factor;
+		pdr->set_taken();
+    }
+}

@@ -58,6 +58,7 @@ void SpindleMaker::load_spindle(){
     if( spindle != NULL) {
 
         spindle->register_for_event(ON_GCODE_RECEIVED);
+        spindle->register_for_event(ON_GET_PUBLIC_DATA);
         if (!THEKERNEL->config->value(spindle_checksum, spindle_ignore_on_halt_checksum)->by_default(false)->as_bool()) {
             spindle->register_for_event(ON_HALT);
         }

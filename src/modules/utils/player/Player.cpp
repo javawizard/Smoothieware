@@ -151,6 +151,7 @@ void Player::on_gcode_received(void *argument)
 
 
             this->played_cnt = 0;
+            this->played_lines = 0;
             this->elapsed_secs = 0;
 
         } else if (gcode->m == 24) { // start print
@@ -219,6 +220,7 @@ void Player::on_gcode_received(void *argument)
             }
 
             this->played_cnt = 0;
+            this->played_lines = 0;
             this->elapsed_secs = 0;
 
         } else if (gcode->m == 600) { // suspend print, Not entirely Marlin compliant, M600.1 will leave the heaters on
@@ -320,6 +322,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
         stream->printf("  File size %ld\r\n", file_size);
     }
     this->played_cnt = 0;
+    this->played_lines = 0;
     this->elapsed_secs = 0;
 }
 
@@ -376,6 +379,7 @@ void Player::abort_command( string parameters, StreamOutput *stream )
     suspended= false;
     playing_file = false;
     played_cnt = 0;
+    played_lines = 0;
     file_size = 0;
     this->filename = "";
     this->current_stream = NULL;
@@ -439,6 +443,7 @@ void Player::on_main_loop(void *argument)
 
                 // waits for the queue to have enough room
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+                played_lines += 1;
                 played_cnt += len;
                 return; // we feed one line per main loop
 
@@ -452,6 +457,7 @@ void Player::on_main_loop(void *argument)
         this->playing_file = false;
         this->filename = "";
         played_cnt = 0;
+        played_lines = 0;
         file_size = 0;
         fclose(this->current_file_handler);
         current_file_handler = NULL;
@@ -483,6 +489,7 @@ void Player::on_get_public_data(void *argument)
             p.elapsed_secs = this->elapsed_secs;
             float pcnt = (((float)file_size - (file_size - played_cnt)) * 100.0F) / file_size;
             p.percent_complete = roundf(pcnt);
+            p.played_lines = this->played_lines;
             p.filename = this->filename;
             pdr->set_data_ptr(&p);
             pdr->set_taken();

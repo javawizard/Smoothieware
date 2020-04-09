@@ -29,6 +29,8 @@
 #include "Configurator.h"
 #include "SimpleShell.h"
 #include "TemperatureControlPublicAccess.h"
+#include "modules/utils/player/PlayerPublicAccess.h"
+#include "SpindlePublicAccess.h"
 
 #ifndef NO_TOOLS_LASER
 #include "Laser.h"
@@ -196,15 +198,16 @@ std::string Kernel::get_query_string()
         str.append("Run");
     }
 
+    size_t n;
+    char buf[128];
     if(running) {
         float mpos[3];
         robot->get_current_machine_position(mpos);
         // current_position/mpos includes the compensation transform so we need to get the inverse to get actual position
         if(robot->compensationTransform) robot->compensationTransform(mpos, true); // get inverse compensation transform
 
-        char buf[128];
         // machine position
-        size_t n = snprintf(buf, sizeof(buf), "%1.4f,%1.4f,%1.4f", robot->from_millimeters(mpos[0]), robot->from_millimeters(mpos[1]), robot->from_millimeters(mpos[2]));
+        n = snprintf(buf, sizeof(buf), "%1.4f,%1.4f,%1.4f", robot->from_millimeters(mpos[0]), robot->from_millimeters(mpos[1]), robot->from_millimeters(mpos[2]));
         if(n > sizeof(buf)) n= sizeof(buf);
 
         str.append("|MPos:").append(buf, n);
@@ -226,33 +229,8 @@ std::string Kernel::get_query_string()
 
         str.append("|WPos:").append(buf, n);
 
-        // current feedrate and requested fr and override
-        float fr= robot->from_millimeters(conveyor->get_current_feedrate()*60.0F);
-        float frr= robot->from_millimeters(robot->get_feed_rate());
-        float fro= 6000.0F / robot->get_seconds_per_minute();
-        n = snprintf(buf, sizeof(buf), "|F:%1.1f,%1.1f,%1.1f", fr, frr,fro);
-        if(n > sizeof(buf)) n= sizeof(buf);
-        str.append(buf, n);
-
-
-        // current Laser power
-        #ifndef NO_TOOLS_LASER
-            Laser *plaser= nullptr;
-            if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
-                float lp= plaser->get_current_power();
-                n = snprintf(buf, sizeof(buf), "|L:%1.4f", lp);
-                if(n > sizeof(buf)) n= sizeof(buf);
-                str.append(buf, n);
-                float sr= robot->get_s_value();
-                n = snprintf(buf, sizeof(buf), "|S:%1.4f", sr);
-                if(n > sizeof(buf)) n= sizeof(buf);
-                str.append(buf, n);
-            }
-        #endif
-
     } else {
         // return the last milestone if idle
-        char buf[128];
         // machine position
         Robot::wcs_t mpos = robot->get_axis_position();
         size_t n = snprintf(buf, sizeof(buf), "%1.4f,%1.4f,%1.4f", robot->from_millimeters(std::get<X_AXIS>(mpos)), robot->from_millimeters(std::get<Y_AXIS>(mpos)), robot->from_millimeters(std::get<Z_AXIS>(mpos)));
@@ -275,13 +253,50 @@ std::string Kernel::get_query_string()
         n = snprintf(buf, sizeof(buf), "%1.4f,%1.4f,%1.4f", robot->from_millimeters(std::get<X_AXIS>(pos)), robot->from_millimeters(std::get<Y_AXIS>(pos)), robot->from_millimeters(std::get<Z_AXIS>(pos)));
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append("|WPos:").append(buf, n);
+    }
 
-        // requested framerate, and override
-        float fr= robot->from_millimeters(robot->get_feed_rate());
-        float fro= 6000.0F / robot->get_seconds_per_minute();
-        n = snprintf(buf, sizeof(buf), "|F:%1.1f,%1.1f", fr, fro);
+    // current feedrate and requested fr and override
+    float fr= running ? robot->from_millimeters(conveyor->get_current_feedrate()*60.0F) : 0;
+    float frr= robot->from_millimeters(robot->get_feed_rate());
+    float fro= 6000.0F / robot->get_seconds_per_minute();
+    n = snprintf(buf, sizeof(buf), "|F:%1.1f,%1.1f,%1.1f", fr, frr, fro);
+    if(n > sizeof(buf)) n= sizeof(buf);
+    str.append(buf, n);
+
+    // current spindle rpm and request rpm and override
+    struct spindle_status ss;
+    ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+    if (ok) {
+        n= snprintf(buf, sizeof(buf), "|S:%1.1f,%1.1f,%1.1f", ss.current_rpm, ss.target_rpm, ss.factor);
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
+    }
+
+    // current tool number and tool offset
+
+
+    // current Laser power and override
+    #ifndef NO_TOOLS_LASER
+        Laser *plaser= nullptr;
+        if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
+            float lp = plaser->get_current_power();
+            float ls = plaser->get_scale();
+            n = snprintf(buf, sizeof(buf), "|L:%1.4f,%1.4f", lp, ls);
+            if(n > sizeof(buf)) n= sizeof(buf);
+            str.append(buf, n);
+        }
+    #endif
+
+    // current running file info
+    if (running) {
+        void *returned_data;
+        bool ok = PublicData::get_value( player_checksum, get_progress_checksum, &returned_data );
+        if (ok) {
+            struct pad_progress p =  *static_cast<struct pad_progress *>(returned_data);
+            n= snprintf(buf, sizeof(buf), "|P:%lu,%d,%lu", p.played_lines, p.percent_complete, p.elapsed_secs);
+            if(n > sizeof(buf)) n= sizeof(buf);
+            str.append(buf, n);
+        }
     }
 
     // if not grbl mode get temperatures
