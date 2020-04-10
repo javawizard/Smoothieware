@@ -29,7 +29,8 @@
 #include "Configurator.h"
 #include "SimpleShell.h"
 #include "TemperatureControlPublicAccess.h"
-#include "modules/utils/player/PlayerPublicAccess.h"
+#include "ATCHandlerPublicAccess.h"
+#include "PlayerPublicAccess.h"
 #include "SpindlePublicAccess.h"
 
 #ifndef NO_TOOLS_LASER
@@ -271,17 +272,30 @@ std::string Kernel::get_query_string()
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
     }
+    // get spindle temperature
+    struct pad_temperature temp;
+    ok = PublicData::get_value( temperature_control_checksum, current_temperature_checksum, spindle_temperature_checksum, &temp );
+	if (ok) {
+        n= snprintf(buf, sizeof(buf), "%1.1f", temp.current_temperature);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+	}
 
     // current tool number and tool offset
-
+    void *returned_tool;
+    ok = PublicData::get_value( atc_handler_checksum, get_active_tool_checksum, &returned_tool );
+    if (ok) {
+    	struct atc_tool tool =  *static_cast<struct atc_tool *>(returned_tool);
+        n= snprintf(buf, sizeof(buf), "|T:%d,%1.3f", tool.num, tool.tool_offset);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
 
     // current Laser power and override
     #ifndef NO_TOOLS_LASER
         Laser *plaser= nullptr;
         if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
-            float lp = plaser->get_current_power();
-            float ls = plaser->get_scale();
-            n = snprintf(buf, sizeof(buf), "|L:%1.4f,%1.4f", lp, ls);
+            n = snprintf(buf, sizeof(buf), "|L:%1.4f,%1.4f", plaser->get_current_power(), plaser->get_scale());
             if(n > sizeof(buf)) n= sizeof(buf);
             str.append(buf, n);
         }

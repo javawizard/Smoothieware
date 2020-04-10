@@ -24,8 +24,8 @@
 #include "modules/robot/Conveyor.h"
 #include "libs/StreamOutputPool.h"
 #include "libs/StreamOutput.h"
-#include "ATCHandlerPublicAccess.h"
 #include "SwitchPublicAccess.h"
+#include "libs/utils.h"
 
 #include "libs/SerialMessage.h"
 #include "libs/StreamOutput.h"
@@ -81,7 +81,7 @@ void ATCHandler::clear_script_queue(){
 
 void ATCHandler::fill_drop_scripts() {
 	char buff[100];
-	ATCTool *current_tool = &act_tools[active_tool];
+	struct atc_tool *current_tool = &act_tools[active_tool];
     // lift z axis to atc start position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -107,7 +107,7 @@ void ATCHandler::fill_drop_scripts() {
 
 void ATCHandler::fill_pick_scripts() {
 	char buff[100];
-	ATCTool *current_tool = &act_tools[new_tool];
+	struct atc_tool *current_tool = &act_tools[new_tool];
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	// move x and y to new tool position
@@ -190,22 +190,13 @@ void ATCHandler::on_config_reload(void *argument)
 	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
 
 	act_tools.clear();
-	uint16_t tool_name_checksums[7];
-	tool_name_checksums[0] = CHECKSUM("tool0");
-	tool_name_checksums[1] = CHECKSUM("tool1");
-	tool_name_checksums[2] = CHECKSUM("tool2");
-	tool_name_checksums[3] = CHECKSUM("tool3");
-	tool_name_checksums[4] = CHECKSUM("tool4");
-	tool_name_checksums[5] = CHECKSUM("tool5");
-	tool_name_checksums[6] = CHECKSUM("tool6");
-
 	for (int i = 0; i <=  tool_number; i ++) {
-		ATCTool atc_tool;
-		atc_tool.name = "tool" + i;
-		atc_tool.mx_mm = THEKERNEL->config->value(atc_checksum, tool_name_checksums[i], mx_mm_checksum)->by_default(-10  )->as_number();
-		atc_tool.mx_mm = THEKERNEL->config->value(atc_checksum, tool_name_checksums[i], my_mm_checksum)->by_default(-10  )->as_number();
-		atc_tool.mx_mm = THEKERNEL->config->value(atc_checksum, tool_name_checksums[i], mz_mm_checksum)->by_default(-10  )->as_number();
-		act_tools.push_back(atc_tool);
+		struct atc_tool tool;
+		tool.num = i;
+		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), mx_mm_checksum)->by_default(-10  )->as_number();
+		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), my_mm_checksum)->by_default(-10  )->as_number();
+		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), mz_mm_checksum)->by_default(-10  )->as_number();
+		act_tools.push_back(tool);
 	}
 }
 
@@ -224,7 +215,7 @@ uint32_t ATCHandler::read_endstop(uint32_t dummy)
 
 	if(!atc_homing || atc_home_info.triggered) return 0;
 
-    if(STEPPER[Y_AXIS]->is_moving()) {
+    if(STEPPER[ATC_AXIS]->is_moving()) {
         // if it is moving then we check the probe, and debounce it
         if(atc_home_info.pin.get()) {
             if(debounce < atc_home_info.debounce_ms) {
@@ -485,7 +476,7 @@ void ATCHandler::on_get_public_data(void* argument)
     if(!pdr->starts_with(atc_handler_checksum)) return;
 
     if(pdr->second_element_is(get_active_tool_checksum)) {
-    	if (this->active_tool > 0) {
+    	if (this->active_tool >= 0) {
     		pdr->set_data_ptr(&act_tools[this->active_tool]);
             pdr->set_taken();
     	}

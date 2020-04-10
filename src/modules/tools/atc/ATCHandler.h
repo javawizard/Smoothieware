@@ -7,6 +7,8 @@ using namespace std;
 #include <queue>
 #include "Pin.h"
 
+#include "ATCHandlerPublicAccess.h"
+
 class ATCHandler : public Module
 {
 public:
@@ -91,15 +93,7 @@ private:
     float probe_my_mm;
     float probe_mz_mm;
 
-    typedef struct {
-    	std::string name;
-    	float mx_mm;
-    	float my_mm;
-    	float mz_mm;
-    	float tool_offset;
-    } ATCTool;
-
-    vector<ATCTool> act_tools;
+    vector<struct atc_tool> act_tools;
 
     int new_tool;
     int active_tool;
