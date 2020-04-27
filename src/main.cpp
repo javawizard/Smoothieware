@@ -147,12 +147,12 @@ void init() {
     em->load_tools();
     delete em;
     #endif
-    #ifndef NO_TOOLS_TEMPERATURECONTROL
+    // #ifndef NO_TOOLS_TEMPERATURECONTROL
     // Note order is important here must be after extruder so Tn as a parameter will get executed first
     TemperatureControlPool *tp= new TemperatureControlPool();
     tp->load_tools();
     delete tp;
-    #endif
+    // #endif
     #ifndef NO_TOOLS_ENDSTOPS
     kernel->add_module( new(AHB0) Endstops() );
     #endif

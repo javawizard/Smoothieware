@@ -276,7 +276,7 @@ std::string Kernel::get_query_string()
     struct pad_temperature temp;
     ok = PublicData::get_value( temperature_control_checksum, current_temperature_checksum, spindle_temperature_checksum, &temp );
 	if (ok) {
-        n= snprintf(buf, sizeof(buf), "%1.1f", temp.current_temperature);
+        n= snprintf(buf, sizeof(buf), ",%1.1f", temp.current_temperature);
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
 	}
