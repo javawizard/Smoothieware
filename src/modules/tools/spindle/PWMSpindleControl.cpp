@@ -37,7 +37,7 @@
 #define spindle_control_D_checksum          CHECKSUM("control_D")
 #define spindle_control_smoothing_checksum  CHECKSUM("control_smoothing")
 
-#define UPDATE_FREQ 1000
+#define UPDATE_FREQ 100
 
 PWMSpindleControl::PWMSpindleControl()
 {
@@ -114,10 +114,14 @@ void PWMSpindleControl::on_module_loaded()
 
 void PWMSpindleControl::on_pin_rise()
 {
-    uint32_t timestamp = us_ticker_read();
-    last_time = timestamp - last_edge;
-    last_edge = timestamp;
-    irq_count++;
+	if (irq_count >= pulses_per_rev) {
+		irq_count = 0;
+		rev_count ++;
+		uint32_t timestamp = us_ticker_read();
+		rev_time = timestamp - last_rev_time;
+		last_rev_time = timestamp;
+	}
+	irq_count ++;
 }
 
 uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
@@ -131,35 +135,33 @@ uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
     last_irq = new_irq;
 
     if (time_since_update > UPDATE_FREQ)
-        last_time = 0;
+    	rev_time = 0;
 
     // Calculate current RPM
-    uint32_t t = last_time;
+    uint32_t t = rev_time;
     if (t == 0) {
         current_rpm = 0;
     } else {
-        float new_rpm = 1000000 * 60.0f / (t * pulses_per_rev);
+        float new_rpm = 1000000 * 60.0f / t;
         current_rpm = smoothing_decay * new_rpm + (1.0f - smoothing_decay) * current_rpm;
     }
 
     if (spindle_on) {
-        float error = target_rpm - current_rpm;
+    	if (update_count > UPDATE_FREQ / 5) {
+    		update_count = 0;
+            float error = target_rpm - current_rpm;
+//            current_I_value += control_I_term * error * 1.0f / UPDATE_FREQ;
+//            current_I_value = confine(current_I_value, -1.0f, 1.0f);
+            float acc_pwm = control_P_term * error;
+//            acc_pwm += current_I_value;
+//            acc_pwm += control_D_term * UPDATE_FREQ * (error - prev_error);
+            float new_pwm = current_pwm_value + acc_pwm;
+            new_pwm = confine(new_pwm, 0.0f, max_pwm);
 
-        current_I_value += control_I_term * error * 1.0f / UPDATE_FREQ;
-        current_I_value = confine(current_I_value, -1.0f, 1.0f);
-
-        float new_pwm = 0.5f;
-        new_pwm += control_P_term * error;
-        new_pwm += current_I_value;
-        new_pwm += control_D_term * UPDATE_FREQ * (error - prev_error);
-        new_pwm = confine(new_pwm, 0.0f, 1.0f);
-        prev_error = error;
-
-        current_pwm_value = new_pwm;
-
-        if (current_pwm_value > max_pwm) {
-            current_pwm_value = max_pwm;
-        }
+            prev_error = error;
+            current_pwm_value = new_pwm;
+    	}
+    	update_count ++;
     } else {
         current_I_value = 0;
         current_pwm_value = 0;

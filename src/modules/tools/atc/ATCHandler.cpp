@@ -64,6 +64,8 @@
 #define fast_z_rate_checksum		CHECKSUM("fast_z_rate_mm_m")
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
 
+#define probe_checksum				CHECKSUM("probe")
+
 ATCHandler::ATCHandler()
 {
 	new_tool = 0;
@@ -81,7 +83,7 @@ void ATCHandler::clear_script_queue(){
 
 void ATCHandler::fill_drop_scripts() {
 	char buff[100];
-	struct atc_tool *current_tool = &act_tools[active_tool];
+	struct atc_tool *current_tool = &atc_tools[active_tool];
     // lift z axis to atc start position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -89,7 +91,7 @@ void ATCHandler::fill_drop_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is empty
-	this->script_queue.push("M492.2");
+	// this->script_queue.push("M492.2");
     // drop z axis to z position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
@@ -102,19 +104,19 @@ void ATCHandler::fill_drop_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool is dropped, halt if not
-	this->script_queue.push("M492.1");
+	// this->script_queue.push("M492.1");
 }
 
 void ATCHandler::fill_pick_scripts() {
 	char buff[100];
-	struct atc_tool *current_tool = &act_tools[new_tool];
+	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	// move x and y to new tool position
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is filled
-	this->script_queue.push("M492.1");
+	// this->script_queue.push("M492.1");
 	// loose tool
 	this->script_queue.push("M490.2");
     // drop z axis to z position with fast speed
@@ -128,7 +130,7 @@ void ATCHandler::fill_pick_scripts() {
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	// move around to see if tool rack is empty, halt if not
-	this->script_queue.push("M492.2");
+	// this->script_queue.push("M492.2");
 }
 
 void ATCHandler::fill_cali_scripts() {
@@ -170,6 +172,8 @@ void ATCHandler::on_module_loaded()
 
 void ATCHandler::on_config_reload(void *argument)
 {
+	char buff[10];
+
 	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("nc" )->as_string())->as_input();
 	atc_home_info.debounce_ms    = THEKERNEL->config->value(atc_checksum, debounce_ms_checksum)->by_default(1  )->as_number();
 	atc_home_info.max_travel    = THEKERNEL->config->value(atc_checksum, max_travel_mm_checksum)->by_default(5  )->as_number();
@@ -180,7 +184,7 @@ void ATCHandler::on_config_reload(void *argument)
 
 	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("nc" )->as_string())->as_input();
 	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
-	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(3  )->as_number();
+	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
 
 	this->safe_z_mm = THEKERNEL->config->value(atc_checksum, safe_z_checksum)->by_default(-10)->as_number();
 	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
@@ -189,14 +193,20 @@ void ATCHandler::on_config_reload(void *argument)
 	this->active_tool = THEKERNEL->config->value(atc_checksum, active_tool_checksum)->by_default(0)->as_number();
 	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
 
-	act_tools.clear();
+	probe_mx_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mx_mm_checksum)->by_default(-10  )->as_number();
+	probe_my_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, my_mm_checksum)->by_default(-10  )->as_number();
+	probe_mz_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mz_mm_checksum)->by_default(-10  )->as_number();
+
+	atc_tools.clear();
 	for (int i = 0; i <=  tool_number; i ++) {
 		struct atc_tool tool;
 		tool.num = i;
-		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), mx_mm_checksum)->by_default(-10  )->as_number();
-		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), my_mm_checksum)->by_default(-10  )->as_number();
-		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum("tool" + i), mz_mm_checksum)->by_default(-10  )->as_number();
-		act_tools.push_back(tool);
+	    // lift z axis to atc start position
+		snprintf(buff, sizeof(buff), "tool%d", i);
+		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mx_mm_checksum)->by_default(-10  )->as_number();
+		tool.my_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), my_mm_checksum)->by_default(-10  )->as_number();
+		tool.mz_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mz_mm_checksum)->by_default(-10  )->as_number();
+		atc_tools.push_back(tool);
 	}
 }
 
@@ -333,7 +343,7 @@ void ATCHandler::clamp_tool()
 	}
 	float delta[ATC_AXIS + 1];
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[4] = -atc_home_info.action_dist;
+	delta[4] = atc_home_info.action_dist;
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
@@ -346,7 +356,7 @@ void ATCHandler::loose_tool()
 	}
 	float delta[ATC_AXIS + 1];
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[4] = atc_home_info.action_dist;
+	delta[4] = -atc_home_info.action_dist;
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
@@ -372,15 +382,18 @@ void ATCHandler::on_gcode_received(void *argument)
                     set_inner_playing(true);
                     this->clear_script_queue();
                 	if (this->active_tool < 0) {
+                		gcode->stream->printf("Start picking new tool: T%d\r\n", new_tool);
                 		// just pick up tool
                 		atc_status = PICK;
                 		this->fill_pick_scripts();
                 		this->fill_cali_scripts();
                 	} else if (new_tool < 0) {
+                		gcode->stream->printf("Start dropping current tool: T%d\r\n", this->active_tool);
                 		// just drop tool
                 		atc_status = DROP;
                 		this->fill_drop_scripts();
                 	} else {
+                		gcode->stream->printf("Start atc, old tool: T%d, new tool: T%d\r\n", this->active_tool, new_tool);
                 		// full atc progress
                 		atc_status = FULL;
                 	    this->fill_drop_scripts();
@@ -428,6 +441,11 @@ void ATCHandler::on_gcode_received(void *argument)
 			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 
 				}
+			}
+		} else if ( gcode->m == 499) {
+			THEKERNEL->streams->printf("probe -- mx:%1.1f my:%1.1f mz:%1.1f\n", probe_mx_mm, probe_my_mm, probe_mz_mm);
+			for (int i = 0; i <=  tool_number; i ++) {
+				THEKERNEL->streams->printf("tool%d -- mx:%1.1f my:%1.1f mz:%1.1f offset:%1.3f\n", atc_tools[i].num, atc_tools[i].mx_mm, atc_tools[i].my_mm, atc_tools[i].mz_mm, atc_tools[i].tool_offset);
 			}
 		}
     }
@@ -477,7 +495,7 @@ void ATCHandler::on_get_public_data(void* argument)
 
     if(pdr->second_element_is(get_active_tool_checksum)) {
     	if (this->active_tool >= 0) {
-    		pdr->set_data_ptr(&act_tools[this->active_tool]);
+    		pdr->set_data_ptr(&atc_tools[this->active_tool]);
             pdr->set_taken();
     	}
     }

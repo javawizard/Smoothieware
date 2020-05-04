@@ -45,7 +45,7 @@ class PWMSpindleControl: public SpindleControl {
         uint32_t last_irq;
 
         // Values from config
-        float pulses_per_rev;
+        volatile float pulses_per_rev;
         float control_P_term;
         float control_I_term;
         float control_D_term;
@@ -57,6 +57,12 @@ class PWMSpindleControl: public SpindleControl {
         volatile uint32_t last_time; // Time delay between last two edges
         volatile uint32_t irq_count;
         
+        uint32_t last_rev_time;
+        volatile uint32_t rev_time;
+        volatile uint32_t rev_count;
+        uint32_t update_count;
+
+
         float factor;
 
         void turn_on(void);

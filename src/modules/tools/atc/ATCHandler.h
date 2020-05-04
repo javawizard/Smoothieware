@@ -93,7 +93,7 @@ private:
     float probe_my_mm;
     float probe_mz_mm;
 
-    vector<struct atc_tool> act_tools;
+    vector<struct atc_tool> atc_tools;
 
     int new_tool;
     int active_tool;
