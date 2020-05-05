@@ -282,11 +282,10 @@ std::string Kernel::get_query_string()
 	}
 
     // current tool number and tool offset
-    void *returned_tool;
-    ok = PublicData::get_value( atc_handler_checksum, get_active_tool_checksum, &returned_tool );
+    struct tool_status tool;
+    ok = PublicData::get_value( atc_handler_checksum, get_tool_status_checksum, &tool );
     if (ok) {
-    	struct atc_tool tool =  *static_cast<struct atc_tool *>(returned_tool);
-        n= snprintf(buf, sizeof(buf), "|T:%d,%1.3f", tool.num, tool.tool_offset);
+        n= snprintf(buf, sizeof(buf), "|T:%d,%1.3f", tool.active_tool, tool.tool_offset);
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
     }

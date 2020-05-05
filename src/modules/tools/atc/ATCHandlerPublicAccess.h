@@ -5,13 +5,13 @@
 #include <string>
 
 #define atc_handler_checksum   		CHECKSUM("atc_handler")
-#define get_active_tool_checksum    CHECKSUM("get_active_tool")
+#define get_tool_status_checksum    CHECKSUM("get_tool_status")
+#define set_ref_tool_mz_checksum	CHECKSUM("set_ref_tool_mz")
 
-struct atc_tool {
-	int num;
-	float mx_mm;
-	float my_mm;
-	float mz_mm;
+struct tool_status {
+	int active_tool;
+	float cur_tool_mz;
+	float ref_tool_mz;
 	float tool_offset;
 };
 

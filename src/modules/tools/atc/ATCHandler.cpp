@@ -30,8 +30,9 @@
 #include "libs/SerialMessage.h"
 #include "libs/StreamOutput.h"
 #include "modules/utils/player/PlayerPublicAccess.h"
-#include "FileStream.h"
+#include "ATCHandlerPublicAccess.h"
 
+#include "FileStream.h"
 #include <math.h>
 
 #define ATC_AXIS 4
@@ -65,14 +66,20 @@
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
 
 #define probe_checksum				CHECKSUM("probe")
+#define fast_rate_mm_m_checksum		CHECKSUM("fast_rate_mm_m")
+#define slow_rate_mm_m_checksum		CHECKSUM("slow_rate_mm_m")
+#define retract_mm_checksum			CHECKSUM("retract_mm")
 
 ATCHandler::ATCHandler()
 {
 	new_tool = 0;
     atc_status = NONE;
-    atc_home_info.homed = false;
+    atc_home_info.clamp_status = UNHOMED;
     atc_home_info.triggered = false;
     detector_info.triggered = false;
+    ref_tool_mz = 0.0;
+    cur_tool_mz = 0.0;
+    tool_offset = 0.0;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -131,23 +138,28 @@ void ATCHandler::fill_pick_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	// move around to see if tool rack is empty, halt if not
 	// this->script_queue.push("M492.2");
+
 }
 
 void ATCHandler::fill_cali_scripts() {
 	char buff[100];
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	this->script_queue.push(buff);
 	// move x and y to calibrate position
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", probe_mx_mm, probe_my_mm);
-
+	this->script_queue.push(buff);
 	// do calibrate with fast speed
-	this->script_queue.push("G91 G38.2 Z-100 F200");
+	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", probe_mz_mm, probe_fast_rate);
+	this->script_queue.push(buff);
 	// lift a bit
-	this->script_queue.push("G91 G38.2 Z-100 F200");
+	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	this->script_queue.push(buff);
 	// do calibrate with slow speed
-	this->script_queue.push("G91 G38.2 Z-100 F200");
+	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
+	this->script_queue.push(buff);
 	// save new tool offset
-
+	this->script_queue.push("M493");
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -196,6 +208,9 @@ void ATCHandler::on_config_reload(void *argument)
 	probe_mx_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mx_mm_checksum)->by_default(-10  )->as_number();
 	probe_my_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, my_mm_checksum)->by_default(-10  )->as_number();
 	probe_mz_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mz_mm_checksum)->by_default(-10  )->as_number();
+	probe_fast_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, fast_rate_mm_m_checksum)->by_default(300  )->as_number();
+	probe_slow_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, slow_rate_mm_m_checksum)->by_default(60   )->as_number();
+	probe_retract_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, retract_mm_checksum)->by_default(2   )->as_number();
 
 	atc_tools.clear();
 	for (int i = 0; i <=  tool_number; i ++) {
@@ -214,6 +229,7 @@ void ATCHandler::on_halt(void* argument)
 {
     if(argument == nullptr && this->atc_status != NONE ) {
         this->atc_status = NONE;
+        this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
         this->set_inner_playing(false);
 	}
@@ -300,7 +316,7 @@ void ATCHandler::home_clamp()
     THECONVEYOR->wait_for_idle();
 
     atc_home_info.triggered = false;
-    atc_home_info.homed = false;
+    atc_home_info.clamp_status = UNHOMED;
     debounce = 0;
     atc_homing = true;
 
@@ -332,13 +348,17 @@ void ATCHandler::home_clamp()
 	// wait for it
 	THECONVEYOR->wait_for_idle();
 
-	atc_home_info.homed = true;
+	atc_home_info.clamp_status = CLAMPED;
 
 }
 
 void ATCHandler::clamp_tool()
 {
-	if (!atc_home_info.homed) {
+	if (atc_home_info.clamp_status == CLAMPED) {
+		THEKERNEL->streams->printf("Already clamped!\n");
+		return;
+	}
+	if (atc_home_info.clamp_status == UNHOMED) {
 		home_clamp();
 	}
 	float delta[ATC_AXIS + 1];
@@ -347,11 +367,17 @@ void ATCHandler::clamp_tool()
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	// change clamp status
+	atc_home_info.clamp_status = CLAMPED;
 }
 
 void ATCHandler::loose_tool()
 {
-	if (!atc_home_info.homed) {
+	if (atc_home_info.clamp_status == LOOSED) {
+		THEKERNEL->streams->printf("Already loosed!\n");
+		return;
+	}
+	if (atc_home_info.clamp_status == UNHOMED) {
 		home_clamp();
 	}
 	float delta[ATC_AXIS + 1];
@@ -360,6 +386,24 @@ void ATCHandler::loose_tool()
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	// change clamp status
+	atc_home_info.clamp_status = LOOSED;
+}
+
+void ATCHandler::set_tool_offset()
+{
+    float px, py, pz;
+    uint8_t ps;
+    std::tie(px, py, pz, ps) = THEROBOT->get_last_probe_position();
+    if (ps == 1) {
+        cur_tool_mz = THEROBOT->from_millimeters(pz);
+        if (ref_tool_mz < 0) {
+        	tool_offset = cur_tool_mz - ref_tool_mz;
+        	const float offset[3] = {0.0, 0.0, tool_offset};
+        	THEROBOT->setToolOffset(offset);
+        }
+    }
+
 }
 
 void ATCHandler::on_gcode_received(void *argument)
@@ -442,10 +486,17 @@ void ATCHandler::on_gcode_received(void *argument)
 
 				}
 			}
+		} else if (gcode->m == 493) {
+			//
+			set_tool_offset();
 		} else if ( gcode->m == 499) {
-			THEKERNEL->streams->printf("probe -- mx:%1.1f my:%1.1f mz:%1.1f\n", probe_mx_mm, probe_my_mm, probe_mz_mm);
-			for (int i = 0; i <=  tool_number; i ++) {
-				THEKERNEL->streams->printf("tool%d -- mx:%1.1f my:%1.1f mz:%1.1f offset:%1.3f\n", atc_tools[i].num, atc_tools[i].mx_mm, atc_tools[i].my_mm, atc_tools[i].mz_mm, atc_tools[i].tool_offset);
+			if (gcode->subcode == 0 || gcode->subcode == 1) {
+				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
+			} else if (gcode->subcode == 2) {
+				THEKERNEL->streams->printf("probe -- mx:%1.1f my:%1.1f mz:%1.1f\n", probe_mx_mm, probe_my_mm, probe_mz_mm);
+				for (int i = 0; i <=  tool_number; i ++) {
+					THEKERNEL->streams->printf("tool%d -- mx:%1.1f my:%1.1f mz:%1.1f\n", atc_tools[i].num, atc_tools[i].mx_mm, atc_tools[i].my_mm, atc_tools[i].mz_mm);
+				}
 			}
 		}
     }
@@ -493,9 +544,13 @@ void ATCHandler::on_get_public_data(void* argument)
 
     if(!pdr->starts_with(atc_handler_checksum)) return;
 
-    if(pdr->second_element_is(get_active_tool_checksum)) {
+    if(pdr->second_element_is(get_tool_status_checksum)) {
     	if (this->active_tool >= 0) {
-    		pdr->set_data_ptr(&atc_tools[this->active_tool]);
+            struct tool_status *t= static_cast<tool_status*>(pdr->get_data_ptr());
+            t->active_tool = this->active_tool;
+            t->ref_tool_mz = this->ref_tool_mz;
+            t->cur_tool_mz = this->cur_tool_mz;
+            t->tool_offset = this->tool_offset;
             pdr->set_taken();
     	}
     }
@@ -506,6 +561,12 @@ void ATCHandler::on_set_public_data(void* argument)
     PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
 
     if(!pdr->starts_with(atc_handler_checksum)) return;
+
+    if(pdr->second_element_is(set_ref_tool_mz_checksum)) {
+        this->ref_tool_mz = cur_tool_mz;
+        this->tool_offset = 0.0;
+        pdr->set_taken();
+    }
 }
 
 bool ATCHandler::get_inner_playing() const

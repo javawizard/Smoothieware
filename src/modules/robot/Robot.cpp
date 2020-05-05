@@ -34,6 +34,7 @@
 #include "GcodeDispatch.h"
 #include "ActuatorCoordinates.h"
 #include "EndstopsPublicAccess.h"
+#include "ATCHandlerPublicAccess.h"
 
 #include "mbed.h" // for us_ticker_read()
 #include "mri.h"
@@ -541,6 +542,10 @@ void Robot::on_gcode_received(void *argument)
                             }
                         }
                         wcs_offsets[n] = wcs_t(x, y, z);
+                        // notify atc module to change ref tool mcs if Z wcs offset is chaned
+                        if (gcode->has_letter('Z')) {
+                        	PublicData::set_value(atc_handler_checksum, set_ref_tool_mz_checksum, nullptr);
+                        }
                     }
                 }
                 break;

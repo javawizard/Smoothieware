@@ -7,8 +7,6 @@ using namespace std;
 #include <queue>
 #include "Pin.h"
 
-#include "ATCHandlerPublicAccess.h"
-
 class ATCHandler : public Module
 {
 public:
@@ -33,6 +31,12 @@ private:
 		CALI, // M???
     } ATC_STATUS;
 
+    typedef enum {
+    	UNHOMED,	// need to home first
+		CLAMPED,	// status after home or clamp
+		LOOSED,		// status after loose
+    } CLAMP_STATUS;
+
     ATC_STATUS atc_status;
 
     uint32_t read_endstop(uint32_t dummy);
@@ -48,6 +52,9 @@ private:
 
     void set_inner_playing(bool inner_playing);
     bool get_inner_playing() const;
+
+    // set tool offset afteer calibrating
+    void set_tool_offset();
 
     void fill_drop_scripts();
     void fill_pick_scripts();
@@ -72,7 +79,7 @@ private:
 
         struct {
             bool triggered:1;
-            bool homed:1;
+            CLAMP_STATUS clamp_status;
         };
     };
     atc_homing_info_t atc_home_info;
@@ -92,12 +99,27 @@ private:
     float probe_mx_mm;
     float probe_my_mm;
     float probe_mz_mm;
+    float probe_fast_rate;
+    float probe_slow_rate;
+    float probe_retract_mm;
+
+    struct atc_tool {
+    	int num;
+    	float mx_mm;
+    	float my_mm;
+    	float mz_mm;
+    };
 
     vector<struct atc_tool> atc_tools;
 
     int new_tool;
     int active_tool;
     int tool_number;
+
+    float ref_tool_mz;
+    float cur_tool_mz;
+    float tool_offset;
+
 };
 
 #endif /* _ATCHANDLER_H */
