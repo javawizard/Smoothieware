@@ -545,6 +545,7 @@ void Robot::on_gcode_received(void *argument)
                         // notify atc module to change ref tool mcs if Z wcs offset is chaned
                         if (gcode->has_letter('Z')) {
                         	PublicData::set_value(atc_handler_checksum, set_ref_tool_mz_checksum, nullptr);
+                        	this->clearToolOffset();
                         }
                     }
                 }

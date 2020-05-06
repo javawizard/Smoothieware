@@ -28,7 +28,8 @@ private:
         FULL, // M6T?
         DROP, // M6T-1
         PICK, // M6T?
-		CALI, // M???
+		CALI, // M491
+		PROBE,// M494
     } ATC_STATUS;
 
     typedef enum {
@@ -56,9 +57,13 @@ private:
     // set tool offset afteer calibrating
     void set_tool_offset();
 
+    //
     void fill_drop_scripts();
     void fill_pick_scripts();
     void fill_cali_scripts();
+
+    //
+    void fill_zprobe_scripts();
 
     void clear_script_queue();
 
@@ -102,6 +107,7 @@ private:
     float probe_fast_rate;
     float probe_slow_rate;
     float probe_retract_mm;
+    float probe_height_mm;
 
     struct atc_tool {
     	int num;

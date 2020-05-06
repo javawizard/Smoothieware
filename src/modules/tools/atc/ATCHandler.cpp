@@ -69,6 +69,7 @@
 #define fast_rate_mm_m_checksum		CHECKSUM("fast_rate_mm_m")
 #define slow_rate_mm_m_checksum		CHECKSUM("slow_rate_mm_m")
 #define retract_mm_checksum			CHECKSUM("retract_mm")
+#define probe_height_mm_checksum	CHECKSUM("probe_height_mm")
 
 ATCHandler::ATCHandler()
 {
@@ -167,6 +168,25 @@ void ATCHandler::fill_cali_scripts() {
 	// goto saved position
 }
 
+void ATCHandler::fill_zprobe_scripts() {
+	char buff[100];
+	// do calibrate with fast speed
+	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", probe_mz_mm, probe_fast_rate);
+	this->script_queue.push(buff);
+	// lift a bit
+	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	this->script_queue.push(buff);
+	// do calibrate with slow speed
+	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
+	this->script_queue.push(buff);
+	// set z working coordinate
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%f", probe_height_mm);
+	this->script_queue.push(buff);
+	// retract z a bit
+	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	this->script_queue.push(buff);
+}
+
 void ATCHandler::on_module_loaded()
 {
 
@@ -211,6 +231,7 @@ void ATCHandler::on_config_reload(void *argument)
 	probe_fast_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, fast_rate_mm_m_checksum)->by_default(300  )->as_number();
 	probe_slow_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, slow_rate_mm_m_checksum)->by_default(60   )->as_number();
 	probe_retract_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, retract_mm_checksum)->by_default(2   )->as_number();
+	probe_height_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, probe_height_mm_checksum)->by_default(0   )->as_number();
 
 	atc_tools.clear();
 	for (int i = 0; i <=  tool_number; i ++) {
@@ -470,7 +491,6 @@ void ATCHandler::on_gcode_received(void *argument)
             this->clear_script_queue();
             atc_status = CALI;
     	    this->fill_cali_scripts();
-			set_inner_playing(true);
 		} else if (gcode->m == 492) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// check true
@@ -489,7 +509,13 @@ void ATCHandler::on_gcode_received(void *argument)
 		} else if (gcode->m == 493) {
 			//
 			set_tool_offset();
-		} else if ( gcode->m == 499) {
+		} else if (gcode->m == 494) {
+            THEROBOT->push_state();
+			set_inner_playing(true);
+            this->clear_script_queue();
+            atc_status = PROBE;
+    	    this->fill_zprobe_scripts();
+		}else if ( gcode->m == 499) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
 			} else if (gcode->subcode == 2) {
