@@ -185,7 +185,6 @@ bool ZProbe::run_probe(float& mm, float feedrate, float max_dist, bool reverse)
         // probe already triggered so abort
         return false;
     }
-
     float maxz= max_dist < 0 ? this->max_z*2 : max_dist;
 
     probing= true;

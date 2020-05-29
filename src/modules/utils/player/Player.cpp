@@ -78,6 +78,8 @@ void Player::on_module_loaded()
 
 void Player::on_halt(void* argument)
 {
+    this->clear_buffered_queue();
+
     if(argument == nullptr && this->playing_file ) {
         abort_command("1", &(StreamOutput::NullStream));
 	}
@@ -273,7 +275,16 @@ void Player::on_console_line_received( void *argument )
         this->suspend_command( possible_command, new_message.stream );
     }else if (cmd == "resume") {
         this->resume_command( possible_command, new_message.stream );
+    }else if (cmd == "buffer") {
+    	this->buffer_command( possible_command, new_message.stream );
     }
+}
+
+// Buffer gcode to queue
+void Player::buffer_command( string parameters, StreamOutput *stream )
+{
+	this->buffered_queue.push(parameters);
+	stream->printf("Command buffered: %s\r\n", parameters.c_str());
 }
 
 // Play a gcode file by considering each line as if it was received on the serial console
@@ -381,6 +392,7 @@ void Player::abort_command( string parameters, StreamOutput *stream )
     played_cnt = 0;
     played_lines = 0;
     file_size = 0;
+    this->clear_buffered_queue();
     this->filename = "";
     this->current_stream = NULL;
     fclose(current_file_handler);
@@ -394,6 +406,12 @@ void Player::abort_command( string parameters, StreamOutput *stream )
         THEROBOT->reset_position_from_current_actuator_position();
         stream->printf("Aborted playing or paused file. Please turn any heaters off manually\r\n");
     }
+}
+
+void Player::clear_buffered_queue(){
+	while (!this->buffered_queue.empty()) {
+		this->buffered_queue.pop();
+	}
 }
 
 void Player::on_main_loop(void *argument)
@@ -417,6 +435,19 @@ void Player::on_main_loop(void *argument)
 
     if( this->playing_file ) {
         if(THEKERNEL->is_halted() || this->inner_playing) {
+            return;
+        }
+
+        // check if there are bufferd command
+        while (!this->buffered_queue.empty()) {
+        	THEKERNEL->streams->printf("%s\r\n", this->buffered_queue.front().c_str());
+			struct SerialMessage message;
+			message.message = this->buffered_queue.front();
+			message.stream = THEKERNEL->streams;
+			this->buffered_queue.pop();
+
+			// waits for the queue to have enough room
+			THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
             return;
         }
 

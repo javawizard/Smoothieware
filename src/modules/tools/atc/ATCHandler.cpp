@@ -81,6 +81,9 @@ ATCHandler::ATCHandler()
     ref_tool_mz = 0.0;
     cur_tool_mz = 0.0;
     tool_offset = 0.0;
+    last_pos[0] = 0.0;
+    last_pos[1] = 0.0;
+    last_pos[2] = 0.0;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -444,6 +447,7 @@ void ATCHandler::on_gcode_received(void *argument)
             	if (new_tool != active_tool) {
                     // push old state
                     THEROBOT->push_state();
+                    THEROBOT->get_axis_position(last_pos, 3);
                     set_inner_playing(true);
                     this->clear_script_queue();
                 	if (this->active_tool < 0) {
@@ -487,6 +491,7 @@ void ATCHandler::on_gcode_received(void *argument)
 		} else if (gcode->m == 491) {
 			// do calibrate
             THEROBOT->push_state();
+            THEROBOT->get_axis_position(last_pos, 3);
             set_inner_playing(true);
             this->clear_script_queue();
             atc_status = CALI;
@@ -515,7 +520,9 @@ void ATCHandler::on_gcode_received(void *argument)
             this->clear_script_queue();
             atc_status = PROBE;
     	    this->fill_zprobe_scripts();
-		}else if ( gcode->m == 499) {
+		} else if (gcode->m == 495) {
+
+		} else if ( gcode->m == 499) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
 			} else if (gcode->subcode == 2) {
@@ -553,15 +560,59 @@ void ATCHandler::on_main_loop(void *argument)
     		this->active_tool = this->new_tool;
         }
 		set_inner_playing(false);
-        this->atc_status = NONE;
         // save to config file to persist data
 		// TODO
+
+		if (this->atc_status != PROBE) {
+	        // return to saved x and y position
+	        rapid_move(last_pos[0], last_pos[1], NAN);
+
+	        // return to saved z position
+	        // rapid_move(NAN, NAN, last_pos[2]);
+		}
+
+        this->atc_status = NONE;
+
         // pop old state
         THEROBOT->pop_state();
 
 		// if we were printing from an M command from pronterface we need to send this back
 		THEKERNEL->streams->printf("Done ATC\r\n");
     }
+}
+
+// issue a coordinated move directly to robot, and return when done
+// Only move the coordinates that are passed in as not nan
+// NOTE must use G53 to force move in machine coordinates and ignore any WCS offsets
+void ATCHandler::rapid_move(float x, float y, float z)
+{
+    #define CMDLEN 128
+    char *cmd= new char[CMDLEN]; // use heap here to reduce stack usage
+
+    strcpy(cmd, "G53 G0 "); // G53 forces movement in machine coordinate system
+
+    if(!isnan(x)) {
+        size_t n= strlen(cmd);
+        snprintf(&cmd[n], CMDLEN-n, " X%1.3f", x);
+    }
+    if(!isnan(y)) {
+        size_t n= strlen(cmd);
+        snprintf(&cmd[n], CMDLEN-n, " Y%1.3f", y);
+    }
+    if(!isnan(z)) {
+        size_t n= strlen(cmd);
+        snprintf(&cmd[n], CMDLEN-n, " Z%1.3f", z);
+    }
+
+    // send as a command line as may have multiple G codes in it
+    struct SerialMessage message;
+    message.message = cmd;
+    delete [] cmd;
+
+    message.stream = &(StreamOutput::NullStream);
+    THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
+    THEKERNEL->conveyor->wait_for_idle();
+
 }
 
 void ATCHandler::on_get_public_data(void* argument)

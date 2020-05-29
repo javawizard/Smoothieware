@@ -280,7 +280,7 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "config-load"){
             THEKERNEL->configurator->config_load_command(  possible_command, new_message.stream );
 
-        } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume") {
+        } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume" || cmd == "buffer") {
             // these are handled by Player module
 
         } else if (cmd == "fire") {

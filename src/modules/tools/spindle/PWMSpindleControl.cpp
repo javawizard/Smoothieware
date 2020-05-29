@@ -20,6 +20,7 @@
 #include "utils.h"
 
 #include "libs/Pin.h"
+#include "Gcode.h"
 #include "InterruptIn.h"
 #include "PwmOut.h"
 #include "port_api.h"
@@ -36,6 +37,8 @@
 #define spindle_control_I_checksum          CHECKSUM("control_I")
 #define spindle_control_D_checksum          CHECKSUM("control_D")
 #define spindle_control_smoothing_checksum  CHECKSUM("control_smoothing")
+#define spindle_delay_s_checksum			CHECKSUM("delay_s")
+#define spindle_acc_ratio_checksum			CHECKSUM("acc_ratio")
 
 #define UPDATE_FREQ 100
 
@@ -61,6 +64,9 @@ void PWMSpindleControl::on_module_loaded()
     control_P_term = THEKERNEL->config->value(spindle_checksum, spindle_control_P_checksum)->by_default(0.0001f)->as_number();
     control_I_term = THEKERNEL->config->value(spindle_checksum, spindle_control_I_checksum)->by_default(0.0001f)->as_number();
     control_D_term = THEKERNEL->config->value(spindle_checksum, spindle_control_D_checksum)->by_default(0.0001f)->as_number();
+
+    delay_s        = THEKERNEL->config->value(spindle_checksum, spindle_delay_s_checksum)->by_default(3)->as_number();
+    acc_ratio      = THEKERNEL->config->value(spindle_checksum, spindle_acc_ratio_checksum)->by_default(1.0f)->as_number();
 
     // Smoothing value is low pass filter time constant in seconds.
     float smoothing_time = THEKERNEL->config->value(spindle_checksum, spindle_control_smoothing_checksum)->by_default(0.1f)->as_number();
@@ -142,7 +148,7 @@ uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
     if (t == 0) {
         current_rpm = 0;
     } else {
-        float new_rpm = 1000000 * 60.0f / t;
+        float new_rpm = 1000000 * acc_ratio * 60.0f / t;
         current_rpm = smoothing_decay * new_rpm + (1.0f - smoothing_decay) * current_rpm;
     }
 
@@ -177,10 +183,26 @@ uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
 
 void PWMSpindleControl::turn_on() {
     spindle_on = true;
+    if (delay_s > 0) {
+        char buf[80];
+        size_t n = snprintf(buf, sizeof(buf), "G4P%d", delay_s);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        string g(buf, n);
+        Gcode gcode(g, &(StreamOutput::NullStream));
+        THEKERNEL->call_event(ON_GCODE_RECEIVED, &gcode);
+    }
 }
 
 void PWMSpindleControl::turn_off() {
     spindle_on = false;
+    if (delay_s > 0) {
+        char buf[80];
+        size_t n = snprintf(buf, sizeof(buf), "G4P%d", delay_s);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        string g(buf, n);
+        Gcode gcode(g, &(StreamOutput::NullStream));
+        THEKERNEL->call_event(ON_GCODE_RECEIVED, &gcode);
+    }
 }
 
 

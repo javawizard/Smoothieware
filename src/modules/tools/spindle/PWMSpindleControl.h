@@ -51,6 +51,8 @@ class PWMSpindleControl: public SpindleControl {
         float control_D_term;
         float smoothing_decay;
         float max_pwm;
+        int   delay_s;
+        float acc_ratio;
 
         // These fields are updated by the interrupt
         uint32_t last_edge; // Timestamp of last edge

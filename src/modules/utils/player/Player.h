@@ -14,6 +14,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <queue>
 using std::string;
 
 class StreamOutput;
@@ -37,6 +38,7 @@ class Player : public Module {
         void abort_command( string parameters, StreamOutput* stream );
         void suspend_command( string parameters, StreamOutput* stream );
         void resume_command( string parameters, StreamOutput* stream );
+        void buffer_command( string parameters, StreamOutput* stream );
         string extract_options(string& args);
         void suspend_part2();
 
@@ -46,6 +48,9 @@ class Player : public Module {
         string on_boot_gcode;
         StreamOutput* current_stream;
         StreamOutput* reply_stream;
+
+        std::queue<string> buffered_queue;
+        void clear_buffered_queue();
 
         FILE* current_file_handler;
         long file_size;

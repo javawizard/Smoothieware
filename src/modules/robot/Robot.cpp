@@ -513,6 +513,11 @@ void Robot::on_gcode_received(void *argument)
                     if(n < MAX_WCS) {
                         float x, y, z;
                         std::tie(x, y, z) = wcs_offsets[n];
+                        // notify atc module to change ref tool mcs if Z wcs offset is chaned
+                        if (gcode->has_letter('Z')) {
+                        	PublicData::set_value(atc_handler_checksum, set_ref_tool_mz_checksum, nullptr);
+                        	this->clearToolOffset();
+                        }
                         if(gcode->get_int('L') == 20) {
                             // this makes the current machine position (less compensation transform) the offset
                             // get current position in WCS
@@ -530,6 +535,10 @@ void Robot::on_gcode_received(void *argument)
                             }
 
                         } else {
+                            if(gcode->has_letter('X')) x = to_millimeters(gcode->get_value('X'));
+                            if(gcode->has_letter('Y')) y = to_millimeters(gcode->get_value('Y'));
+                            if(gcode->has_letter('Z')) z = to_millimeters(gcode->get_value('Z'));
+                            /*
                             if(absolute_mode) {
                                 // the value is the offset from machine zero
                                 if(gcode->has_letter('X')) x = to_millimeters(gcode->get_value('X'));
@@ -539,14 +548,10 @@ void Robot::on_gcode_received(void *argument)
                                 if(gcode->has_letter('X')) x += to_millimeters(gcode->get_value('X'));
                                 if(gcode->has_letter('Y')) y += to_millimeters(gcode->get_value('Y'));
                                 if(gcode->has_letter('Z')) z += to_millimeters(gcode->get_value('Z'));
-                            }
+                            }*/
                         }
                         wcs_offsets[n] = wcs_t(x, y, z);
-                        // notify atc module to change ref tool mcs if Z wcs offset is chaned
-                        if (gcode->has_letter('Z')) {
-                        	PublicData::set_value(atc_handler_checksum, set_ref_tool_mz_checksum, nullptr);
-                        	this->clearToolOffset();
-                        }
+
                     }
                 }
                 break;

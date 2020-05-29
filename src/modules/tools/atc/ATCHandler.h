@@ -67,6 +67,8 @@ private:
 
     void clear_script_queue();
 
+    void rapid_move(float x, float y, float z);
+
     std::queue<string> script_queue;
 
     uint16_t debounce;
@@ -108,6 +110,8 @@ private:
     float probe_slow_rate;
     float probe_retract_mm;
     float probe_height_mm;
+
+    float last_pos[3];
 
     struct atc_tool {
     	int num;

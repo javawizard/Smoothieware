@@ -392,7 +392,7 @@ bool CartGridStrategy::handleGcode(Gcode *gcode)
             if(!doProbe(gcode)) {
                 gcode->stream->printf("Probe failed to complete, check the initial probe height and/or initial_height settings\n");
             } else {
-                gcode->stream->printf("Probe completed. Enter M374 to save this grid\n");
+                gcode->stream->printf("Probe completed.\n");
             }
             THEROBOT->disable_segmentation= false;
 
@@ -505,9 +505,9 @@ bool CartGridStrategy::findBed(float x, float y)
     }
     zprobe->coordinated_move(x - X_PROBE_OFFSET_FROM_EXTRUDER, y - Y_PROBE_OFFSET_FROM_EXTRUDER, NAN, zprobe->getFastFeedrate()); // move at initial_height to x, y
 
-    // find bed at 0,0 run at slow rate so as to not hit bed hard
+    // find bed at 0,0 run at fast feed rate
     float mm;
-    if(!zprobe->run_probe_return(mm, zprobe->getSlowFeedrate())) return false;
+    if(!zprobe->run_probe_return(mm, zprobe->getFastFeedrate())) return false;
 
     // leave head probe_height above bed
     float dz = zprobe->getProbeHeight() - mm;
@@ -579,7 +579,7 @@ bool CartGridStrategy::doProbe(Gcode *gc)
         if(gc->get_int('R') == 1) {
             only_by_two_corners= true;
             use_wcs= true;
-            gc->stream->printf("NOTE: only by two corners mode using current position for start, offset by XY\n");
+            gc->stream->printf("Leveling start, offset by XY\n");
         }else{
             only_by_two_corners= false;
         }
