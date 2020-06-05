@@ -172,6 +172,7 @@ std::map<char,int> Gcode::get_args_int() const
 void Gcode::prepare_cached_values(bool strip)
 {
     char *p= nullptr;
+
     if( this->has_letter('G') ) {
         this->has_g = true;
         this->g = this->get_int('G', &p);
@@ -188,6 +189,7 @@ void Gcode::prepare_cached_values(bool strip)
         this->has_m = false;
     }
 
+
     if(has_g || has_m) {
         // look for subcode and extract it
         if(p != nullptr && *p == '.') {
@@ -198,7 +200,7 @@ void Gcode::prepare_cached_values(bool strip)
         }
     }
 
-    if(!strip) return;
+    if(!strip || this->has_letter('T')) return;
 
     // remove the Gxxx or Mxxx from string
     if (p != nullptr) {

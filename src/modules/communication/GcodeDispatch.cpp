@@ -143,7 +143,7 @@ try_again:
                 // assumes G or M are always the first on the line
                 size_t nextcmd = possible_command.find_first_of("GM", 2);
                 string single_command;
-                if(nextcmd == string::npos) {
+                if(nextcmd == string::npos || first_char == 'T') {
                     single_command = possible_command;
                     possible_command = "";
                 } else {
@@ -378,7 +378,7 @@ try_again:
                         }
                     }
 
-                    //printf("dispatch %p: '%s' G%d M%d...", gcode, gcode->command.c_str(), gcode->g, gcode->m);
+                    // new_message.stream->printf("dispatch gcode command: '%s' G%d M%d...", gcode->get_command(), gcode->g, gcode->m);
                     //Dispatch message!
                     THEKERNEL->call_event(ON_GCODE_RECEIVED, gcode );
 

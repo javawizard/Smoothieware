@@ -435,7 +435,9 @@ void ATCHandler::on_gcode_received(void *argument)
     Gcode *gcode = static_cast<Gcode*>(argument);
 
     if (gcode->has_m) {
+    	// gcode->stream->printf("Has m: %d\r\n", gcode->m);
     	if (gcode->m == 6 && gcode->has_letter('T')) {
+    		// gcode->stream->printf("Has t\r\n");
     		if (atc_status != NONE) {
     			gcode->stream->printf("ATC already begun\r\n");
     			return;

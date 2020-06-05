@@ -335,6 +335,10 @@ void Player::play_command( string parameters, StreamOutput *stream )
     this->played_cnt = 0;
     this->played_lines = 0;
     this->elapsed_secs = 0;
+
+    // force into absolute mode
+    THEROBOT->absolute_mode = true;
+    THEROBOT->e_absolute_mode = true;
 }
 
 void Player::progress_command( string parameters, StreamOutput *stream )
