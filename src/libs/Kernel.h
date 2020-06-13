@@ -57,6 +57,9 @@ class Kernel {
         void set_bad_mcu(bool b) { bad_mcu= b; }
         bool is_bad_mcu() const { return bad_mcu; }
 
+        void set_uploading(bool f) { uploading = f; }
+        bool is_uploading() const { return uploading; }
+
         std::string get_query_string();
 
         // These modules are available to all other modules
@@ -85,8 +88,9 @@ class Kernel {
             bool grbl_mode:1;
             bool feed_hold:1;
             bool ok_per_line:1;
-            bool enable_feed_hold:1;
+            volatile bool enable_feed_hold:1;
             bool bad_mcu:1;
+            volatile bool uploading:1;
         };
 
 };

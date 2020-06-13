@@ -552,8 +552,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     int cnt = 0;
-    bool uploading = true;
-    while(uploading) {
+    THEKERNEL->set_uploading(true);
+    while(THEKERNEL->is_uploading()) {
         if(!stream->ready()) {
             // we need to kick things or they die
             THEKERNEL->call_event(ON_IDLE);
@@ -562,7 +562,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 
         char c = stream->_getc();
         if( c == 4 || c == 26) { // ctrl-D or ctrl-Z
-            uploading = false;
+        	THEKERNEL->set_uploading(false);
             // close file
             fclose(fd);
             fd = NULL;

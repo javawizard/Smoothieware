@@ -1,0 +1,465 @@
+/*
+ * WifiProvider.cpp
+ *
+ *  Created on: 2020年6月10日
+ *      Author: josh
+ */
+
+#include "WifiProvider.h"
+
+#include "brd_cfg.h"
+#include "M8266HostIf.h"
+
+#include "libs/Module.h"
+#include "libs/Kernel.h"
+#include "SlowTicker.h"
+#include "Tool.h"
+#include "PublicDataRequest.h"
+#include "Config.h"
+#include "StepperMotor.h"
+#include "Robot.h"
+#include "ConfigValue.h"
+#include "Conveyor.h"
+#include "checksumm.h"
+#include "PublicData.h"
+#include "Gcode.h"
+#include "modules/robot/Conveyor.h"
+#include "libs/StreamOutputPool.h"
+#include "libs/StreamOutput.h"
+#include "SwitchPublicAccess.h"
+#include "libs/utils.h"
+
+#include "libs/SerialMessage.h"
+#include "libs/StreamOutput.h"
+
+#include "port_api.h"
+#include "InterruptIn.h"
+
+#include <math.h>
+
+#define wifi_checksum                     CHECKSUM("wifi")
+#define wifi_interrupt_pin_checksum       CHECKSUM("interrupt_pin")
+
+#define RECV_DATA_MAX_SIZE	128
+
+WifiProvider::WifiProvider()
+{
+	tcp_link_no = 0;
+	udp_link_no = 1;
+}
+
+void WifiProvider::on_module_loaded()
+{
+	this->register_for_event(ON_IDLE);
+    this->register_for_event(ON_GCODE_RECEIVED);
+    this->register_for_event(ON_MAIN_LOOP);
+    this->register_for_event(ON_SECOND_TICK);
+
+    // Init Wifi Module
+    this->init_wifi_module(false);
+
+    // Add interrupt for WIFI data receving
+    Pin *smoothie_pin = new Pin();
+    smoothie_pin->from_string(THEKERNEL->config->value(wifi_checksum, wifi_interrupt_pin_checksum)->by_default("nc")->as_string());
+    smoothie_pin->as_input();
+    if (smoothie_pin->port_number == 0 || smoothie_pin->port_number == 2) {
+        PinName pinname = port_pin((PortName)smoothie_pin->port_number, smoothie_pin->pin);
+        wifi_interrupt_pin = new mbed::InterruptIn(pinname);
+        wifi_interrupt_pin->rise(this, &WifiProvider::on_pin_rise);
+        NVIC_SetPriority(EINT3_IRQn, 16);
+    } else {
+        THEKERNEL->streams->printf("Error: Wifi interrupt pin has to be on P0 or P2.\n");
+        delete this;
+        return;
+    }
+    delete smoothie_pin;
+
+    // Add to the pack of streams kernel can call to, for example for broadcasting
+    THEKERNEL->streams->append_stream(this);
+
+    query_flag = false;
+    halt_flag = false;
+}
+
+void WifiProvider::on_pin_rise()
+{
+	// return if is uploading
+	if (!THEKERNEL->is_uploading()) {
+		this->receive_wifi_data();
+	}
+
+}
+
+void WifiProvider::receive_wifi_data() {
+	u8  RecvData[RECV_DATA_MAX_SIZE];
+	u8 link_no;
+	u16 received = 0;
+	u16 status;
+	while (M8266WIFI_SPI_Has_DataReceived())
+	{
+		received = M8266WIFI_SPI_RecvData(RecvData, RECV_DATA_MAX_SIZE, 10, &link_no, &status);
+		if (link_no == udp_link_no) {
+			return;
+		}
+		for (int i = 0; i < received; i ++) {
+	        if(RecvData[i] == '?') {
+	            query_flag = true;
+	            continue;
+	        }
+	        if(RecvData[i] == 'X' - 'A' + 1) { // ^X
+	            halt_flag = true;
+	            continue;
+	        }
+	        if(THEKERNEL->is_feed_hold_enabled()) {
+	            if(RecvData[i] == '!') { // safe pause
+	                THEKERNEL->set_feed_hold(true);
+	                continue;
+	            }
+
+	            if(RecvData[i] == '~') { // safe resume
+	                THEKERNEL->set_feed_hold(false);
+	                continue;
+	            }
+	        }
+	        // convert CR to NL (for host OSs that don't send NL)
+	        if( RecvData[i] == '\r' ) {
+	        	received = '\n';
+	        }
+	        this->buffer.push_back(char(RecvData[i]));
+		}
+		if(received < RECV_DATA_MAX_SIZE) {
+			return;
+		}
+	}
+}
+
+bool WifiProvider::ready() {
+	return M8266WIFI_SPI_Has_DataReceived();
+}
+
+void WifiProvider::on_second_tick(void *)
+{
+	u16 status = 0;
+	char address[15];
+	unsigned char buff[10];
+
+	// send connection info through UDP
+	snprintf((char *)buff, sizeof(buff), "MAKERA-001");
+	snprintf(address, sizeof(address), "192.168.4.255");
+	if (M8266WIFI_SPI_Send_Udp_Data(buff, 8, udp_link_no, address, 1111, &status) < 8) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Send_Udp_Data, ERROR, status: %d!\n", status);
+	}
+}
+
+void WifiProvider::on_idle(void *argument)
+ {
+	if (!THEKERNEL->is_uploading()) {
+		// Need Test first then decide if need to check manually and get buffed data
+		if (M8266WIFI_SPI_Has_DataReceived()) {
+			puts("Received wifi data from idle function!\r\n");
+			receive_wifi_data();
+		}
+	}
+
+	// 	if (!ethernet->isUp()) return;
+    if(query_flag) {
+        query_flag = false;
+        puts(THEKERNEL->get_query_string().c_str());
+    }
+
+    if(halt_flag) {
+        halt_flag = false;
+        THEKERNEL->call_event(ON_HALT, nullptr);
+        if(THEKERNEL->is_grbl_mode()) {
+            puts("ALARM: Abort during cycle\r\n");
+        } else {
+            puts("HALTED, M999 or $X to exit HALT state\r\n");
+        }
+    }
+}
+
+void WifiProvider::on_main_loop(void *argument)
+{
+    if( this->has_char('\n') ){
+        string received;
+        received.reserve(20);
+        while(1){
+           char c;
+           this->buffer.pop_front(c);
+           if( c == '\n' ){
+                struct SerialMessage message;
+                message.message = received;
+                message.stream = this;
+                THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
+                return;
+            }else{
+                received += c;
+            }
+        }
+    }
+}
+
+int WifiProvider::puts(const char* s)
+{
+    size_t n= strlen(s);
+    for (size_t i = 0; i < n; ++i) {
+        _putc(s[i]);
+    }
+    return n;
+}
+
+int WifiProvider::_putc(int c)
+{
+	u8 to_send = c;
+	M8266WIFI_SPI_Send_Data(&to_send, 1024, tcp_link_no, NULL);
+    return 1;
+}
+
+int WifiProvider::_getc()
+{
+	u8 to_recv, link_no;
+	M8266WIFI_SPI_RecvData(&to_recv, 1, 10, &link_no, NULL);
+	return int(to_recv);
+}
+
+// Does the queue have a given char ?
+bool WifiProvider::has_char(char letter) {
+    int index = this->buffer.tail;
+    while( index != this->buffer.head ){
+        if( this->buffer.buffer[index] == letter ){
+            return true;
+        }
+        index = this->buffer.next_block_index(index);
+    }
+    return false;
+}
+
+void WifiProvider::on_gcode_received(void *argument)
+{
+    Gcode *gcode = static_cast<Gcode*>(argument);
+    if (gcode->has_m) {
+    	if (gcode->m == 481)  {
+			if (gcode->subcode == 1) {
+		    	// reset wifi module
+				init_wifi_module(true);
+			} else if (gcode->subcode == 2) {
+				// set 8266 op mode
+				set_wifi_op_mode();
+			} else if (gcode->subcode == 3) {
+				// connect to AP
+			}
+		} else if (gcode->m == 489) {
+			// query wifi status
+			query_wifi_status();
+		}
+    }
+}
+
+void WifiProvider::set_wifi_op_mode() {
+	u16 status = 0;
+	THEKERNEL->streams->printf("M8266WIFI_Config_Connection_via_SPI...\n");
+	if (M8266WIFI_SPI_Set_Opmode(3, 1, &status) == 0) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Opmode, ERROR, status: %d!\n", status);
+	}
+}
+
+void WifiProvider::query_wifi_status() {
+	u16 status = 0;
+	u32 esp8266_id;
+	u8 flash_size;
+	char fw_ver[24] = "";
+	THEKERNEL->streams->printf("M8266WIFI_SPI_Get_Module_Info...\n");
+	if (M8266WIFI_SPI_Get_Module_Info(&esp8266_id, &flash_size, fw_ver, &status) == 0) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Get_Module_Info, ERROR, status: %d!\n", status);
+	} else {
+		THEKERNEL->streams->printf("esp8266_id:%ld, flash_size:%d, fw_ver:%s!\n",  esp8266_id, flash_size, fw_ver);
+	}
+}
+
+void WifiProvider::init_wifi_module(bool reset) {
+	u16 status = 0;
+	char address[15];
+
+	if (reset) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connections...\n");
+		// disconnect current links
+		if (M8266WIFI_SPI_Delete_Connection( udp_link_no, &status) == 0){
+			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection udp, ERROR!\n");
+		}
+		if (M8266WIFI_SPI_Delete_Connection( tcp_link_no, &status) == 0){
+			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection tcp, ERROR!\n");
+		}
+	}
+	THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI...\n");
+	M8266HostIf_Init();
+	if (M8266WIFI_Module_Init_Via_SPI() == 0) {
+		THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI, ERROR!\n");
+	}
+	// init udp and tcp server connection
+	THEKERNEL->streams->printf("Init UDP and TCP connection...\n");
+	// setup TCP Connection
+	snprintf(address, sizeof(address), "192.168.4.2");
+	if (M8266WIFI_SPI_Setup_Connection(2, 2222, address, 0, tcp_link_no, 3, &status) == 0) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection TCP, ERROR, status: %d!\n", status);
+	}
+	// setup UDP Connection
+	snprintf(address, sizeof(address), "192.168.4.2");
+	if (M8266WIFI_SPI_Setup_Connection(0, 1111, address, 0, udp_link_no, 3, &status) == 0) {
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection UDP, ERROR, status: %d!\n", status);
+	}
+
+	// set timeout
+	if( M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout(tcp_link_no, 60, &status) == 0)
+	{
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout, ERROR, status: %d!\n", status);
+	}
+
+}
+
+void WifiProvider::M8266WIFI_Module_delay_ms(u16 nms)
+{
+	u16 i, j;
+	for(i=0; i<nms; i++)
+		for(j=0; j<4; j++)					// delay 1ms. Call 4 times of delay_us(250), as M8266HostIf_delay_us(u8 nus), nus max 255
+			M8266HostIf_delay_us(250);
+}
+
+/************************************************************************************************************************
+ * M8266WIFI_Module_Hardware_Reset                                                                                      *
+ * Description                                                                                                          *
+ *    1. To perform a hardware reset to M8266WIFI module via the nReset Pin                                             *
+ *       and bring M8266WIFI module to boot up from external SPI flash                                                  *
+ *    2. In order to make sure the M8266WIFI module bootup from external                                                *
+ *       SPI flash, nCS should be low during Reset out via nRESET pin                                                   *
+ * Parameter(s):                                                                                                        *
+ *    none                                                                                                              *
+ * Return:                                                                                                              *
+ *    none                                                                                                              *
+ ************************************************************************************************************************/
+void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chinese: 本例子中这个函数的总共执行时间大约800毫秒)
+{
+	M8266HostIf_Set_SPI_nCS_Pin(0);   			// Module nCS==ESP8266 GPIO15 as well, Low during reset in order for a normal reset (Chinese: 为了实现正常复位，模块的片选信号nCS在复位期间需要保持拉低)
+	M8266WIFI_Module_delay_ms(1); 	    		// delay 1ms, adequate for nCS stable (Chinese: 延迟1毫秒，确保片选nCS设置后有足够的时间来稳定)
+
+	M8266HostIf_Set_nRESET_Pin(0);					// Pull low the nReset Pin to bring the module into reset state (Chinese: 拉低nReset管脚让模组进入复位状态)
+	M8266WIFI_Module_delay_ms(5);      		// delay 5ms, adequate for nRESET stable(Chinese: 延迟5毫秒，确保片选nRESER设置后有足够的时间来稳定，也确保nCS和nRESET有足够的时间同时处于低电平状态)
+	                                        // give more time especially for some board not good enough
+	                                        //(Chinese: 如果主板不是很好，导致上升下降过渡时间较长，或者因为失配存在较长的振荡时间，所以信号到轨稳定的时间较长，那么在这里可以多给一些延时)
+
+	M8266HostIf_Set_nRESET_Pin(1);					// Pull high again the nReset Pin to bring the module exiting reset state (Chinese: 拉高nReset管脚让模组退出复位状态)
+	M8266WIFI_Module_delay_ms(300); 	  		// at least 18ms required for reset-out-boot sampling boottrap pin (Chinese: 至少需要18ms的延时来确保退出复位时足够的boottrap管脚采样时间)
+	                                        // Here, we use 300ms for adequate abundance, since some board GPIO, (Chinese: 在这里我们使用了300ms的延时来确保足够的富裕量，这是因为在某些主板上，)
+																					// needs more time for stable(especially for nRESET) (Chinese: 他们的GPIO可能需要较多的时间来输出稳定，特别是对于nRESET所对应的GPIO输出)
+																					// You may shorten the time or give more time here according your board v.s. effiency
+																					// (Chinese: 如果你的主机板在这里足够好，你可以缩短这里的延时来缩短复位周期；反之则需要加长这里的延时。
+																					//           总之，你可以调整这里的时间在你们的主机板上充分测试，找到一个合适的延时，确保每次复位都能成功。并适当保持一些富裕量，来兼容批量化时主板的个体性差异)
+	M8266HostIf_Set_SPI_nCS_Pin(1);         // release/pull-high(defualt) nCS upon reset completed (Chinese: 释放/拉高(缺省)片选信号
+	//M8266WIFI_Module_delay_ms(1); 	    		// delay 1ms, adequate for nCS stable (Chinese: 延迟1毫秒，确保片选nCS设置后有足够的时间来稳定)
+
+	M8266WIFI_Module_delay_ms(800-300-5-2); // Delay more than around 500ms for M8266WIFI module bootup and initialization，including bootup information print。No influence to host interface communication. Could be shorten upon necessary. But test for verification required if adjusted.
+	                                        // (Chinese: 延迟大约500毫秒，来等待模组成功复位后完成自己的启动过程和自身初始化，包括串口信息打印。但是此时不影响模组和单片主机之间的通信，这里的时间可以根据需要适当调整.如果调整缩短了这里的时间，建议充分测试，以确保系统(时序关系上的)可靠性)
+}
+
+/***********************************************************************************
+ * M8266WIFI_Module_Init_Via_SPI(void)                                             *
+ * Description                                                                     *
+ *    To perform a Initialization sequency to M8266WIFI module via SPI I/F         *
+ *    (1) Reboot the M8266WIFI module via nRESET pin                               *
+ *    (2) Wait and Check if the M8266WIFI module gets an valid IP address          *
+ *        if the module in STA or STA+AP mode                                      *
+ *    Call this function after Host SPI Interface Initialised                      *
+ *    if use SPI interface to config module                                        *
+ * Parameter(s):                                                                   *
+ *    none                                                                         *
+ * Return:                                                                         *
+ * Return:                                                                         *
+ *       0 = failed                                                                *
+ *       1 = success                                                               *
+ ***********************************************************************************/
+ u8 WifiProvider::M8266WIFI_Module_Init_Via_SPI()
+ {
+	u16 status = 0;
+	uint32_t spi_clk = 100000;//40000000;
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////////
+	//Step 1: To hardware reset the module (with nCS=0 during reset) and wait up the module bootup
+	//(Chinese: 步骤1：对模组执行硬复位时序(在片选nCS拉低的时候对nRESET管脚输出低高电平)，并等待模组复位启动完毕
+	M8266WIFI_Module_Hardware_Reset();
+
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Step2: Try SPI clock in a fast one as possible up to 40MHz (M8266WIFI could support only upto 40MHz SPI)
+	// (Chinese: 第二步，在确保SPI底层通信可靠的前提下，调整SPI时钟尽可能的快，以免支持最快速度通信。本模组最大可以支持40MHz的SPI频率)
+	#ifndef SPI_BaudRatePrescaler_2
+	#define SPI_BaudRatePrescaler_2         ((u32)0x00000002U)
+	#define SPI_BaudRatePrescaler_4         ((u32)0x00000004U)
+	#define SPI_BaudRatePrescaler_6         ((u32)0x00000006U)
+	#define SPI_BaudRatePrescaler_8         ((u32)0x00000008U)
+	#define SPI_BaudRatePrescaler_16        ((u32)0x00000010U)
+	#define SPI_BaudRatePrescaler_32        ((u32)0x00000020U)
+	#define SPI_BaudRatePrescaler_64        ((u32)0x00000040U)
+	#define SPI_BaudRatePrescaler_128       ((u32)0x00000080U)
+	#define SPI_BaudRatePrescaler_256       ((u32)0x00000100U)
+	#endif
+
+	M8266HostIf_SPI_SetSpeed(SPI_BaudRatePrescaler_8);					// Setup SPI Clock. Here 96/4 = 24MHz for LPC17XX, upto 40MHz
+	spi_clk = 15000000;//24000000;
+
+	// wait clock stable (Chinese: 设置SPI时钟后，延时等待时钟稳定)
+	M8266WIFI_Module_delay_ms(1);
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Step3: It is very mandatory to call M8266HostIf_SPI_Select() to tell the driver which SPI you used and how faster the SPI clock you used. The function must be called before SPI access
+	//(Chinese: 第三步：调用M8266HostIf_SPI_Select()。 在正式调用驱动API函数和模组进行通信之前，调用M8266HostIf_SPI_Select()来告诉驱动使用哪个SPI以及SPI的时钟有多快，这一点非常重要。
+	//                  如果没有调用这个API，单片机主机和模组之间将可能将无法通信)
+	if(M8266HostIf_SPI_Select((uint32_t)M8266WIFI_INTERFACE_SPI, spi_clk, &status) == 0)
+	{
+		THEKERNEL->streams->printf("Init SPI ERROR, status:%d!\n", status);
+		if ((status>>8) == 0xFF) {
+			THEKERNEL->streams->printf("High bytes = 0xFF!\n");
+		} else if ((status>>8) == 0x00){
+			THEKERNEL->streams->printf("High bytes = 0x00!\n");
+		}
+		return 0;
+	}
+
+	// Step 4: Used to evaluate the high-speed spi communication. Changed to #if 0 to comment it for formal release
+	//(Chinese: 第四步，开发阶段和测试阶段，用于测试评估主机板在当前频率下进行高速SPI读写访问时的可靠性。
+	//          如果足够可靠，则可以适当提高SPI频率；如果不可靠，则可能需要检查主机板连线或者降低SPI频率。
+    //		       产品研发完毕进入正式产品化发布阶段后，因为在研发阶段已经确立了最佳稳定频率，建议这里改成 #if 0，不必再测试)
+	volatile u32  i, j;
+	u8   byte;
+
+	if(M8266WIFI_SPI_Interface_Communication_OK(&byte)==0) 	  									//	if SPI logical Communication failed
+    {
+		THEKERNEL->streams->printf("Communication test ERROR!\n");
+		return 0;
+    }
+
+	i = 100000;
+	j = M8266WIFI_SPI_Interface_Communication_Stress_Test(i);
+	if( (j < i) && (i - j >5)) 		//  if SPI Communication stress test failed (Chinese: SPI底层通信压力测试失败，表明你的主机板或接线支持不了当前这么高的SPI频率设置)
+	{
+	 THEKERNEL->streams->printf("Stress test ERROR!\n");
+	 return 0;
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Step 5: Conifiguration to module
+	// (Chinese:第5步：配置模组)
+
+	// 5.1 If you hope to reduce the Max Tx power, you could enable it by change to "#if 1" (Chinese: 5.1 如果你希望减小模组的最大发射功率，可以将这里改成 #if 1，并调整下面的 tx_max_power参数的值)
+	//u8 M8266WIFI_SPI_Set_Tx_Max_Power(u8 tx_max_power, u16 *status)
+	if(M8266WIFI_SPI_Set_Tx_Max_Power(68, &status)==0)   // tx_max_power=68 to set the max tx power of aroud half of manufacture default, i.e. 50mW or 17dBm. Refer to the API specification for more info
+	{
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Tx_Max_Power ERROR, status: %d!\n", status);
+		return 0;                                          // (Chinese: tx_max_power=68表示将发射最大功率设置为出厂缺省数值的一般，即50mW或者17dBm。具体数值含义可以查看这个API函数的头文件声明里的注释
+	}
+
+	return 1;
+}
+
+
+
+
+

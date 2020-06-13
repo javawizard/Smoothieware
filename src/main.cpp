@@ -19,6 +19,7 @@
 #include "modules/tools/temperatureswitch/TemperatureSwitch.h"
 #include "modules/tools/drillingcycles/Drillingcycles.h"
 #include "modules/tools/atc/ATCHandler.h"
+#include "modules/utils/wifi/WifiProvider.h"
 #include "FilamentDetector.h"
 #include "MotorDriverControl.h"
 
@@ -130,6 +131,8 @@ void init() {
 
     // ATC Handler
     kernel->add_module( new(AHB0) ATCHandler() );
+    // Wifi Provider
+    kernel->add_module( new(AHB0) WifiProvider() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) KillButton() );
@@ -166,7 +169,7 @@ void init() {
     //kernel->add_module( new(AHB0) Spindle() );
     #endif
     #ifndef NO_UTILS_PANEL
-    kernel->add_module( new(AHB0) Panel() );
+    // kernel->add_module( new(AHB0) Panel() );
     #endif
     #ifndef NO_TOOLS_ZPROBE
     kernel->add_module( new(AHB0) ZProbe() );
