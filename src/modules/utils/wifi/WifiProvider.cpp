@@ -40,12 +40,11 @@
 #define wifi_checksum                     CHECKSUM("wifi")
 #define wifi_interrupt_pin_checksum       CHECKSUM("interrupt_pin")
 
-#define RECV_DATA_MAX_SIZE	128
-
 WifiProvider::WifiProvider()
 {
 	tcp_link_no = 0;
 	udp_link_no = 1;
+	connected = false;
 }
 
 void WifiProvider::on_module_loaded()
@@ -91,13 +90,12 @@ void WifiProvider::on_pin_rise()
 }
 
 void WifiProvider::receive_wifi_data() {
-	u8  RecvData[RECV_DATA_MAX_SIZE];
 	u8 link_no;
 	u16 received = 0;
 	u16 status;
-	while (M8266WIFI_SPI_Has_DataReceived())
+	while (true)
 	{
-		received = M8266WIFI_SPI_RecvData(RecvData, RECV_DATA_MAX_SIZE, 10, &link_no, &status);
+		received = M8266WIFI_SPI_RecvData(RecvData, WIFI_IO_DATA_MAX_SIZE, 10, &link_no, &status);
 		if (link_no == udp_link_no) {
 			return;
 		}
@@ -127,7 +125,7 @@ void WifiProvider::receive_wifi_data() {
 	        }
 	        this->buffer.push_back(char(RecvData[i]));
 		}
-		if(received < RECV_DATA_MAX_SIZE) {
+		if(received < WIFI_IO_DATA_MAX_SIZE) {
 			return;
 		}
 	}
@@ -147,8 +145,11 @@ void WifiProvider::on_second_tick(void *)
 	snprintf((char *)buff, sizeof(buff), "MAKERA-001");
 	snprintf(address, sizeof(address), "192.168.4.255");
 	if (M8266WIFI_SPI_Send_Udp_Data(buff, 8, udp_link_no, address, 1111, &status) < 8) {
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Send_Udp_Data, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("Send_Udp_Data ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
+
+	// check if tcp is connected
+
 }
 
 void WifiProvider::on_idle(void *argument)
@@ -201,25 +202,62 @@ void WifiProvider::on_main_loop(void *argument)
 
 int WifiProvider::puts(const char* s)
 {
-    size_t n= strlen(s);
-    for (size_t i = 0; i < n; ++i) {
-        _putc(s[i]);
+	size_t total_length = strlen(s);
+    size_t sent_index = 0;
+	u16 status = 0;
+	u16 sent = 0;
+	u16 to_send = 0;
+	u8 error_times = 0;
+    while (sent_index < total_length && error_times <= 3) {
+    	to_send = total_length - sent_index > WIFI_IO_DATA_MAX_SIZE ? WIFI_IO_DATA_MAX_SIZE : total_length - sent_index;
+    	strncpy((char *)SendData, s + sent_index, to_send);
+    	sent = M8266WIFI_SPI_Send_Data(SendData, to_send, tcp_link_no, &status);
+    	if (sent == 0) {
+    		// sent error
+    		// 0x10: Timeout when wait Module spi rxd Buffer ready
+    		// 0x11: Timeout when wait wifi to send data
+    		// 0x12: Module sending buffer full
+    		// 0x13: Wrong link no used
+    		// 0x14: Connection by link no not present
+    		// 0x15: Connection by link no closed
+    		// 0x18: No clients connecting to this TCP Server
+    		// 0x1F: Other errors
+    		if ((status & 0xff) == 0x10 || (status & 0xff) == 0x11 || (status & 0xff) == 0x12) {
+        		error_times ++;
+        		// wait 1 ms
+        		M8266WIFI_Module_delay_ms(1);
+        		continue;
+    		} else {
+    			return sent_index;
+    		}
+    	} else {
+    		sent_index += sent;
+    		error_times = 0;
+    	}
     }
-    return n;
+    return sent_index;
 }
 
 int WifiProvider::_putc(int c)
 {
+	u16 status = 0;
 	u8 to_send = c;
-	M8266WIFI_SPI_Send_Data(&to_send, 1024, tcp_link_no, NULL);
-    return 1;
+	if (M8266WIFI_SPI_Send_Data(&to_send, 1, tcp_link_no, &status) == 0) {
+		return 0;
+	} else {
+		return 1;
+	}
 }
 
 int WifiProvider::_getc()
 {
+	u16 status;
 	u8 to_recv, link_no;
-	M8266WIFI_SPI_RecvData(&to_recv, 1, 10, &link_no, NULL);
-	return int(to_recv);
+	if (M8266WIFI_SPI_RecvData(&to_recv, 1, 10, &link_no, &status) == 0) {
+		return 0;
+	} else {
+		return to_recv;
+	}
 }
 
 // Does the queue have a given char ?
@@ -247,7 +285,54 @@ void WifiProvider::on_gcode_received(void *argument)
 				set_wifi_op_mode();
 			} else if (gcode->subcode == 3) {
 				// connect to AP
+				u8 connection_state;
+				THEKERNEL->streams->printf("M8266WIFI_SPI_Query_Connection...\n");
+				//u8 M8266WIFI_SPI_Query_Connection(u8 link_no, u8* connection_type, u8* connection_state,
+				//												u16* local_port, u8* remote_ip, u16* remote_port, u16* status);
+
+				if (M8266WIFI_SPI_Query_Connection(tcp_link_no, NULL, &connection_state, NULL, NULL, NULL, NULL) == 0) {
+					THEKERNEL->streams->printf("M8266WIFI_SPI_Query_Connection ERROR!\n");
+				} else {
+					THEKERNEL->streams->printf("connection_state : %d\n", connection_state);
+				}
+			} else if (gcode->subcode == 4) {
+				// test
+				gcode->stream->printf("M8266WIFI_SPI_Has_DataReceived...\n");
+				if (M8266WIFI_SPI_Has_DataReceived()) {
+					gcode->stream->printf("Data Received, receive_wifi_data...\n");
+					//receive_wifi_data();
+					gcode->stream->printf("Data Received complete!\n");
+				}
+			} else if (gcode->subcode == 5) {
+				volatile u32  i, j;
+				u8   byte;
+				gcode->stream->printf("M8266WIFI_SPI_Interface_Communication_OK...\n");
+				if(M8266WIFI_SPI_Interface_Communication_OK(&byte)==0) 	  									//	if SPI logical Communication failed
+			    {
+					THEKERNEL->streams->printf("Communication test ERROR!\n");
+			    } else {
+			    	THEKERNEL->streams->printf("Communication test OK!\n");
+			    }
+				// stress test
+				gcode->stream->printf("M8266WIFI_SPI_Interface_Communication_Stress_Test...\n");
+				j = M8266WIFI_SPI_Interface_Communication_Stress_Test(i);
+				if( (j < i) && (i - j > 5)) 		//  if SPI Communication stress test failed (Chinese: SPI底层通信压力测试失败，表明你的主机板或接线支持不了当前这么高的SPI频率设置)
+				{
+					THEKERNEL->streams->printf("Stress test ERROR! i = %ld, j = %ld\n", i, j);
+				} else {
+					THEKERNEL->streams->printf("Stress test OK!\n");
+				}
+			} else if (gcode->subcode == 6) {
+				u16 status = 0;
+				// send connection info through UDP
+				u8 to_send = '1';
+				for (int i = 0; i < 100; i ++) {
+					if (M8266WIFI_SPI_Send_Data(&to_send, 1, tcp_link_no, &status) < 1) {
+						gcode->stream->printf("Send_Data ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+					}
+				}
 			}
+
 		} else if (gcode->m == 489) {
 			// query wifi status
 			query_wifi_status();
@@ -289,7 +374,12 @@ void WifiProvider::init_wifi_module(bool reset) {
 		if (M8266WIFI_SPI_Delete_Connection( tcp_link_no, &status) == 0){
 			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection tcp, ERROR!\n");
 		}
+
+		// remove current stream
+		THEKERNEL->streams->remove_stream(this);
 	}
+
+
 	THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI...\n");
 	M8266HostIf_Init();
 	if (M8266WIFI_Module_Init_Via_SPI() == 0) {
@@ -314,6 +404,10 @@ void WifiProvider::init_wifi_module(bool reset) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout, ERROR, status: %d!\n", status);
 	}
 
+	if (reset) {
+		// append stream again
+		THEKERNEL->streams->append_stream(this);
+	}
 }
 
 void WifiProvider::M8266WIFI_Module_delay_ms(u16 nms)
@@ -438,10 +532,10 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 
 	i = 100000;
 	j = M8266WIFI_SPI_Interface_Communication_Stress_Test(i);
-	if( (j < i) && (i - j >5)) 		//  if SPI Communication stress test failed (Chinese: SPI底层通信压力测试失败，表明你的主机板或接线支持不了当前这么高的SPI频率设置)
+	if( (j < i) && (i - j > 5)) 		//  if SPI Communication stress test failed (Chinese: SPI底层通信压力测试失败，表明你的主机板或接线支持不了当前这么高的SPI频率设置)
 	{
-	 THEKERNEL->streams->printf("Stress test ERROR!\n");
-	 return 0;
+		THEKERNEL->streams->printf("Stress test ERROR!\n");
+		return 0;
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////
