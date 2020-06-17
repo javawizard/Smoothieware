@@ -57,6 +57,7 @@ private:
     static void mem_command(string parameters, StreamOutput *stream );
 
     static void net_command( string parameters, StreamOutput *stream);
+    static void wlan_command( string parameters, StreamOutput *stream);
 
     static void load_command( string parameters, StreamOutput *stream);
     static void save_command( string parameters, StreamOutput *stream);

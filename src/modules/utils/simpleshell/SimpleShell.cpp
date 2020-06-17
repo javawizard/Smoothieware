@@ -34,6 +34,7 @@
 #include "TemperatureControlPublicAccess.h"
 #include "EndstopsPublicAccess.h"
 #include "NetworkPublicAccess.h"
+#include "WifiPublicAccess.h"
 #include "platform_memory.h"
 #include "SwitchPublicAccess.h"
 #include "SDFAT.h"
@@ -82,6 +83,7 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"set_temp", SimpleShell::set_temp_command},
     {"switch",   SimpleShell::switch_command},
     {"net",      SimpleShell::net_command},
+	{"wlan",     SimpleShell::wlan_command},
     {"load",     SimpleShell::load_command},
     {"save",     SimpleShell::save_command},
     {"remount",  SimpleShell::remount_command},
@@ -710,6 +712,89 @@ void SimpleShell::net_command( string parameters, StreamOutput *stream)
 
     } else {
         stream->printf("No network detected\n");
+    }
+}
+
+// wlan config
+void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
+{
+	bool send_eof = false;
+	bool disconnect = false;
+    string ssid, password;
+
+    while (!parameters.empty()) {
+        string s = shift_parameter( parameters );
+        if(s == "-e") {
+        	send_eof = true;
+        } else if (s == "-d") {
+        	disconnect = true;
+        } else {
+        	if (ssid.empty()) {
+            	ssid = s;
+            } else if (password.empty()) {
+            	password = s;
+            }
+        }
+    }
+
+    void *returned_data;
+    if (ssid.empty()) {
+    	if (!send_eof)
+    		stream->printf("Scanning wifi signals...\n");
+        bool ok = PublicData::get_value( wlan_checksum, get_wlan_checksum, &returned_data );
+        if (ok) {
+            char *str = (char *)returned_data;
+            stream->printf("%s", str);
+            free(str);
+        	if (send_eof) {
+            	stream->puts("\004"); // ^D terminates the upload
+        	}
+
+        } else {
+        	if (send_eof) {
+        		stream->puts("\032"); // ^Z terminates error
+        	} else {
+                stream->printf("No wlan detected\n");
+        	}
+        }
+    } else {
+    	if (!send_eof) {
+    		if (disconnect) {
+    			stream->printf("Disconnecting from wifi...\n");
+    		} else {
+    			stream->printf("Connecting to wifi: %s...\n", ssid.c_str());
+    		}
+    	}
+    	ap_conn_info t;
+    	t.disconnect = disconnect;
+    	if (!t.disconnect) {
+        	snprintf(t.ssid, sizeof(t.ssid), "%s", ssid.c_str());
+        	snprintf(t.password, sizeof(t.password), "%s", password.c_str());
+    	}
+        bool ok = PublicData::set_value( wlan_checksum, set_wlan_checksum, &t );
+        if (ok) {
+        	if (t.has_error) {
+                stream->printf("Error: %s\n", t.error_info);
+            	if (send_eof) {
+            		stream->puts("\032"); // ^Z terminates error
+            	}
+        	} else {
+            	if (send_eof) {
+                	stream->puts("\004"); // ^D terminates the complete
+            	} else {
+            		if (t.disconnect) {
+                		stream->printf("Wifi Disconnected!\n");
+            		} else {
+                		stream->printf("Wifi connected, ip: %s\n", t.ip_address);
+            		}
+            	}
+        	}
+        } else {
+            stream->printf("%s\n", "Parameter error when setting wlan!");
+        	if (send_eof) {
+        		stream->puts("\032"); // ^Z terminates error
+        	}
+        }
     }
 }
 
@@ -1366,6 +1451,7 @@ void SimpleShell::help_command( string parameters, StreamOutput *stream )
     stream->printf("set_temp bed|hotend 185\r\n");
     stream->printf("switch name [value]\r\n");
     stream->printf("net\r\n");
+    stream->printf("wlan [ssid] [password] [-d] [-e]\r\n");
     stream->printf("load [file] - loads a configuration override file from soecified name or config-override\r\n");
     stream->printf("save [file] - saves a configuration override file as specified filename or as config-override\r\n");
     stream->printf("upload filename - saves a stream of text to the named file\r\n");

@@ -27,6 +27,7 @@
 #include "libs/StreamOutputPool.h"
 #include "libs/StreamOutput.h"
 #include "SwitchPublicAccess.h"
+#include "WifiPublicAccess.h"
 #include "libs/utils.h"
 
 #include "libs/SerialMessage.h"
@@ -53,6 +54,8 @@ void WifiProvider::on_module_loaded()
     this->register_for_event(ON_GCODE_RECEIVED);
     this->register_for_event(ON_MAIN_LOOP);
     this->register_for_event(ON_SECOND_TICK);
+    this->register_for_event(ON_GET_PUBLIC_DATA);
+    this->register_for_event(ON_SET_PUBLIC_DATA);
 
     // Init Wifi Module
     this->init_wifi_module(false);
@@ -304,33 +307,7 @@ void WifiProvider::on_gcode_received(void *argument)
 					gcode->stream->printf("Data Received complete!\n");
 				}
 			} else if (gcode->subcode == 5) {
-				volatile u32  i, j;
-				u8   byte;
-				gcode->stream->printf("M8266WIFI_SPI_Interface_Communication_OK...\n");
-				if(M8266WIFI_SPI_Interface_Communication_OK(&byte)==0) 	  									//	if SPI logical Communication failed
-			    {
-					THEKERNEL->streams->printf("Communication test ERROR!\n");
-			    } else {
-			    	THEKERNEL->streams->printf("Communication test OK!\n");
-			    }
-				// stress test
-				gcode->stream->printf("M8266WIFI_SPI_Interface_Communication_Stress_Test...\n");
-				j = M8266WIFI_SPI_Interface_Communication_Stress_Test(i);
-				if( (j < i) && (i - j > 5)) 		//  if SPI Communication stress test failed (Chinese: SPI底层通信压力测试失败，表明你的主机板或接线支持不了当前这么高的SPI频率设置)
-				{
-					THEKERNEL->streams->printf("Stress test ERROR! i = %ld, j = %ld\n", i, j);
-				} else {
-					THEKERNEL->streams->printf("Stress test OK!\n");
-				}
 			} else if (gcode->subcode == 6) {
-				u16 status = 0;
-				// send connection info through UDP
-				u8 to_send = '1';
-				for (int i = 0; i < 100; i ++) {
-					if (M8266WIFI_SPI_Send_Data(&to_send, 1, tcp_link_no, &status) < 1) {
-						gcode->stream->printf("Send_Data ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
-					}
-				}
 			}
 
 		} else if (gcode->m == 489) {
@@ -346,6 +323,125 @@ void WifiProvider::set_wifi_op_mode() {
 	if (M8266WIFI_SPI_Set_Opmode(3, 1, &status) == 0) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Opmode, ERROR, status: %d!\n", status);
 	}
+}
+
+void WifiProvider::on_get_public_data(void* argument) {
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+    if(!pdr->starts_with(wlan_checksum)) return;
+    if(!pdr->second_element_is(get_wlan_checksum)) return;
+
+	u8 signals = 0;
+	u16 status = 0;
+	char ssid[32];
+	u8 ssid_len = 0;
+
+    // get current connected information
+    M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_SSID, (u8 *)ssid, &ssid_len, &status);
+
+    ScannedSigs wlans[MAX_WLAN_SIGNALS];
+	M8266WIFI_SPI_STA_Scan_Signals(wlans, MAX_WLAN_SIGNALS, 0xff, 0, &status);
+	// wait for scan finish
+	while (true) {
+		signals = M8266WIFI_SPI_STA_Fetch_Last_Scanned_Signals(wlans, MAX_WLAN_SIGNALS, &status);
+		if (signals == 0) {
+			// 0x25: If not start scan before
+			// 0x26: If currently module is scanning
+			// 0x27: If last scan result has failure
+			// 0x29: Other failure
+			if ((status & 0xff) == 0x26) {
+				THEKERNEL->call_event(ON_IDLE, this);
+				// wait 1 ms
+				M8266WIFI_Module_delay_ms(1);
+				continue;
+			} else {
+				// scan fail
+				return;
+			}
+		} else {
+			// NOTE caller must free the returned string when done
+			size_t n;
+			std::string str;
+			char buf[10];
+			for (int i = 0; i < signals; i ++) {
+				str.append(wlans[i].ssid);
+				str.append(",");
+				str.append(wlans[i].authmode == 0 ? "0" : "1");
+				str.append(",");
+				n = snprintf(buf, sizeof(buf), "%d", wlans[i].rssi);
+				if(n > sizeof(buf)) n = sizeof(buf);
+				str.append(buf, n);
+				str.append(",");
+				if (strncmp(ssid, wlans[i].ssid, ssid_len <= 32 ? ssid_len : 32) == 0) {
+					str.append("1\n");
+				} else {
+					str.append("0\n");
+				}
+			}
+			char *temp_buf = (char *)malloc(str.length() + 1);
+			memcpy(temp_buf, str.c_str(), str.length());
+			temp_buf[str.length()]= '\0';
+			pdr->set_data_ptr(temp_buf);
+			pdr->set_taken();
+			return;
+		}
+	}
+}
+
+void WifiProvider::on_set_public_data(void *argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+    if(!pdr->starts_with(wlan_checksum)) return;
+    if(!pdr->second_element_is(set_wlan_checksum)) return;
+
+    ap_conn_info *s = static_cast<ap_conn_info *>(pdr->get_data_ptr());
+	u16 status = 0;
+    u8 connection_status;
+
+	s->has_error = false;
+	if (s->disconnect) {
+		if (M8266WIFI_SPI_STA_DisConnect_Ap(&status) == 0) {
+			s->has_error = true;
+			snprintf(s->error_info, sizeof(s->error_info), "Disconnect error!");
+		}
+	} else {
+	    // u8 M8266WIFI_SPI_STA_Connect_Ap(u8 ssid[32], u8 password[64], u8 saved, u8 timeout_in_s, u16* status);
+	    M8266WIFI_SPI_STA_Connect_Ap((u8 *)s->ssid, (u8 *)s->password, 1, 0, &status);
+
+		// wait for connection finish
+		while (true) {
+			M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+			if (connection_status == 1) {
+				// connecting, wait
+				THEKERNEL->call_event(ON_IDLE, this);
+				// wait 1 ms
+				M8266WIFI_Module_delay_ms(1);
+				continue;
+			} else if (connection_status == 5) {
+				// connection success
+				s->has_error = false;
+				break;
+			} else {
+				s->has_error = true;
+				if (connection_status == 0) {
+					snprintf(s->error_info, sizeof(s->error_info), "No connecting started!");
+				} else if (connection_status == 2) {
+					snprintf(s->error_info, sizeof(s->error_info), "Wifi password incorrect: %s!", s->password);
+				} else if (connection_status == 3) {
+					snprintf(s->error_info, sizeof(s->error_info), "No wifi ssid found: %s!", s->ssid);
+				} else if (connection_status == 4) {
+					snprintf(s->error_info, sizeof(s->error_info), "Other error reason!");
+				}
+				break;
+			}
+		}
+
+		// get ip address if no error
+		if (!s->has_error) {
+			M8266WIFI_SPI_Get_STA_IP_Addr(s->ip_address, &status);
+		}
+
+	}
+	pdr->set_taken();
 }
 
 void WifiProvider::query_wifi_status() {
@@ -517,6 +613,7 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 		return 0;
 	}
 
+	/*
 	// Step 4: Used to evaluate the high-speed spi communication. Changed to #if 0 to comment it for formal release
 	//(Chinese: 第四步，开发阶段和测试阶段，用于测试评估主机板在当前频率下进行高速SPI读写访问时的可靠性。
 	//          如果足够可靠，则可以适当提高SPI频率；如果不可靠，则可能需要检查主机板连线或者降低SPI频率。
@@ -536,7 +633,7 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 	{
 		THEKERNEL->streams->printf("Stress test ERROR!\n");
 		return 0;
-	}
+	}*/
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Step 5: Conifiguration to module

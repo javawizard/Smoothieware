@@ -20,6 +20,7 @@ using namespace std;
 #include "libs/RingBuffer.h"
 
 #define WIFI_IO_DATA_MAX_SIZE	128
+#define MAX_WLAN_SIGNALS 8
 
 class WifiProvider : public Module, public StreamOutput
 {
@@ -31,6 +32,8 @@ public:
     void on_main_loop( void* argument );
     void on_second_tick(void* argument);
     void on_idle(void* argument);
+    void on_get_public_data(void* argument);
+    void on_set_public_data(void* argument);
 
     int puts(const char*);
     int _putc(int c);
