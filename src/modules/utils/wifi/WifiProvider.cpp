@@ -334,9 +334,12 @@ void WifiProvider::on_get_public_data(void* argument) {
 	u16 status = 0;
 	char ssid[32];
 	u8 ssid_len = 0;
+	u8 connection_status = 0;
 
     // get current connected information
     M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_SSID, (u8 *)ssid, &ssid_len, &status);
+
+	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
 
     ScannedSigs wlans[MAX_WLAN_SIGNALS];
 	M8266WIFI_SPI_STA_Scan_Signals(wlans, MAX_WLAN_SIGNALS, 0xff, 0, &status);
@@ -371,7 +374,7 @@ void WifiProvider::on_get_public_data(void* argument) {
 				if(n > sizeof(buf)) n = sizeof(buf);
 				str.append(buf, n);
 				str.append(",");
-				if (strncmp(ssid, wlans[i].ssid, ssid_len <= 32 ? ssid_len : 32) == 0) {
+				if (strncmp(ssid, wlans[i].ssid, ssid_len <= 32 ? ssid_len : 32) == 0 && connection_status == 5) {
 					str.append("1\n");
 				} else {
 					str.append("0\n");

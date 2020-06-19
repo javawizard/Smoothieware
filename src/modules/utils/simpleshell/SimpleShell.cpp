@@ -779,14 +779,13 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
             		stream->puts("\032"); // ^Z terminates error
             	}
         	} else {
+        		if (t.disconnect) {
+            		stream->printf("Wifi Disconnected!\n");
+        		} else {
+            		stream->printf("Wifi connected, ip: %s\n", t.ip_address);
+        		}
             	if (send_eof) {
                 	stream->puts("\004"); // ^D terminates the complete
-            	} else {
-            		if (t.disconnect) {
-                		stream->printf("Wifi Disconnected!\n");
-            		} else {
-                		stream->printf("Wifi connected, ip: %s\n", t.ip_address);
-            		}
             	}
         	}
         } else {
