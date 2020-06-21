@@ -40,12 +40,17 @@
 
 #define wifi_checksum                     CHECKSUM("wifi")
 #define wifi_interrupt_pin_checksum       CHECKSUM("interrupt_pin")
+#define machine_name_checksum             CHECKSUM("machine_name")
+#define tcp_port_checksum		          CHECKSUM("tcp_port")
+#define udp_send_port_checksum		      CHECKSUM("udp_send_port")
+#define udp_recv_port_checksum		      CHECKSUM("udp_recv_port")
+#define tcp_timeout_s_checksum			  CHECKSUM("tcp_timeout_s")
 
 WifiProvider::WifiProvider()
 {
 	tcp_link_no = 0;
 	udp_link_no = 1;
-	connected = false;
+	wifi_init_ok = false;
 }
 
 void WifiProvider::on_module_loaded()
@@ -56,6 +61,12 @@ void WifiProvider::on_module_loaded()
     this->register_for_event(ON_SECOND_TICK);
     this->register_for_event(ON_GET_PUBLIC_DATA);
     this->register_for_event(ON_SET_PUBLIC_DATA);
+
+	this->tcp_port = THEKERNEL->config->value(wifi_checksum, tcp_port_checksum)->by_default(2222)->as_int();
+	this->udp_send_port = THEKERNEL->config->value(wifi_checksum, udp_send_port_checksum)->by_default(3333)->as_int();
+	this->udp_recv_port = THEKERNEL->config->value(wifi_checksum, udp_recv_port_checksum)->by_default(4444)->as_int();
+	this->tcp_timeout_s = THEKERNEL->config->value(wifi_checksum, tcp_timeout_s_checksum)->by_default(10)->as_int();
+	this->machine_name = THEKERNEL->config->value(wifi_checksum, machine_name_checksum)->by_default("MAKERA")->as_string();
 
     // Init Wifi Module
     this->init_wifi_module(false);
@@ -138,21 +149,63 @@ bool WifiProvider::ready() {
 	return M8266WIFI_SPI_Has_DataReceived();
 }
 
+void WifiProvider::get_broadcast_from_ip_and_netmask(char *broadcast_addr, char *ip_addr, char *netmask)
+{
+	uint32_t i_ip = ip_to_int(ip_addr);
+	uint32_t i_mask = ip_to_int(netmask);
+	uint32_t i_broadcast = i_ip | (i_mask ^ 0xffffffff);
+	int_to_ip(i_broadcast, broadcast_addr);
+}
+
+void WifiProvider::int_to_ip(uint32_t i_ip, char *ip_addr) {
+    unsigned char bytes[4];
+    bytes[0] = i_ip & 0xFF;
+    bytes[1] = (i_ip >> 8) & 0xFF;
+    bytes[2] = (i_ip >> 16) & 0xFF;
+    bytes[3] = (i_ip >> 24) & 0xFF;
+	snprintf(ip_addr, 16, "%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]);
+}
+
+uint32_t WifiProvider::ip_to_int(char* ip_addr) {
+  unsigned char bytes[4];
+  sscanf(ip_addr, "%u.%u.%u.%u", &bytes[0], &bytes[1], &bytes[2], &bytes[3]);
+  return bytes[0] * 16777216 + bytes[1] * 65536 + bytes[2] * 256 + bytes[3];
+}
+
 void WifiProvider::on_second_tick(void *)
 {
 	u16 status = 0;
-	char address[15];
-	unsigned char buff[10];
+	char address[16];
+	char udp_buff[100];
+	u8 param_len = 0;
+	u8 connection_status = 0;
+	u8 client_num = 0;
+	ClientInfo RemoteClients[15];
 
-	// send connection info through UDP
-	snprintf((char *)buff, sizeof(buff), "MAKERA-001");
-	snprintf(address, sizeof(address), "192.168.4.255");
-	if (M8266WIFI_SPI_Send_Udp_Data(buff, 8, udp_link_no, address, 1111, &status) < 8) {
-		THEKERNEL->streams->printf("Send_Udp_Data ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+	if (!wifi_init_ok) return;
+
+	M8266WIFI_SPI_List_Clients_On_A_TCP_Server(tcp_link_no, &client_num, RemoteClients, &status);
+
+	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+	if (connection_status == 5) {
+		// get ip and netmask
+		M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_IP_ADDR, (u8 *)this->sta_address, &param_len, &status);
+		M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_NETMASK_ADDR, (u8 *)this->sta_netmask, &param_len, &status);
+		// send data to sta broadcast address
+		get_broadcast_from_ip_and_netmask(address, this->sta_address, this->sta_netmask);
+		snprintf(udp_buff, sizeof(udp_buff), "%s,%s,%d,%d", this->machine_name.c_str(), this->sta_address, this->tcp_port, client_num > 0 ? 1 : 0);
+		if (M8266WIFI_SPI_Send_Udp_Data((u8 *)udp_buff, strlen(udp_buff), udp_link_no, address, this->udp_send_port, &status) < strlen(udp_buff)) {
+			THEKERNEL->streams->printf("Send UDP through STA ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+		}
 	}
 
-	// check if tcp is connected
-
+	// send ap info through UDP
+	memset(udp_buff, 0, sizeof(udp_buff));
+	get_broadcast_from_ip_and_netmask(address, this->ap_address, this->ap_netmask);
+	snprintf(udp_buff, sizeof(udp_buff), "%s,%s,%d,%d", this->machine_name.c_str(), this->ap_address, this->tcp_port, client_num > 0 ? 1 : 0);
+	if (M8266WIFI_SPI_Send_Udp_Data((u8 *)udp_buff, strlen(udp_buff), udp_link_no, address, this->udp_send_port, &status) < strlen(udp_buff)) {
+		THEKERNEL->streams->printf("Send UDP through AP ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+	}
 }
 
 void WifiProvider::on_idle(void *argument)
@@ -282,6 +335,7 @@ void WifiProvider::on_gcode_received(void *argument)
     	if (gcode->m == 481)  {
 			if (gcode->subcode == 1) {
 		    	// reset wifi module
+				wifi_init_ok = false;
 				init_wifi_module(true);
 			} else if (gcode->subcode == 2) {
 				// set 8266 op mode
@@ -308,6 +362,11 @@ void WifiProvider::on_gcode_received(void *argument)
 				}
 			} else if (gcode->subcode == 5) {
 			} else if (gcode->subcode == 6) {
+				char ip_addr[16] = "192.168.1.2";
+				char netmask[16] = "255.255.255.0";
+				char broadcast[16];
+				get_broadcast_from_ip_and_netmask(broadcast, ip_addr, netmask);
+				gcode->stream->printf("broadcast: %s\n", broadcast);
 			}
 
 		} else if (gcode->m == 489) {
@@ -462,7 +521,9 @@ void WifiProvider::query_wifi_status() {
 
 void WifiProvider::init_wifi_module(bool reset) {
 	u16 status = 0;
-	char address[15];
+	char address[16];
+	u8 param_len = 0;
+
 
 	if (reset) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connections...\n");
@@ -487,26 +548,38 @@ void WifiProvider::init_wifi_module(bool reset) {
 	// init udp and tcp server connection
 	THEKERNEL->streams->printf("Init UDP and TCP connection...\n");
 	// setup TCP Connection
-	snprintf(address, sizeof(address), "192.168.4.2");
-	if (M8266WIFI_SPI_Setup_Connection(2, 2222, address, 0, tcp_link_no, 3, &status) == 0) {
+	snprintf(address, sizeof(address), "192.168.4.10");
+	if (M8266WIFI_SPI_Setup_Connection(2, this->tcp_port, address, 0, tcp_link_no, 3, &status) == 0) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection TCP, ERROR, status: %d!\n", status);
 	}
 	// setup UDP Connection
-	snprintf(address, sizeof(address), "192.168.4.2");
-	if (M8266WIFI_SPI_Setup_Connection(0, 1111, address, 0, udp_link_no, 3, &status) == 0) {
+	snprintf(address, sizeof(address), "192.168.4.255");
+	if (M8266WIFI_SPI_Setup_Connection(0, this->udp_recv_port, address, 0, udp_link_no, 3, &status) == 0) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection UDP, ERROR, status: %d!\n", status);
 	}
 
 	// set timeout
-	if( M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout(tcp_link_no, 60, &status) == 0)
+	if( M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout(tcp_link_no, tcp_timeout_s, &status) == 0)
 	{
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout, ERROR, status: %d!\n", status);
+	}
+
+	// load current AP IP and Netmask
+	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_IP_ADDR, (u8 *)this->ap_address, &param_len, &status) == 0)
+	{
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param:IP, ERROR, status: %d!\n", status);
+	}
+	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_NETMASK_ADDR, (u8 *)this->ap_netmask, &param_len, &status) == 0)
+	{
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param:NetMask, ERROR, status: %d!\n", status);
 	}
 
 	if (reset) {
 		// append stream again
 		THEKERNEL->streams->append_stream(this);
 	}
+
+	wifi_init_ok = true;
 }
 
 void WifiProvider::M8266WIFI_Module_delay_ms(u16 nms)

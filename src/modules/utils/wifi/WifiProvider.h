@@ -50,6 +50,10 @@ private:
     void query_wifi_status();
     void set_wifi_op_mode();
 
+    uint32_t ip_to_int(char* ip_addr);
+    void int_to_ip(uint32_t i_ip, char *ip_addr);
+    void get_broadcast_from_ip_and_netmask(char *broadcast_addr, char *ip_addr, char *netmask);
+
     void on_pin_rise();
     mbed::InterruptIn *wifi_interrupt_pin; // Interrupt pin for measuring speed
     float probe_slow_rate;
@@ -61,10 +65,20 @@ private:
 	u8 RecvData[WIFI_IO_DATA_MAX_SIZE];
 	u8 SendData[WIFI_IO_DATA_MAX_SIZE];
 
+	int tcp_port;
+	int udp_send_port;
+	int udp_recv_port;
+	int tcp_timeout_s;
+	string machine_name;
+	char ap_address[16];
+	char ap_netmask[16];
+	char sta_address[16];
+	char sta_netmask[16];
+
     struct {
     	u8  tcp_link_no;
     	u8  udp_link_no;
-    	bool connected:1;
+    	bool wifi_init_ok:1;
     	volatile bool halt_flag:1;
     	volatile bool query_flag:1;
     };
