@@ -96,7 +96,6 @@ void SerialConsole::on_main_loop(void * argument){
     }
 }
 
-
 int SerialConsole::puts(const char* s)
 {
     //return fwrite(s, strlen(s), 1, (FILE*)(*this->serial));
@@ -105,6 +104,12 @@ int SerialConsole::puts(const char* s)
         _putc(s[i]);
     }
     return n;
+}
+
+int SerialConsole::gets(char* buf, int max_len)
+{
+	buf[0] = this->_getc();
+	return 1;
 }
 
 int SerialConsole::_putc(int c)

@@ -554,42 +554,48 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     int cnt = 0;
+    char recv_buff[1500];
     THEKERNEL->set_uploading(true);
-    while(THEKERNEL->is_uploading()) {
-        if(!stream->ready()) {
+    while (THEKERNEL->is_uploading()) {
+        if (!stream->ready()) {
             // we need to kick things or they die
             THEKERNEL->call_event(ON_IDLE);
             continue;
         }
 
-        char c = stream->_getc();
-        if( c == 4 || c == 26) { // ctrl-D or ctrl-Z
-        	THEKERNEL->set_uploading(false);
-            // close file
-            fclose(fd);
-            fd = NULL;
-            if (c == 26) {
-            	// rm file
-            	remove(upload_filename.c_str());
-            	stream->printf("upload canceled, %d bytes transferred\n", cnt);
-            } else {
-                stream->printf("upload finished, %d bytes transferred\n", cnt);
-            }
-            return;
-
-        } else {
-            // write character to file
-            cnt++;
-            if(fputc(c, fd) != c) {
-                // error writing to file
-            	stream->printf("upload error! %d bytes transferred\n", cnt);
+        int recv_count = stream->gets(recv_buff, 1500);
+        // stream->printf("recv_count: %d.\r\n", recv_count);
+        for (int i = 0; i < recv_count; i ++) {
+            // stream->printf("recv_buff[i]: %d.\r\n", recv_buff[i]);
+            if (recv_buff[i] == 4 || recv_buff[i] == 26) { // ctrl-D or ctrl-Z
+                // close file
                 fclose(fd);
                 fd = NULL;
+            	THEKERNEL->set_uploading(false);
+                if (recv_buff[i] == 26) {
+                	// rm file
+                	remove(upload_filename.c_str());
+                	stream->printf("upload canceled, %d bytes transferred\n", cnt);
+                } else {
+                    stream->printf("upload finished, %d bytes transferred\n", cnt);
+                }
                 return;
+
             } else {
-                if ((cnt%1000) == 0) {
-                    // we need to kick things or they die
-                    THEKERNEL->call_event(ON_IDLE);
+                // write character to file
+                cnt ++;
+                if(fputc(recv_buff[i], fd) != recv_buff[i]) {
+                    // error writing to file
+                	stream->printf("upload error! %d bytes transferred\n", cnt);
+                    fclose(fd);
+                    fd = NULL;
+                    THEKERNEL->set_uploading(false);
+                    return;
+                } else {
+                    if ((cnt % 1000) == 0) {
+                        // we need to kick things or they die
+                        THEKERNEL->call_event(ON_IDLE);
+                    }
                 }
             }
         }

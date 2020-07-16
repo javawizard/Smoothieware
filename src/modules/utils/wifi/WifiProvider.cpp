@@ -46,6 +46,7 @@
 #define udp_recv_port_checksum		      CHECKSUM("udp_recv_port")
 #define tcp_timeout_s_checksum			  CHECKSUM("tcp_timeout_s")
 
+
 WifiProvider::WifiProvider()
 {
 	tcp_link_no = 0;
@@ -309,11 +310,22 @@ int WifiProvider::_getc()
 {
 	u16 status;
 	u8 to_recv, link_no;
-	if (M8266WIFI_SPI_RecvData(&to_recv, 1, 10, &link_no, &status) == 0) {
-		return 0;
-	} else {
-		return to_recv;
+	if (M8266WIFI_SPI_RecvData(&to_recv, 128, 10, &link_no, &status) == 0) {
+		return 26;
 	}
+	return to_recv;
+}
+
+int WifiProvider::gets(char *buf, int max_len)
+{
+	u16 status;
+	u8 link_no;
+	u16 received = M8266WIFI_SPI_RecvData((u8 *)buf, max_len, 10, &link_no, &status);
+	THEKERNEL->streams->printf("M8266WIFI_SPI_RecvData, received: %d, high: %d, low: %d!\n", received, int(status >> 8), int(status & 0xff));
+	if (link_no == udp_link_no) {
+		return 0;
+	}
+	return received;
 }
 
 // Does the queue have a given char ?
@@ -367,6 +379,9 @@ void WifiProvider::on_gcode_received(void *argument)
 				char broadcast[16];
 				get_broadcast_from_ip_and_netmask(broadcast, ip_addr, netmask);
 				gcode->stream->printf("broadcast: %s\n", broadcast);
+			} else if (gcode->subcode == 7) {
+				gcode->stream->printf("aaaaaaa\n");
+				gcode->stream->printf("test buffer: %s\n", test_buffer.c_str());
 			}
 
 		} else if (gcode->m == 489) {

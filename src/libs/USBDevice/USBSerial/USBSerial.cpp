@@ -95,6 +95,12 @@ int USBSerial::_getc()
     return c;
 }
 
+int USBSerial::gets(char* buf, int max_len)
+{
+	buf[0] = this->_getc();
+	return 1;
+}
+
 int USBSerial::puts(const char *str)
 {
     if (!attached)

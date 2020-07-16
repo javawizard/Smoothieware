@@ -38,6 +38,7 @@ public:
     int _putc(int c);
     int _getc();
     int puts(const char *);
+    int gets(char* buf, int max_len);
 
     uint8_t available();
     bool ready();
