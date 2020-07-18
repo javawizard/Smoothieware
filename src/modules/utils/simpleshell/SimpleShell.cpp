@@ -554,7 +554,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     int cnt = 0;
-    char recv_buff[1500];
+    int recv_count;
+    char* recv_buff;
     THEKERNEL->set_uploading(true);
     while (THEKERNEL->is_uploading()) {
         if (!stream->ready()) {
@@ -563,10 +564,9 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             continue;
         }
 
-        int recv_count = stream->gets(recv_buff, 1500);
-        // stream->printf("recv_count: %d.\r\n", recv_count);
+        recv_count = stream->gets(&recv_buff);
+
         for (int i = 0; i < recv_count; i ++) {
-            // stream->printf("recv_buff[i]: %d.\r\n", recv_buff[i]);
             if (recv_buff[i] == 4 || recv_buff[i] == 26) { // ctrl-D or ctrl-Z
                 // close file
                 fclose(fd);
@@ -584,7 +584,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             } else {
                 // write character to file
                 cnt ++;
-                if(fputc(recv_buff[i], fd) != recv_buff[i]) {
+                if (fputc(recv_buff[i], fd) != recv_buff[i]) {
                     // error writing to file
                 	stream->printf("upload error! %d bytes transferred\n", cnt);
                     fclose(fd);

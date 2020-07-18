@@ -19,7 +19,9 @@ using namespace std;
 #include "M8266WIFIDrv.h"
 #include "libs/RingBuffer.h"
 
-#define WIFI_IO_DATA_MAX_SIZE 1500
+#define WIFI_SEND_DATA_MAX_SIZE 128
+#define WIFI_RECV_DATA_MAX_SIZE 1500
+#define WIFI_RECV_DATA_TIMEOUT_MS 10
 #define MAX_WLAN_SIGNALS 8
 
 class WifiProvider : public Module, public StreamOutput
@@ -35,7 +37,7 @@ public:
     void on_get_public_data(void* argument);
     void on_set_public_data(void* argument);
 
-    int gets(char* buf, int max_len);
+    int gets(char** buf);
     int puts(const char*);
     int _putc(int c);
     int _getc(void);
@@ -64,8 +66,8 @@ private:
     RingBuffer<char, 256> buffer; // Receive buffer
     string test_buffer;
 
-	u8 RecvData[WIFI_IO_DATA_MAX_SIZE];
-	u8 SendData[WIFI_IO_DATA_MAX_SIZE];
+	u8 RecvData[WIFI_RECV_DATA_MAX_SIZE];
+	u8 SendData[WIFI_SEND_DATA_MAX_SIZE];
 
 	int tcp_port;
 	int udp_send_port;

@@ -106,9 +106,10 @@ int SerialConsole::puts(const char* s)
     return n;
 }
 
-int SerialConsole::gets(char* buf, int max_len)
+int SerialConsole::gets(char** buf)
 {
-	buf[0] = this->_getc();
+	getc_result = this->_getc();
+	*buf = &getc_result;
 	return 1;
 }
 

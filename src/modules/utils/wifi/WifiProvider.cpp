@@ -101,16 +101,17 @@ void WifiProvider::on_pin_rise()
 	if (!THEKERNEL->is_uploading()) {
 		this->receive_wifi_data();
 	}
-
 }
 
 void WifiProvider::receive_wifi_data() {
 	u8 link_no;
 	u16 received = 0;
 	u16 status;
+	// this->printf("receive_wifi_data\r\n");
+
 	while (true)
 	{
-		received = M8266WIFI_SPI_RecvData(RecvData, WIFI_IO_DATA_MAX_SIZE, 10, &link_no, &status);
+		received = M8266WIFI_SPI_RecvData(RecvData, WIFI_RECV_DATA_MAX_SIZE, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
 		if (link_no == udp_link_no) {
 			return;
 		}
@@ -140,7 +141,7 @@ void WifiProvider::receive_wifi_data() {
 	        }
 	        this->buffer.push_back(char(RecvData[i]));
 		}
-		if(received < WIFI_IO_DATA_MAX_SIZE) {
+		if(received < WIFI_RECV_DATA_MAX_SIZE) {
 			return;
 		}
 	}
@@ -266,7 +267,7 @@ int WifiProvider::puts(const char* s)
 	u16 to_send = 0;
 	u8 error_times = 0;
     while (sent_index < total_length && error_times <= 3) {
-    	to_send = total_length - sent_index > WIFI_IO_DATA_MAX_SIZE ? WIFI_IO_DATA_MAX_SIZE : total_length - sent_index;
+    	to_send = total_length - sent_index > WIFI_SEND_DATA_MAX_SIZE ? WIFI_SEND_DATA_MAX_SIZE : total_length - sent_index;
     	strncpy((char *)SendData, s + sent_index, to_send);
     	sent = M8266WIFI_SPI_Send_Data(SendData, to_send, tcp_link_no, &status);
     	if (sent == 0) {
@@ -310,21 +311,22 @@ int WifiProvider::_getc()
 {
 	u16 status;
 	u8 to_recv, link_no;
-	if (M8266WIFI_SPI_RecvData(&to_recv, 128, 10, &link_no, &status) == 0) {
+	if (M8266WIFI_SPI_RecvData(&to_recv, 128, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status) == 0) {
 		return 26;
 	}
 	return to_recv;
 }
 
-int WifiProvider::gets(char *buf, int max_len)
+int WifiProvider::gets(char** buf)
 {
 	u16 status;
 	u8 link_no;
-	u16 received = M8266WIFI_SPI_RecvData((u8 *)buf, max_len, 10, &link_no, &status);
-	THEKERNEL->streams->printf("M8266WIFI_SPI_RecvData, received: %d, high: %d, low: %d!\n", received, int(status >> 8), int(status & 0xff));
+	u16 received = M8266WIFI_SPI_RecvData(RecvData, WIFI_RECV_DATA_MAX_SIZE, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
+	// THEKERNEL->streams->printf("M8266WIFI_SPI_RecvData, received: %d, high: %d, low: %d!\n", received, int(status >> 8), int(status & 0xff));
 	if (link_no == udp_link_no) {
 		return 0;
 	}
+	*buf = (char *)&RecvData;
 	return received;
 }
 

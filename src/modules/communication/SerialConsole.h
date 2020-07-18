@@ -33,7 +33,8 @@ class SerialConsole : public Module, public StreamOutput {
         int _putc(int c);
         int _getc(void);
         int puts(const char*);
-        int gets(char* buf, int max_len);
+        int gets(char** buf);
+        char getc_result;
 
         //string receive_buffer;                 // Received chars are stored here until a newline character is received
         //vector<std::string> received_lines;    // Received lines are stored here until they are requested

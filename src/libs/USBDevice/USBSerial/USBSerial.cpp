@@ -95,9 +95,10 @@ int USBSerial::_getc()
     return c;
 }
 
-int USBSerial::gets(char* buf, int max_len)
+int USBSerial::gets(char** buf)
 {
-	buf[0] = this->_getc();
+	getc_result = this->_getc();
+	*buf = &getc_result;
 	return 1;
 }
 
