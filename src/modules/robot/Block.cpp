@@ -36,6 +36,7 @@ double Block::fp_scale= 0;
 Block::Block()
 {
     tick_info= nullptr;
+    line = 0;
     clear();
 }
 

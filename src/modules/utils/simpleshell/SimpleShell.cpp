@@ -1004,6 +1004,7 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
             struct SerialMessage message;
             message.message = cmd;
             message.stream = &(StreamOutput::NullStream);
+            message.line = 0;
             THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             THECONVEYOR->wait_for_idle();
         }
@@ -1220,7 +1221,7 @@ void SimpleShell::test_command( string parameters, StreamOutput *stream)
             char cmd[64];
             snprintf(cmd, sizeof(cmd), "G91 G0 %c%f F%f G90", toupper(axis[0]), toggle ? -d : d, f);
             stream->printf("%s\n", cmd);
-            struct SerialMessage message{&StreamOutput::NullStream, cmd};
+            struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
             THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             if(THEKERNEL->is_halted()) break;
             toggle= !toggle;
@@ -1245,7 +1246,7 @@ void SimpleShell::test_command( string parameters, StreamOutput *stream)
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "G91 G0 X%f F%f G90", -r, f);
         stream->printf("%s\n", cmd);
-        struct SerialMessage message{&StreamOutput::NullStream, cmd};
+        struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
 
         for (uint32_t i = 0; i < n; ++i) {
@@ -1253,6 +1254,7 @@ void SimpleShell::test_command( string parameters, StreamOutput *stream)
             snprintf(cmd, sizeof(cmd), "G2 I%f J0 F%f", r, f);
             stream->printf("%s\n", cmd);
             message.message= cmd;
+            message.line = 0;
             THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
         }
 
@@ -1260,7 +1262,7 @@ void SimpleShell::test_command( string parameters, StreamOutput *stream)
         if(!THEKERNEL->is_halted()) {
             snprintf(cmd, sizeof(cmd), "G91 G0 X%f F%f G90", r, f);
             stream->printf("%s\n", cmd);
-            struct SerialMessage message{&StreamOutput::NullStream, cmd};
+            struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
             THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
         }
 
@@ -1285,25 +1287,25 @@ void SimpleShell::test_command( string parameters, StreamOutput *stream)
             {
                 snprintf(cmd, sizeof(cmd), "G91 G0 X%f F%f", d, f);
                 stream->printf("%s\n", cmd);
-                struct SerialMessage message{&StreamOutput::NullStream, cmd};
+                struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             }
             {
                 snprintf(cmd, sizeof(cmd), "G0 Y%f", d);
                 stream->printf("%s\n", cmd);
-                struct SerialMessage message{&StreamOutput::NullStream, cmd};
+                struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             }
             {
                 snprintf(cmd, sizeof(cmd), "G0 X%f", -d);
                 stream->printf("%s\n", cmd);
-                struct SerialMessage message{&StreamOutput::NullStream, cmd};
+                struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             }
             {
                 snprintf(cmd, sizeof(cmd), "G0 Y%f G90", -d);
                 stream->printf("%s\n", cmd);
-                struct SerialMessage message{&StreamOutput::NullStream, cmd};
+                struct SerialMessage message{&StreamOutput::NullStream, cmd, 0};
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
             }
             if(THEKERNEL->is_halted()) break;

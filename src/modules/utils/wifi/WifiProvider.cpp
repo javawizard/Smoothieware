@@ -39,6 +39,7 @@
 #include <math.h>
 
 #define wifi_checksum                     CHECKSUM("wifi")
+#define wifi_enable                       CHECKSUM("enable")
 #define wifi_interrupt_pin_checksum       CHECKSUM("interrupt_pin")
 #define machine_name_checksum             CHECKSUM("machine_name")
 #define tcp_port_checksum		          CHECKSUM("tcp_port")
@@ -52,16 +53,16 @@ WifiProvider::WifiProvider()
 	tcp_link_no = 0;
 	udp_link_no = 1;
 	wifi_init_ok = false;
+	has_data_flag = false;
 }
 
 void WifiProvider::on_module_loaded()
 {
-	this->register_for_event(ON_IDLE);
-    this->register_for_event(ON_GCODE_RECEIVED);
-    this->register_for_event(ON_MAIN_LOOP);
-    this->register_for_event(ON_SECOND_TICK);
-    this->register_for_event(ON_GET_PUBLIC_DATA);
-    this->register_for_event(ON_SET_PUBLIC_DATA);
+    if( !THEKERNEL->config->value( wifi_checksum,  wifi_enable)->by_default(false)->as_bool() ) {
+        // as not needed free up resource
+        delete this;
+        return;
+    }
 
 	this->tcp_port = THEKERNEL->config->value(wifi_checksum, tcp_port_checksum)->by_default(2222)->as_int();
 	this->udp_send_port = THEKERNEL->config->value(wifi_checksum, udp_send_port_checksum)->by_default(3333)->as_int();
@@ -93,14 +94,24 @@ void WifiProvider::on_module_loaded()
 
     query_flag = false;
     halt_flag = false;
+
+	this->register_for_event(ON_IDLE);
+    this->register_for_event(ON_GCODE_RECEIVED);
+    this->register_for_event(ON_MAIN_LOOP);
+    this->register_for_event(ON_SECOND_TICK);
+    this->register_for_event(ON_GET_PUBLIC_DATA);
+    this->register_for_event(ON_SET_PUBLIC_DATA);
 }
 
 void WifiProvider::on_pin_rise()
 {
+	has_data_flag = true;
+
 	// return if is uploading
-	if (!THEKERNEL->is_uploading()) {
-		this->receive_wifi_data();
-	}
+//	if (!THEKERNEL->is_uploading()) {
+//		this->receive_wifi_data();
+//	}
+
 }
 
 void WifiProvider::receive_wifi_data() {
@@ -213,9 +224,8 @@ void WifiProvider::on_second_tick(void *)
 void WifiProvider::on_idle(void *argument)
  {
 	if (!THEKERNEL->is_uploading()) {
-		// Need Test first then decide if need to check manually and get buffed data
-		if (M8266WIFI_SPI_Has_DataReceived()) {
-			puts("Received wifi data from idle function!\r\n");
+		if (has_data_flag || M8266WIFI_SPI_Has_DataReceived()) {
+			has_data_flag = false;
 			receive_wifi_data();
 		}
 	}

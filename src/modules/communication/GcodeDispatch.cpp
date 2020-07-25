@@ -154,7 +154,7 @@ try_again:
 
                 if(!uploading || upload_stream != new_message.stream) {
                     // Prepare gcode for dispatch
-                    Gcode *gcode = new Gcode(single_command, new_message.stream);
+                    Gcode *gcode = new Gcode(single_command, new_message.stream, false, new_message.line);
 
                     if(THEKERNEL->is_halted()) {
                         // we ignore all commands until M999, unless it is in the exceptions list (like M105 get temp)

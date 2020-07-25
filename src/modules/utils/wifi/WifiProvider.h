@@ -85,6 +85,7 @@ private:
     	bool wifi_init_ok:1;
     	volatile bool halt_flag:1;
     	volatile bool query_flag:1;
+    	volatile bool has_data_flag:1;
     };
 
 

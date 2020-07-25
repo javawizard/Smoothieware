@@ -29,6 +29,8 @@
 #include "TemperatureControlPublicAccess.h"
 #include "TemperatureControlPool.h"
 #include "ExtruderPublicAccess.h"
+#include "StepTicker.h"
+#include "Block.h"
 
 #include <cstddef>
 #include <cmath>
@@ -155,6 +157,7 @@ void Player::on_gcode_received(void *argument)
             this->played_cnt = 0;
             this->played_lines = 0;
             this->elapsed_secs = 0;
+            this->playing_lines = 0;
 
         } else if (gcode->m == 24) { // start print
             if (this->current_file_handler != NULL) {
@@ -448,6 +451,7 @@ void Player::on_main_loop(void *argument)
 			struct SerialMessage message;
 			message.message = this->buffered_queue.front();
 			message.stream = THEKERNEL->streams;
+			message.line = 0;
 			this->buffered_queue.pop();
 
 			// waits for the queue to have enough room
@@ -475,6 +479,7 @@ void Player::on_main_loop(void *argument)
                 struct SerialMessage message;
                 message.message = buf;
                 message.stream = this->current_stream == nullptr ? &(StreamOutput::NullStream) : this->current_stream;
+                message.line = played_lines + 1;
 
                 // waits for the queue to have enough room
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
@@ -521,10 +526,16 @@ void Player::on_get_public_data(void *argument)
     } else if(pdr->second_element_is(get_progress_checksum)) {
         static struct pad_progress p;
         if(file_size > 0 && playing_file) {
+            const Block *block = StepTicker::getInstance()->get_current_block();
+            // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
+            // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
+            if (block != nullptr && block->is_ready && block->is_g123) {
+            	this->playing_lines = block->line;
+            }
             p.elapsed_secs = this->elapsed_secs;
             float pcnt = (((float)file_size - (file_size - played_cnt)) * 100.0F) / file_size;
             p.percent_complete = roundf(pcnt);
-            p.played_lines = this->played_lines;
+            p.played_lines = this->playing_lines;
             p.filename = this->filename;
             pdr->set_data_ptr(&p);
             pdr->set_taken();
@@ -650,6 +661,7 @@ void Player::suspend_part2()
         struct SerialMessage message;
         message.message = after_suspend_gcode;
         message.stream = &(StreamOutput::NullStream);
+        message.line = 0;
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
@@ -731,6 +743,7 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         struct SerialMessage message;
         message.message = before_resume_gcode;
         message.stream = &(StreamOutput::NullStream);
+        message.line = 0;
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
@@ -747,6 +760,7 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         struct SerialMessage message;
         message.message = buf;
         message.stream = &(StreamOutput::NullStream);
+        message.line = 0;
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
     THEROBOT->absolute_mode= abs_mode;

@@ -251,7 +251,7 @@ void init() {
             while(fgets(buf, sizeof buf, fp) != NULL) {
                 kernel->streams->printf("  %s", buf);
                 if(buf[0] == ';') continue; // skip the comments
-                struct SerialMessage message= {&(StreamOutput::NullStream), buf};
+                struct SerialMessage message= {&(StreamOutput::NullStream), buf, 0};
                 kernel->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
             }
             kernel->streams->printf("config override file executed\n");

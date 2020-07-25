@@ -14,7 +14,7 @@
 
 // This is a gcode object. It represents a GCode string/command, and caches some important values about that command for the sake of performance.
 // It gets passed around in events, and attached to the queue ( that'll change )
-Gcode::Gcode(const string &command, StreamOutput *stream, bool strip)
+Gcode::Gcode(const string &command, StreamOutput *stream, bool strip, unsigned int line)
 {
     this->command= strdup(command.c_str());
     this->m= 0;
@@ -25,6 +25,7 @@ Gcode::Gcode(const string &command, StreamOutput *stream, bool strip)
     this->stream= stream;
     prepare_cached_values(strip);
     this->stripped= strip;
+    this->line = line;
 }
 
 Gcode::~Gcode()

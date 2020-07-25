@@ -49,10 +49,11 @@ void Planner::config_load()
 
 
 // Append a block to the queue, compute it's speed factors
-bool Planner::append_block( ActuatorCoordinates &actuator_pos, uint8_t n_motors, float rate_mm_s, float distance, float *unit_vec, float acceleration, float s_value, bool g123)
+bool Planner::append_block( ActuatorCoordinates &actuator_pos, uint8_t n_motors, float rate_mm_s, float distance, float *unit_vec, float acceleration, float s_value, bool g123, unsigned int _line)
 {
     // Create ( recycle ) a new block
     Block* block = THECONVEYOR->queue.head_ref();
+    block->line = _line;
 
     // Direction bits
     bool has_steps = false;

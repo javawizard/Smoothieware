@@ -45,6 +45,7 @@ class Block {
         float maximum_rate;
 
         float max_entry_speed;
+        unsigned int line;
 
         // this is tick info needed for this block. applies to all motors
         uint32_t accelerate_until;

@@ -57,6 +57,7 @@ class Player : public Module {
         unsigned long played_cnt;
         unsigned long elapsed_secs;
         unsigned long played_lines;
+        unsigned int playing_lines;
         float saved_position[3]; // only saves XYZ
         std::map<uint16_t, float> saved_temperatures;
         struct {

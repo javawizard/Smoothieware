@@ -550,6 +550,7 @@ void ATCHandler::on_main_loop(void *argument)
 			struct SerialMessage message;
 			message.message = this->script_queue.front();
 			message.stream = THEKERNEL->streams;
+			message.line = 0;
 			this->script_queue.pop();
 
 			// waits for the queue to have enough room
@@ -612,6 +613,7 @@ void ATCHandler::rapid_move(float x, float y, float z)
     delete [] cmd;
 
     message.stream = &(StreamOutput::NullStream);
+    message.line = 0;
     THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     THEKERNEL->conveyor->wait_for_idle();
 

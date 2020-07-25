@@ -18,7 +18,7 @@ class StreamOutput;
 // Object to represent a Gcode command
 class Gcode {
     public:
-        Gcode(const string&, StreamOutput*, bool strip=true);
+        Gcode(const string&, StreamOutput*, bool strip = true, unsigned int line = 0);
         Gcode(const Gcode& to_copy);
         Gcode& operator= (const Gcode& to_copy);
         ~Gcode();
@@ -36,6 +36,8 @@ class Gcode {
         // FIXME these should be private
         unsigned int m;
         unsigned int g;
+
+        unsigned int line;
 
         struct {
             bool add_nl:1;

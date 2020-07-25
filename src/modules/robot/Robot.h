@@ -106,7 +106,7 @@ class Robot : public Module {
         };
 
         void load_config();
-        bool append_milestone(const float target[], float rate_mm_s);
+        bool append_milestone(const float target[], float rate_mm_s, unsigned int line);
         bool append_line( Gcode* gcode, const float target[], float rate_mm_s, float delta_e);
         bool append_arc( Gcode* gcode, const float target[], const float offset[], float radius, bool is_clockwise );
         bool compute_arc(Gcode* gcode, const float offset[], const float target[], enum MOTION_MODE_T motion_mode);
