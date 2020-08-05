@@ -48,7 +48,9 @@ public:
 private:
     void config_load();
     void probe_XYZ(Gcode *gc);
+    void calibrate_Z(Gcode *gc);
     uint32_t read_probe(uint32_t dummy);
+    uint32_t read_calibrate(uint32_t dummy);
 
     float slow_feedrate;
     float fast_feedrate;
@@ -58,6 +60,7 @@ private:
     float dwell_before_probing;
 
     Pin pin;
+    Pin calibrate_pin;
     std::vector<LevelingStrategy*> strategies;
     uint16_t debounce_ms, debounce;
 
@@ -65,10 +68,12 @@ private:
         bool is_delta:1;
         bool is_rdelta:1;
         bool probing:1;
+        bool calibrating:1;
         bool reverse_z:1;
         bool invert_override:1;
         bool invert_probe:1;
         volatile bool probe_detected:1;
+        volatile bool calibrate_detected:1;
     };
 };
 

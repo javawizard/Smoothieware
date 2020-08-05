@@ -227,6 +227,7 @@ void Player::on_gcode_received(void *argument)
             this->played_cnt = 0;
             this->played_lines = 0;
             this->elapsed_secs = 0;
+            this->playing_lines = 0;
 
         } else if (gcode->m == 600) { // suspend print, Not entirely Marlin compliant, M600.1 will leave the heaters on
             this->suspend_command((gcode->subcode == 1)?"h":"", gcode->stream);
@@ -338,6 +339,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
     this->played_cnt = 0;
     this->played_lines = 0;
     this->elapsed_secs = 0;
+    this->playing_lines = 0;
 
     // force into absolute mode
     THEROBOT->absolute_mode = true;
@@ -398,6 +400,7 @@ void Player::abort_command( string parameters, StreamOutput *stream )
     playing_file = false;
     played_cnt = 0;
     played_lines = 0;
+    playing_lines = 0;
     file_size = 0;
     this->clear_buffered_queue();
     this->filename = "";
@@ -498,6 +501,7 @@ void Player::on_main_loop(void *argument)
         this->filename = "";
         played_cnt = 0;
         played_lines = 0;
+        playing_lines = 0;
         file_size = 0;
         fclose(this->current_file_handler);
         current_file_handler = NULL;

@@ -35,6 +35,7 @@
 
 #define enable_checksum          CHECKSUM("enable")
 #define probe_pin_checksum       CHECKSUM("probe_pin")
+#define calibrate_pin_checksum   CHECKSUM("calibrate_pin")
 #define debounce_ms_checksum     CHECKSUM("debounce_ms")
 #define slow_feedrate_checksum   CHECKSUM("slow_feedrate")
 #define fast_feedrate_checksum   CHECKSUM("fast_feedrate")
@@ -72,13 +73,15 @@ void ZProbe::on_module_loaded()
     register_for_event(ON_GCODE_RECEIVED);
 
     // we read the probe in this timer
-    probing= false;
+    probing = false;
     THEKERNEL->slow_ticker->attach(1000, this, &ZProbe::read_probe);
+    THEKERNEL->slow_ticker->attach(1000, this, &ZProbe::read_calibrate);
 }
 
 void ZProbe::config_load()
 {
     this->pin.from_string( THEKERNEL->config->value(zprobe_checksum, probe_pin_checksum)->by_default("nc" )->as_string())->as_input();
+    this->calibrate_pin.from_string( THEKERNEL->config->value(zprobe_checksum, calibrate_pin_checksum)->by_default("nc" )->as_string())->as_input();
     this->debounce_ms    = THEKERNEL->config->value(zprobe_checksum, debounce_ms_checksum)->by_default(0  )->as_number();
 
     // get strategies to load
@@ -162,13 +165,40 @@ uint32_t ZProbe::read_probe(uint32_t dummy)
                 // we signal the motors to stop, which will preempt any moves on that axis
                 // we do all motors as it may be a delta
                 for(auto &a : THEROBOT->actuators) a->stop_moving();
-                probe_detected= true;
-                debounce= 0;
+                probe_detected = true;
+                debounce = 0;
             }
 
         } else {
             // The endstop was not hit yet
-            debounce= 0;
+            debounce = 0;
+        }
+    }
+
+    return 0;
+}
+
+uint32_t ZProbe::read_calibrate(uint32_t dummy)
+{
+    if(!calibrating || calibrate_detected) return 0;
+
+    // we check all axis as it maybe a G38.2 X10 for instance, not just a probe in Z
+    if(STEPPER[Z_AXIS]->is_moving()) {
+        // if it is moving then we check the probe, and debounce it
+        if (this->pin.get()) {
+            if(debounce < debounce_ms) {
+                debounce++;
+            } else {
+                // we signal the motors to stop, which will preempt any moves on that axis
+                // we do all motors as it may be a delta
+                for(auto &a : THEROBOT->actuators) a->stop_moving();
+                calibrate_detected = true;
+                debounce = 0;
+            }
+
+        } else {
+            // The endstop was not hit yet
+            debounce = 0;
         }
     }
 
@@ -327,7 +357,7 @@ void ZProbe::on_gcode_received(void *argument)
 
     } else if(gcode->has_g && gcode->g == 38 ) { // G38.2 Straight Probe with error, G38.3 straight probe without error
         // linuxcnc/grbl style probe http://www.linuxcnc.org/docs/2.5/html/gcode/gcode.html#sec:G38-probe
-        if(gcode->subcode < 2 || gcode->subcode > 5) {
+        if(gcode->subcode < 2 || gcode->subcode > 6) {
             gcode->stream->printf("error:Only G38.2 to G38.5 are supported\n");
             return;
         }
@@ -338,13 +368,17 @@ void ZProbe::on_gcode_received(void *argument)
             return;
         }
 
-        if(gcode->subcode == 4 || gcode->subcode == 5) {
+        if (gcode->subcode == 4 || gcode->subcode == 5) {
             invert_probe = true;
         } else {
             invert_probe = false;
         }
 
-        probe_XYZ(gcode);
+        if (gcode->subcode == 6) {
+            calibrate_Z(gcode);
+        } else {
+            probe_XYZ(gcode);
+        }
 
         invert_probe = false;
 
@@ -456,6 +490,67 @@ void ZProbe::probe_XYZ(Gcode *gcode)
     if(probeok == 0 && (gcode->subcode == 2 || gcode->subcode == 4)) {
         // issue error if probe was not triggered and subcode is 2 or 4
         gcode->stream->printf("ALARM: Probe fail\n");
+        THEKERNEL->call_event(ON_HALT, nullptr);
+    }
+}
+
+// just probe / calibrate Z using calibrate pin
+void ZProbe::calibrate_Z(Gcode *gcode)
+{
+    float z= 0;
+    if(gcode->has_letter('Z')) {
+        z= gcode->get_value('Z');
+    }
+
+    if(z == 0) {
+        gcode->stream->printf("error: Z must be specified, and be > or < 0\n");
+        return;
+    }
+
+    // get probe feedrate in mm/min and convert to mm/sec if specified
+    float rate = (gcode->has_letter('F')) ? gcode->get_value('F') / 60 : this->slow_feedrate;
+
+    // first wait for all moves to finish
+    THEKERNEL->conveyor->wait_for_idle();
+
+    if (this->calibrate_pin.get()) {
+        gcode->stream->printf("error: ZCalibrate triggered before move, aborting command.\n");
+        return;
+    }
+
+    // enable the probe checking in the timer
+    calibrating = true;
+    calibrate_detected = false;
+    debounce = 0;
+
+    // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
+    float delta[3]= {0, 0, z};
+    if(!THEROBOT->delta_move(delta, rate, 3)) {
+        gcode->stream->printf("error:No move detected or too small\n");
+        calibrating = false;
+        return;
+    }
+
+    THEKERNEL->conveyor->wait_for_idle();
+
+    // disable probe checking
+    calibrating = false;
+
+    // if the probe stopped the move we need to correct the last_milestone as it did not reach where it thought
+    // this also sets last_milestone to the machine coordinates it stopped at
+    THEROBOT->reset_position_from_current_actuator_position();
+    float pos[3];
+    THEROBOT->get_axis_position(pos, 3);
+
+    uint8_t calibrateok = this->calibrate_detected ? 1 : 0;
+
+    // print results using the GRBL format
+    gcode->stream->printf("[PRB:%1.3f,%1.3f,%1.3f:%d]\n", THEKERNEL->robot->from_millimeters(pos[X_AXIS]), THEKERNEL->robot->from_millimeters(pos[Y_AXIS]), THEKERNEL->robot->from_millimeters(pos[Z_AXIS]), calibrateok);
+    THEROBOT->set_last_probe_position(std::make_tuple(pos[X_AXIS], pos[Y_AXIS], pos[Z_AXIS], calibrateok));
+
+    if (calibrateok == 0) {
+        // issue error if probe was not triggered and subcode is 2 or 4
+        gcode->stream->printf("ALARM: Calibrate fail!\n");
         THEKERNEL->call_event(ON_HALT, nullptr);
     }
 }

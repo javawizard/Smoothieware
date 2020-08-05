@@ -154,13 +154,13 @@ void ATCHandler::fill_cali_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", probe_mx_mm, probe_my_mm);
 	this->script_queue.push(buff);
 	// do calibrate with fast speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", probe_mz_mm, probe_fast_rate);
+	snprintf(buff, sizeof(buff), "G38.6 Z%f F%f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
 	// lift a bit
 	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
 	this->script_queue.push(buff);
 	// do calibrate with slow speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
+	snprintf(buff, sizeof(buff), "G38.6 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
 	this->script_queue.push(buff);
 	// save new tool offset
 	this->script_queue.push("M493");
