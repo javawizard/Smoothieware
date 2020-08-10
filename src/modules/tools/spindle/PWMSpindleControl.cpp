@@ -212,8 +212,8 @@ void PWMSpindleControl::set_speed(int rpm) {
 
 
 void PWMSpindleControl::report_speed() {
-    THEKERNEL->streams->printf("Current RPM: %5.0f  Target RPM: %5.0f  PWM value: %5.3f\n",
-                               current_rpm, target_rpm, current_pwm_value);
+    THEKERNEL->streams->printf("State: %s, Current RPM: %5.0f  Target RPM: %5.0f  PWM value: %5.3f\n",
+    			spindle_on ? "on" : "off", current_rpm, target_rpm, current_pwm_value);
 }
 
 
@@ -249,6 +249,7 @@ void PWMSpindleControl::on_get_public_data(void* argument)
     if(pdr->second_element_is(get_spindle_status_checksum)) {
 		// ok this is targeted at us, so set the requ3sted data in the pointer passed into us
 		struct spindle_status *t= static_cast<spindle_status*>(pdr->get_data_ptr());
+		t->state = this->spindle_on;
 		t->current_rpm = this->current_rpm;
 		t->target_rpm = this->target_rpm;
 		t->current_pwm_value = this->current_pwm_value;

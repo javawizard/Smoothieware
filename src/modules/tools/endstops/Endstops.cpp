@@ -88,6 +88,8 @@ enum DEFNS {MIN_PIN, MAX_PIN, MAX_TRAVEL, FAST_RATE, SLOW_RATE, RETRACT, DIRECTI
 #define retract_checksum                   CHECKSUM("retract")
 #define limit_checksum                     CHECKSUM("limit_enable")
 
+#define cover_endstop_checksum              CHECKSUM("cover_endstop")
+
 #define STEPPER THEROBOT->actuators
 #define STEPS_PER_MM(a) (STEPPER[a]->get_steps_per_mm())
 
@@ -396,6 +398,8 @@ void Endstops::get_global_configs()
     this->trim_mm[0] = THEKERNEL->config->value(alpha_trim_checksum)->by_default(0)->as_number();
     this->trim_mm[1] = THEKERNEL->config->value(beta_trim_checksum)->by_default(0)->as_number();
     this->trim_mm[2] = THEKERNEL->config->value(gamma_trim_checksum)->by_default(0)->as_number();
+
+	this->cover_endstop_pin.from_string( THEKERNEL->config->value(cover_endstop_checksum)->by_default("nc" )->as_string())->as_input();
 
     // see if an order has been specified, must be three or more characters, XYZABC or ABYXZ etc
     string order = THEKERNEL->config->value(homing_order_checksum)->by_default("")->as_string();
@@ -1220,6 +1224,20 @@ void Endstops::on_get_public_data(void* argument)
         for (int i = 0; i < 3; ++i) {
             homed[i]= homing_axis[i].homed;
         }
+        pdr->set_taken();
+    } else if (pdr->second_element_is(get_endstop_states_checksum)) {
+    	int index = 0;
+        char *data = static_cast<char *>(pdr->get_data_ptr());
+        for(auto& i : endstops) {
+        	if (index < 6) {
+                if(i->limit_enable) {
+                	data[index] = (char)i->pin.get();
+                	index ++;
+                }
+        	}
+        }
+        // cover endstop
+        data[5] = (char)this->cover_endstop_pin.get();
         pdr->set_taken();
     }
 }

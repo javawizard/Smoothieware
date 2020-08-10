@@ -41,7 +41,7 @@ void SpindleControl::on_gcode_received(void *argument)
         {
             THECONVEYOR->wait_for_idle();
             // M3: Spindle on
-            if(!spindle_on) {
+            if (!spindle_on) {
                 turn_on();
             }
             
@@ -55,7 +55,7 @@ void SpindleControl::on_gcode_received(void *argument)
         {
             THECONVEYOR->wait_for_idle();
             // M5: spindle off
-            if(spindle_on) {
+            if (spindle_on) {
                 turn_off();
             }
         }

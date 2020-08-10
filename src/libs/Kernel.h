@@ -60,6 +60,9 @@ class Kernel {
         void set_uploading(bool f) { uploading = f; }
         bool is_uploading() const { return uploading; }
 
+        void set_laser_mode(bool f) { laser_mode = f; }
+        bool get_laser_mode() const { return laser_mode; }
+
         std::string get_query_string();
 
         // These modules are available to all other modules
@@ -91,6 +94,7 @@ class Kernel {
             volatile bool enable_feed_hold:1;
             bool bad_mcu:1;
             volatile bool uploading:1;
+            bool laser_mode:1;
         };
 
 };

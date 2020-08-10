@@ -30,7 +30,10 @@
 #include "StepperMotor.h"
 #include "Configurator.h"
 #include "Block.h"
-
+#include "SpindlePublicAccess.h"
+#include "ZProbePublicAccess.h"
+#include "LaserPublicAccess.h"
+#include "ATCHandlerPublicAccess.h"
 #include "TemperatureControlPublicAccess.h"
 #include "EndstopsPublicAccess.h"
 #include "NetworkPublicAccess.h"
@@ -84,6 +87,7 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"switch",   SimpleShell::switch_command},
     {"net",      SimpleShell::net_command},
 	{"wlan",     SimpleShell::wlan_command},
+	{"diagnose",   SimpleShell::diagnose_command},
     {"load",     SimpleShell::load_command},
     {"save",     SimpleShell::save_command},
     {"remount",  SimpleShell::remount_command},
@@ -285,7 +289,7 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume" || cmd == "buffer") {
             // these are handled by Player module
 
-        } else if (cmd == "fire") {
+        } else if (cmd == "laser") {
             // these are handled by Laser module
 
         } else if (cmd.substr(0, 2) == "ok") {
@@ -801,6 +805,93 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
         	}
         }
     }
+}
+
+// wlan config
+void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
+{
+	std::string str;
+    size_t n;
+    char buf[128];
+    bool ok = false;
+
+    str.append("{");
+
+    // get spindle state
+    struct spindle_status ss;
+    ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "S:%d,%d", (int)ss.state, (int)ss.target_rpm);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get laser state
+    struct laser_status ls;
+    ok = PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "L:%d,%d", (int)ls.state, (int)ls.power);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get switchs state
+    struct pad_switch pad;
+    ok = PublicData::get_value(switch_checksum, get_checksum("spindlefan"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|F:%d,%d", (int)pad.state, (int)pad.value);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("vacuum"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|V:%d,%d", (int)pad.state, (int)pad.value);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("light"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|G:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("toolsensor"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|T:%d,%d", (int)pad.state, 0);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get endstops
+    char data[10];
+    ok = PublicData::get_value(endstops_checksum, get_endstop_states_checksum, 0, data);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|E:%d,%d,%d,%d,%d,%d", data[0], data[1], data[2], data[3], data[4], data[5]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get probe and calibrate states
+    ok = PublicData::get_value(zprobe_checksum, get_zprobe_pin_states_checksum, 0, &data[6]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|P:%d,%d", data[6], data[7]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get atc endstop and tool senser states
+    ok = PublicData::get_value(atc_handler_checksum, get_atc_pin_status_checksum, 0, &data[8]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|A:%d,%d", data[8], data[9]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+
+
+    str.append("}\n");
+    stream->printf("%s", str.c_str());
+
 }
 
 // print out build version
@@ -1459,6 +1550,7 @@ void SimpleShell::help_command( string parameters, StreamOutput *stream )
     stream->printf("switch name [value]\r\n");
     stream->printf("net\r\n");
     stream->printf("wlan [ssid] [password] [-d] [-e]\r\n");
+    stream->printf("diagnose\r\n");
     stream->printf("load [file] - loads a configuration override file from soecified name or config-override\r\n");
     stream->printf("save [file] - saves a configuration override file as specified filename or as config-override\r\n");
     stream->printf("upload filename - saves a stream of text to the named file\r\n");

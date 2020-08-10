@@ -634,6 +634,12 @@ void ATCHandler::on_get_public_data(void* argument)
             t->tool_offset = this->tool_offset;
             pdr->set_taken();
     	}
+    } else if (pdr->second_element_is(get_atc_pin_status_checksum)) {
+        char *data = static_cast<char *>(pdr->get_data_ptr());
+        // cover endstop
+        data[0] = (char)this->atc_home_info.pin.get();
+        data[1] = (char)this->detector_info.detect_pin.get();
+        pdr->set_taken();
     }
 }
 

@@ -29,6 +29,7 @@
 #include "Configurator.h"
 #include "SimpleShell.h"
 #include "TemperatureControlPublicAccess.h"
+#include "LaserPublicAccess.h"
 #include "ATCHandlerPublicAccess.h"
 #include "PlayerPublicAccess.h"
 #include "SpindlePublicAccess.h"
@@ -64,6 +65,7 @@ Kernel::Kernel()
     enable_feed_hold = false;
     bad_mcu= true;
     uploading = false;
+    laser_mode = false;
 
     instance = this; // setup the Singleton instance of the kernel
 
@@ -292,14 +294,12 @@ std::string Kernel::get_query_string()
     }
 
     // current Laser power and override
-    #ifndef NO_TOOLS_LASER
-        Laser *plaser= nullptr;
-        if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
-            n = snprintf(buf, sizeof(buf), "|L:%1.4f,%1.4f", plaser->get_current_power(), plaser->get_scale());
-            if(n > sizeof(buf)) n= sizeof(buf);
-            str.append(buf, n);
-        }
-    #endif
+    struct laser_status ls;
+	if(PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls)) {
+		n = snprintf(buf, sizeof(buf), "|L:%d, %1.4f,%1.4f", int(ls.mode), ls.power, ls.scale);
+		if(n > sizeof(buf)) n= sizeof(buf);
+		str.append(buf, n);
+	}
 
     // current running file info
     if (running) {

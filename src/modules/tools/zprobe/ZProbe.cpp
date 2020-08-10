@@ -22,6 +22,7 @@
 #include "SerialMessage.h"
 #include "PublicDataRequest.h"
 #include "EndstopsPublicAccess.h"
+#include "ZProbePublicAccess.h"
 #include "PublicData.h"
 #include "LevelingStrategy.h"
 #include "StepTicker.h"
@@ -71,6 +72,7 @@ void ZProbe::on_module_loaded()
     this->config_load();
     // register event-handlers
     register_for_event(ON_GCODE_RECEIVED);
+    register_for_event(ON_GET_PUBLIC_DATA);
 
     // we read the probe in this timer
     probing = false;
@@ -180,12 +182,12 @@ uint32_t ZProbe::read_probe(uint32_t dummy)
 
 uint32_t ZProbe::read_calibrate(uint32_t dummy)
 {
-    if(!calibrating || calibrate_detected) return 0;
+    if (!calibrating || calibrate_detected) return 0;
 
     // we check all axis as it maybe a G38.2 X10 for instance, not just a probe in Z
     if(STEPPER[Z_AXIS]->is_moving()) {
         // if it is moving then we check the probe, and debounce it
-        if (this->pin.get()) {
+        if (this->calibrate_pin.get()) {
             if(debounce < debounce_ms) {
                 debounce++;
             } else {
@@ -605,4 +607,18 @@ void ZProbe::home()
 {
     Gcode gc(THEKERNEL->is_grbl_mode() ? "G28.2" : "G28", &(StreamOutput::NullStream));
     THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc);
+}
+
+void ZProbe::on_get_public_data(void* argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+
+    if(!pdr->starts_with(zprobe_checksum)) return;
+    if (pdr->second_element_is(get_zprobe_pin_states_checksum)) {
+        char *data = static_cast<char *>(pdr->get_data_ptr());
+        // cover endstop
+        data[0] = (char)this->pin.get();
+        data[1] = (char)this->calibrate_pin.get();
+        pdr->set_taken();
+    }
 }

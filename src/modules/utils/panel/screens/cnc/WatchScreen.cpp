@@ -188,10 +188,10 @@ void WatchScreen::display_menu_line(uint16_t line)
         case 6:
             if(THEPANEL->has_laser()){
                 #ifndef NO_TOOLS_LASER
-                Laser *plaser= nullptr;
-                if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
-                    THEPANEL->lcd->printf("Laser S%1.4f/%1.2f%%", THEROBOT->get_s_value(), plaser->get_current_power());
-                }
+//                Laser *plaser= nullptr;
+//                if(PublicData::get_value(laser_checksum, (void *)&plaser) && plaser != nullptr) {
+//                    THEPANEL->lcd->printf("Laser S%1.4f/%1.2f%%", THEROBOT->get_s_value(), plaser->get_current_power());
+//                }
                 #endif
             }
             break;
