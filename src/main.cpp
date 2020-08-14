@@ -68,9 +68,8 @@
 #define dfu_enable_checksum  CHECKSUM("dfu_enable")
 #define watchdog_timeout_checksum  CHECKSUM("watchdog_timeout")
 
-
 // USB Stuff
-SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_9, P0_8, P0_7, P0_6);      // this selects SPI1 as the sdcard as it is on Smoothieboard
+SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_18, P0_17, P0_15, P0_16);      // this selects SPI1 as the sdcard as it is on Smoothieboard
 //SDCard sd(P0_18, P0_17, P0_15, P0_16);  // this selects SPI0 as the sdcard
 //SDCard sd(P0_18, P0_17, P0_15, P2_8);  // this selects SPI0 as the sdcard witrh a different sd select
 
@@ -85,11 +84,11 @@ USBMSD *msc= NULL;
 SDFAT mounter __attribute__ ((section ("AHBSRAM0"))) ("sd", &sd);
 
 GPIO leds[5] = {
-    GPIO(P1_18),
-    GPIO(P1_19),
-    GPIO(P1_20),
-    GPIO(P1_21),
-    GPIO(P4_28)
+    GPIO(P4_29),
+    GPIO(P4_28),
+    GPIO(P0_4),
+    GPIO(P0_5),
+    GPIO(P1_14)
 };
 
 void init() {
@@ -98,6 +97,16 @@ void init() {
     for (int i = 0; i < 5; i++){
         leds[i].output();
         leds[i]= 0;
+    }
+
+    for (int i = 0; i < 100000; i ++) {
+    	for (int j = 0; j < 100000; j ++) {
+    		if (i % 2 == 0) {
+    			leds[0] = 1;
+    		} else {
+    			leds[0] = 0;
+    		}
+    	}
     }
 
     Kernel* kernel = new Kernel();
@@ -132,7 +141,7 @@ void init() {
     // ATC Handler
     kernel->add_module( new(AHB0) ATCHandler() );
     // Wifi Provider
-    kernel->add_module( new(AHB0) WifiProvider() );
+    // kernel->add_module( new(AHB0) WifiProvider() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) KillButton() );
