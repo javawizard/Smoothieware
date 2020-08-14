@@ -192,7 +192,7 @@ void Laser::on_gcode_received(void *argument)
         	// turn on laser pin
         	this->laser_pin->set(true);
         	gcode->stream->printf("turning laser mode on\n");
-        } else if (gcode->m == 321) { // change to CNC mode
+        } else if (gcode->m == 322) { // change to CNC mode
         	THEKERNEL->set_laser_mode(false);
         	this->laser_pin->set(false);
         	// turn off laser pin

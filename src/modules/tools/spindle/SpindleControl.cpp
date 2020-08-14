@@ -37,7 +37,7 @@ void SpindleControl::on_gcode_received(void *argument)
             report_settings();
           
         }
-        else if (gcode->m == 3) 
+        else if (gcode->m == 3 && !THEKERNEL->get_laser_mode())
         {
             THECONVEYOR->wait_for_idle();
             // M3: Spindle on
@@ -51,7 +51,7 @@ void SpindleControl::on_gcode_received(void *argument)
                 set_speed(gcode->get_value('S'));
             }
         }
-        else if (gcode->m == 5)
+        else if (gcode->m == 5 && !THEKERNEL->get_laser_mode())
         {
             THECONVEYOR->wait_for_idle();
             // M5: spindle off
@@ -59,7 +59,7 @@ void SpindleControl::on_gcode_received(void *argument)
                 turn_off();
             }
         }
-        else if (gcode->m == 222)
+        else if (gcode->m == 223)
         {	// M222 - rpm override percentage
             if (gcode->has_letter('S')) {
                 float factor = gcode->get_value('S');

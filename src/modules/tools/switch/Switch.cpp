@@ -412,7 +412,7 @@ void Switch::on_gcode_received(void *argument)
             this->switch_state = true;
             if(gcode->has_letter('S')) {
                 this->switch_value = gcode->get_value('S');
-                this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm)/100.0F);
+                this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
             } else {
                 this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
             }

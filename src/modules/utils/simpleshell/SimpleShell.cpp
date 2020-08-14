@@ -830,7 +830,7 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     struct laser_status ls;
     ok = PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls);
     if (ok) {
-        n = snprintf(buf, sizeof(buf), "L:%d,%d", (int)ls.state, (int)ls.power);
+        n = snprintf(buf, sizeof(buf), "|L:%d,%d", (int)ls.state, (int)ls.power);
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
     }
@@ -857,7 +857,7 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     }
     ok = PublicData::get_value(switch_checksum, get_checksum("toolsensor"), 0, &pad);
     if (ok) {
-        n = snprintf(buf, sizeof(buf), "|T:%d,%d", (int)pad.state, 0);
+        n = snprintf(buf, sizeof(buf), "|T:%d", (int)pad.state);
         if(n > sizeof(buf)) n = sizeof(buf);
         str.append(buf, n);
     }
