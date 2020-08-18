@@ -36,6 +36,8 @@
 #include "port_api.h"
 #include "InterruptIn.h"
 
+#include "gpio.h"
+
 #include <math.h>
 
 #define wifi_checksum                     CHECKSUM("wifi")
@@ -106,19 +108,12 @@ void WifiProvider::on_module_loaded()
 void WifiProvider::on_pin_rise()
 {
 	has_data_flag = true;
-
-	// return if is uploading
-//	if (!THEKERNEL->is_uploading()) {
-//		this->receive_wifi_data();
-//	}
-
 }
 
 void WifiProvider::receive_wifi_data() {
 	u8 link_no;
 	u16 received = 0;
 	u16 status;
-	// this->printf("receive_wifi_data\r\n");
 
 	while (true)
 	{
@@ -332,7 +327,6 @@ int WifiProvider::gets(char** buf)
 	u16 status;
 	u8 link_no;
 	u16 received = M8266WIFI_SPI_RecvData(RecvData, WIFI_RECV_DATA_MAX_SIZE, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
-	// THEKERNEL->streams->printf("M8266WIFI_SPI_RecvData, received: %d, high: %d, low: %d!\n", received, int(status >> 8), int(status & 0xff));
 	if (link_no == udp_link_no) {
 		return 0;
 	}
@@ -540,7 +534,7 @@ void WifiProvider::query_wifi_status() {
 	char fw_ver[24] = "";
 	THEKERNEL->streams->printf("M8266WIFI_SPI_Get_Module_Info...\n");
 	if (M8266WIFI_SPI_Get_Module_Info(&esp8266_id, &flash_size, fw_ver, &status) == 0) {
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Get_Module_Info, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Get_Module_Info ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	} else {
 		THEKERNEL->streams->printf("esp8266_id:%ld, flash_size:%d, fw_ver:%s!\n",  esp8266_id, flash_size, fw_ver);
 	}
@@ -556,10 +550,10 @@ void WifiProvider::init_wifi_module(bool reset) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connections...\n");
 		// disconnect current links
 		if (M8266WIFI_SPI_Delete_Connection( udp_link_no, &status) == 0){
-			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection udp, ERROR!\n");
+			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 		}
 		if (M8266WIFI_SPI_Delete_Connection( tcp_link_no, &status) == 0){
-			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection tcp, ERROR!\n");
+			THEKERNEL->streams->printf("M8266WIFI_SPI_Delete_Connection ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 		}
 
 		// remove current stream
@@ -568,37 +562,39 @@ void WifiProvider::init_wifi_module(bool reset) {
 
 
 	THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI...\n");
+
 	M8266HostIf_Init();
 	if (M8266WIFI_Module_Init_Via_SPI() == 0) {
 		THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI, ERROR!\n");
 	}
+
 	// init udp and tcp server connection
 	THEKERNEL->streams->printf("Init UDP and TCP connection...\n");
 	// setup TCP Connection
 	snprintf(address, sizeof(address), "192.168.4.10");
 	if (M8266WIFI_SPI_Setup_Connection(2, this->tcp_port, address, 0, tcp_link_no, 3, &status) == 0) {
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection TCP, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 	// setup UDP Connection
 	snprintf(address, sizeof(address), "192.168.4.255");
 	if (M8266WIFI_SPI_Setup_Connection(0, this->udp_recv_port, address, 0, udp_link_no, 3, &status) == 0) {
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection UDP, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Setup_Connection ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 
 	// set timeout
 	if( M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout(tcp_link_no, tcp_timeout_s, &status) == 0)
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_TcpServer_Auto_Discon_Timeout ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 
 	// load current AP IP and Netmask
 	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_IP_ADDR, (u8 *)this->ap_address, &param_len, &status) == 0)
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param:IP, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_NETMASK_ADDR, (u8 *)this->ap_netmask, &param_len, &status) == 0)
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param:NetMask, ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 
 	if (reset) {
@@ -707,12 +703,7 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 	//                  如果没有调用这个API，单片机主机和模组之间将可能将无法通信)
 	if(M8266HostIf_SPI_Select((uint32_t)M8266WIFI_INTERFACE_SPI, spi_clk, &status) == 0)
 	{
-		THEKERNEL->streams->printf("Init SPI ERROR, status:%d!\n", status);
-		if ((status>>8) == 0xFF) {
-			THEKERNEL->streams->printf("High bytes = 0xFF!\n");
-		} else if ((status>>8) == 0x00){
-			THEKERNEL->streams->printf("High bytes = 0x00!\n");
-		}
+		THEKERNEL->streams->printf("M8266HostIf_SPI_Select ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 		return 0;
 	}
 
@@ -746,7 +737,7 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 	//u8 M8266WIFI_SPI_Set_Tx_Max_Power(u8 tx_max_power, u16 *status)
 	if(M8266WIFI_SPI_Set_Tx_Max_Power(68, &status)==0)   // tx_max_power=68 to set the max tx power of aroud half of manufacture default, i.e. 50mW or 17dBm. Refer to the API specification for more info
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Tx_Max_Power ERROR, status: %d!\n", status);
+		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Tx_Max_Power ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 		return 0;                                          // (Chinese: tx_max_power=68表示将发射最大功率设置为出厂缺省数值的一般，即50mW或者17dBm。具体数值含义可以查看这个API函数的头文件声明里的注释
 	}
 

@@ -15,6 +15,7 @@
 #define _M8266_HOST_IF_H_
 
 void M8266HostIf_Init(void);
+void M8266HostIf_GPIO_CS_RESET_Init(void);
 
 void M8266HostIf_SPI_SetSpeed(u32 SPI_BaudRatePrescaler);
 

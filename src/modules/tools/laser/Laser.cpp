@@ -253,7 +253,7 @@ uint32_t Laser::set_proportional_power(uint32_t dummy)
 		return 0;
 	}
     if (this->testing) {
-        set_laser_power(this->laser_test_power);
+        set_laser_power(this->laser_test_power * scale);
         return 0;
     }
 

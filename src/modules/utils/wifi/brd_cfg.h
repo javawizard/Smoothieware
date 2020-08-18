@@ -85,8 +85,8 @@
 #define  M8266WIFI_nRESET_GPIO											GPIOC
 #define  M8266WIFI_nRESET_PIN												GPIO_PIN_3
 #elif defined(MCU_IS_NXP_LPC17XX) // NXP's LPC17XX,  using *GPIO[2,7]* as nRESET
-#define  M8266WIFI_nRESET_GPIO											LPC_GPIO1
-#define  M8266WIFI_nRESET_PIN												22
+#define  M8266WIFI_nRESET_GPIO											LPC_GPIO2
+#define  M8266WIFI_nRESET_PIN												0
 #elif defined(MCU_IS_NXP_MK27_28)   	// NXP's MK27/MK28, using *PTE4* as nRESET
 #define  M8266WIFI_nRESET_PORT											PORTE
 #define  M8266WIFI_nRESET_PORT_CLOCK								kCLOCK_PortE
@@ -139,7 +139,7 @@
 #define  M8266WIFI_SPI_nCS_PIN											GPIO_PIN_2
 #elif defined(MCU_IS_NXP_LPC17XX) // NXP's LPC17XX, using *GPIO[0,16]* as nCS
 #define  M8266WIFI_SPI_nCS_GPIO											LPC_GPIO0
-#define  M8266WIFI_SPI_nCS_PIN											16
+#define  M8266WIFI_SPI_nCS_PIN											6
 #elif defined(MCU_IS_NXP_MK27_28)   	// NXP's MK27/MK28, using *PTD15* as nCS
 #define  M8266WIFI_SPI_nCS_PORT											PORTD
 #define  M8266WIFI_SPI_nCS_PORT_CLOCK								kCLOCK_PortD
@@ -177,7 +177,7 @@
 //            or  SPI0_MOSI=PD11, SPI0_MISO=PD12, SPI0_SCK=PD10
 //- If uses SPI1, SPI1_MOSI=PE10, SPI1_MISO=PE11, SPI1_SCK=PE9
 //            or  SPI1_MOSI=PC11, SPI1_MISO=PC12, SPI1_SCK=PC10
-#define  M8266WIFI_SPI_INTERFACE_NO							0   // STM32: 1~. for STM32F4xx, try to use SPI1 other than SPI2 and SPI3, since according to datasheet, SPI1 has a better performance than SPI2 and SPI3
+#define  M8266WIFI_SPI_INTERFACE_NO							1  // STM32: 1~. for STM32F4xx, try to use SPI1 other than SPI2 and SPI3, since according to datasheet, SPI1 has a better performance than SPI2 and SPI3
 																										// NXP:   0~
 //- If uses USART1, USART1_TXD=PA9, USART1_RXD=PA10
 //- If uses USART2, USART2_TXD=PA2, USART2_RXD=PA3

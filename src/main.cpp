@@ -99,16 +99,6 @@ void init() {
         leds[i]= 0;
     }
 
-    for (int i = 0; i < 100000; i ++) {
-    	for (int j = 0; j < 100000; j ++) {
-    		if (i % 2 == 0) {
-    			leds[0] = 1;
-    		} else {
-    			leds[0] = 0;
-    		}
-    	}
-    }
-
     Kernel* kernel = new Kernel();
 
     kernel->streams->printf("Smoothie Running @%ldMHz\r\n", SystemCoreClock / 1000000);
@@ -141,7 +131,7 @@ void init() {
     // ATC Handler
     kernel->add_module( new(AHB0) ATCHandler() );
     // Wifi Provider
-    // kernel->add_module( new(AHB0) WifiProvider() );
+    kernel->add_module( new(AHB0) WifiProvider() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) KillButton() );

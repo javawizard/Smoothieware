@@ -32,12 +32,12 @@
 void M8266HostIf_GPIO_CS_RESET_Init(void)
 {
 	  //Initialise the nRESET pin
-	M8266WIFI_nRESET_GPIO->FIOSET |= (1 << M8266WIFI_nRESET_PIN);  				// Output High initially
 	M8266WIFI_nRESET_GPIO->FIODIR |= (1 << M8266WIFI_nRESET_PIN);  				// Set as Output
+	M8266WIFI_nRESET_GPIO->FIOCLR |= (1 << M8266WIFI_nRESET_PIN);
 
 	//Initialise the nCS pin
-	M8266WIFI_SPI_nCS_GPIO->FIOSET |= (1 << M8266WIFI_SPI_nCS_PIN);  		// Output High initially
 	M8266WIFI_SPI_nCS_GPIO->FIODIR |= (1 << M8266WIFI_SPI_nCS_PIN);  		// Set as Output
+	M8266WIFI_SPI_nCS_GPIO->FIOSET |= (1 << M8266WIFI_SPI_nCS_PIN);  		// Output High initially
 }
 
 /***********************************************************************************
@@ -54,7 +54,7 @@ void M8266HostIf_GPIO_CS_RESET_Init(void)
 void M8266HostIf_SPI_Init(void)
 {
 	// Initialise the SPI GPIO pins
-	GPIO_PinRemapSPI0;
+	GPIO_PinRemapSPI1;
 
 
 	// To enable the SPI(SSPx) Power and Clock Selection
@@ -223,7 +223,7 @@ void M8266HostIf_Init(void)
  ***********************************************************************************/
 void M8266HostIf_Set_nRESET_Pin(u8 level)
 {
-	if (level != 0)
+	if (level == 0)
 		M8266WIFI_nRESET_GPIO->FIOSET |= (1 << M8266WIFI_nRESET_PIN);
 	else
 		M8266WIFI_nRESET_GPIO->FIOCLR |= (1 << M8266WIFI_nRESET_PIN);

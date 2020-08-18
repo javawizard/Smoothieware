@@ -277,8 +277,8 @@ int SDCard::disk_initialize()
         return 1;
     }
 
-    // _spi.frequency(15000000); // Set to 2.5MHz for data transfer
-    _spi.frequency(2500000); // Set to 2.5MHz for data transfer
+    _spi.frequency(15000000); // Set to 2.5MHz for data transfer
+    // _spi.frequency(2500000); // Set to 2.5MHz for data transfer
 
     busyflag = false;
 
