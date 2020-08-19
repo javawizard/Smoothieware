@@ -296,7 +296,7 @@ std::string Kernel::get_query_string()
     // current Laser power and override
     struct laser_status ls;
 	if(PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls)) {
-		n = snprintf(buf, sizeof(buf), "|L:%d, %1.4f,%1.4f", int(ls.mode), ls.power, ls.scale);
+		n = snprintf(buf, sizeof(buf), "|L:%d, %d, %d, %1.4f,%1.4f", int(ls.mode), int(ls.state), int(ls.testing), ls.power, ls.scale);
 		if(n > sizeof(buf)) n= sizeof(buf);
 		str.append(buf, n);
 	}

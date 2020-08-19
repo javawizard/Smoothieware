@@ -167,6 +167,7 @@ void Laser::on_get_public_data(void* argument)
 		struct laser_status *t= static_cast<laser_status*>(pdr->get_data_ptr());
 		t->mode = THEKERNEL->get_laser_mode();
 		t->state = this->laser_on;
+		t->testing = this->testing;
 	    float p = pwm_pin->read();
 	    t->power = (this->pwm_inverting ? 1 - p : p) * 100;
 		t->scale = this->scale * 100;
@@ -184,9 +185,11 @@ void Laser::on_gcode_received(void *argument)
     if (gcode->has_m) {
     	if (gcode->m == 3 && THEKERNEL->get_laser_mode())
 		{
-    		laser_on = true;
+    		this->laser_on = true;
+    		this->testing = false;
 		} else if (gcode->m == 5) {
-			laser_on = false;
+			this->laser_on = false;
+			this->testing = false;
 		} else if (gcode->m == 321) { // change to laser mode
         	THEKERNEL->set_laser_mode(true);
         	// turn on laser pin
@@ -195,9 +198,18 @@ void Laser::on_gcode_received(void *argument)
         } else if (gcode->m == 322) { // change to CNC mode
         	THEKERNEL->set_laser_mode(false);
         	this->laser_pin->set(false);
+        	this->testing = false;
         	// turn off laser pin
         	gcode->stream->printf("turning laser mode off and return to CNC mode\n");
-        } else if (gcode->m == 323) { // M223 S100 change laser power by percentage S
+        } else if (gcode->m == 323) {
+        	this->testing = true;
+			// turn on test mode
+			gcode->stream->printf("turning laser test mode on\n");
+        } else if (gcode->m == 324) {
+        	this->testing = false;
+			// turn off test mode
+			gcode->stream->printf("turning laser test mode off\n");
+        } else if (gcode->m == 325) { // M223 S100 change laser power by percentage S
             if(gcode->has_letter('S')) {
                 this->scale = gcode->get_value('S') / 100.0F;
             } else {

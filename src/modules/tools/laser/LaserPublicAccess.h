@@ -18,6 +18,7 @@
 struct laser_status {
 	bool mode;
 	bool state;
+	bool testing;
     float power;	// 0 - 100
     float scale; // 0 - 100
 };

@@ -837,15 +837,15 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
 
     // get switchs state
     struct pad_switch pad;
-    ok = PublicData::get_value(switch_checksum, get_checksum("spindlefan"), 0, &pad);
-    if (ok) {
-        n = snprintf(buf, sizeof(buf), "|F:%d,%d", (int)pad.state, (int)pad.value);
-        if(n > sizeof(buf)) n = sizeof(buf);
-        str.append(buf, n);
-    }
     ok = PublicData::get_value(switch_checksum, get_checksum("vacuum"), 0, &pad);
     if (ok) {
         n = snprintf(buf, sizeof(buf), "|V:%d,%d", (int)pad.state, (int)pad.value);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("spindlefan"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|F:%d,%d", (int)pad.state, (int)pad.value);
         if(n > sizeof(buf)) n = sizeof(buf);
         str.append(buf, n);
     }
