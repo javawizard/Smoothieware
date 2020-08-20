@@ -452,11 +452,6 @@ void Switch::on_get_public_data(void *argument)
 
     // ok this is targeted at us, so send back the requested data
     // caller has provided the location to write the state to
-    if (get_checksum("vacuum") == this->name_checksum)
-    	THEKERNEL->streams->printf("Vacuum switch state: %d, value: %d\r\n", this->switch_state, (int)this->switch_value);
-    if (get_checksum("spindlefan") == this->name_checksum)
-    	THEKERNEL->streams->printf("Spindlefan state: %d, value: %d\r\n", this->switch_state, (int)this->switch_value);
-
     struct pad_switch *pad = static_cast<struct pad_switch *>(pdr->get_data_ptr());
     pad->name = this->name_checksum;
     pad->state = this->switch_state;
