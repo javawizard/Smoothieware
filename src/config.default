@@ -94,7 +94,7 @@ atc.homing_rate_mm_s						1.5
 atc.action_mm								2
 atc.action_rate_mm_s						1.5
 
-atc.detector.detect_pin						0.20!^
+atc.detector.detect_pin						0.20^
 atc.detector.detect_rate_mm_s				1
 atc.detector.detect_travel_mm				3	
 
@@ -178,15 +178,6 @@ switch.toolsensor.output_pin				2.12			# Pin this module controls
 switch.toolsensor.output_type				digital			# Digital means this is just an on or off pin
 switch.toolsensor.input_on_command			M831			# Command that will turn this switch on
 switch.toolsensor.input_off_command			M832			# Command that will turn this switch off
-
-switch.reserve.enable						true			# Enable this module
-switch.reserve.input_on_command				M841			# Command that will turn this switch on
-switch.reserve.input_off_command			M842			# Command that will turn this switch off
-switch.reserve.output_pin					nc				# Pin this module controls
-switch.reserve.output_type					digitalpwm		# Digital means this is just an on or off pin
-switch.reserve.pwm_pin						nc				#
-switch.reserve.min_pwm						0				#
-switch.reserve.max_pwm						100				#
 
 
 ## Temperature control configuration

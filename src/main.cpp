@@ -99,6 +99,15 @@ void init() {
         leds[i]= 0;
     }
 
+    // open 12V
+    GPIO v12 = GPIO(P0_11);
+    v12.output();
+    v12 = 1;
+
+    GPIO v24 = GPIO(P1_29);
+    v24.output();
+    v24 = 1;
+
     Kernel* kernel = new Kernel();
 
     kernel->streams->printf("Smoothie Running @%ldMHz\r\n", SystemCoreClock / 1000000);

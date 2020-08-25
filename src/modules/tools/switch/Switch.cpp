@@ -401,6 +401,7 @@ void Switch::on_gcode_received(void *argument)
         } else if (this->output_type == DIGITAL) {
             // drain queue
             THEKERNEL->conveyor->wait_for_idle();
+            THEKERNEL->streams->printf("Open port: P%d.%d.\n", this->digital_pin->port_number, this->digital_pin->pin);
             // logic pin turn on
             this->digital_pin->set(true);
             this->switch_state = true;
@@ -408,6 +409,7 @@ void Switch::on_gcode_received(void *argument)
             // drain queue
             THEKERNEL->conveyor->wait_for_idle();
             // logic pin turn on
+            THEKERNEL->streams->printf("Open port: P%d.%d.\n", this->digital_pin->port_number, this->digital_pin->pin);
             this->digital_pin->set(true);
             this->switch_state = true;
             if(gcode->has_letter('S')) {

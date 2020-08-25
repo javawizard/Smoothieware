@@ -286,6 +286,12 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "config-load"){
             THEKERNEL->configurator->config_load_command(  possible_command, new_message.stream );
 
+        } else if (cmd == "config-get-all"){
+            config_get_all_command(  possible_command, new_message.stream );
+
+        } else if (cmd == "config-restore"){
+            config_restore_command(  possible_command, new_message.stream );
+
         } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume" || cmd == "buffer") {
             // these are handled by Player module
 
@@ -1557,5 +1563,105 @@ void SimpleShell::help_command( string parameters, StreamOutput *stream )
     stream->printf("calc_thermistor [-s0] T1,R1,T2,R2,T3,R3 - calculate the Steinhart Hart coefficients for a thermistor\r\n");
     stream->printf("thermistors - print out the predefined thermistors\r\n");
     stream->printf("md5sum file - prints md5 sum of the given file\r\n");
+}
+
+// output all configs
+void SimpleShell::config_get_all_command( string parameters, StreamOutput *stream )
+{
+    // Get parameters ( filename and line limit )
+    string filename = "/sd/config.txt";
+    bool send_eof = false;
+    // parse parameters
+    while (parameters != "") {
+    	string s = shift_parameter(parameters);
+    	if (s == "-e") {
+            send_eof = true; // we need to terminate file send with an eof
+        } else if (s != "" ){
+        	filename = s;
+        }
+    }
+
+    string buffer;
+    string key, value;
+    int c;
+	size_t begin_key, end_key, end_value, vsize;
+    // Open the config file ( find it if we haven't already found it )
+	FILE *lp = fopen(filename.c_str(), "r");
+    if (lp == NULL) {
+        stream->printf("Config file not found: %s\r\n", filename.c_str());
+        return;
+    }
+	while ((c = fgetc (lp)) != EOF) {
+		buffer.append((char *)&c, 1);
+		if (c == '\n') {
+			// process and send key=value data
+		    if( buffer.length() < 3 ) {
+		    	buffer.clear();
+		        continue;
+		    }
+		    begin_key = buffer.find_first_not_of(" \t");
+		    if (begin_key == string::npos || buffer[begin_key] == '#') {
+		    	buffer.clear();
+		    	continue;
+		    }
+		    end_key = buffer.find_first_of(" \t", begin_key);
+		    if(end_key == string::npos) {
+		    	buffer.clear();
+		        continue;
+		    }
+
+		    size_t begin_value = buffer.find_first_not_of(" \t", end_key);
+		    if(begin_value == string::npos || buffer[begin_value] == '#') {
+		    	buffer.clear();
+		    	continue;
+		    }
+
+		    key = buffer.substr(begin_key,  end_key - begin_key);
+		    end_value = buffer.find_first_of("\r\n# \t", begin_value + 1);
+		    vsize = (end_value == string::npos) ? end_value : end_value - begin_value;
+		    value = buffer.substr(begin_value, vsize);
+
+		    stream->printf("%s=%s\n", key.c_str(), value.c_str());
+
+			buffer.clear();
+			// we need to kick things or they die
+			THEKERNEL->call_event(ON_IDLE);
+		}
+	}
+
+    fclose(lp);
+
+    if(send_eof) {
+        stream->puts("\004"); // ^Z terminates the cat
+    }
+}
+
+// restore config to default
+void SimpleShell::config_restore_command( string parameters, StreamOutput *stream )
+{
+    // Get parameters ( filename and line limit )
+	string filename = "/sd/config.txt";
+    string default_filename = "/sd/config.default";
+    // Open file
+    FILE *default_lp = fopen(default_filename.c_str(), "r");
+    if (default_lp == NULL) {
+        stream->printf("Default file not found: %s\r\n", default_filename.c_str());
+        return;
+    }
+    FILE *file_lp = fopen(filename.c_str(), "w");
+    if (file_lp == NULL) {
+        stream->printf("Config file not found or created fail: %s\r\n", filename.c_str());
+        return;
+    }
+
+    int c;
+    // Print each line of the file
+    while ((c = fgetc (default_lp)) != EOF) {
+    	fputc(c, file_lp);
+    };
+    fclose(file_lp);
+    fclose(default_lp);
+
+    stream->printf("Settings restored complete.\n");
 }
 

@@ -52,6 +52,8 @@ class Switch : public Module {
             Pin          *input_pin;
             Pin          *digital_pin;
             Pwm          *sigmadelta_pin;
+        };
+        union {
             mbed::PwmOut *pwm_pin;
             SoftPWM      *swpwm_pin;
         };
