@@ -22,7 +22,8 @@ class MainButton : public Module {
 			BUTTON_LED_UPDATE
         };
 
-        uint8_t led_update_timer:6;
+        uint8_t hold_toggle;
+        uint8_t led_update_timer;
         uint32_t button_press_time;
         uint32_t long_press_time_ms;
         bool button_pressed;

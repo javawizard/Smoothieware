@@ -24,6 +24,7 @@ using namespace std;
 MainButton::MainButton()
 {
 	this->led_update_timer = 0;
+	this->hold_toggle = 0;
     this->button_state = NONE;
     this->button_pressed = false;
 }
@@ -109,9 +110,14 @@ void MainButton::on_idle(void *argument)
     				break;
     			case RUN:
     			case HOME:
-    			case HOLD:
     			    this->main_button_LED_R.set(0);
     			    this->main_button_LED_G.set(1);
+    			    this->main_button_LED_B.set(0);
+    				break;
+    			case HOLD:
+    				this->hold_toggle ++;
+    			    this->main_button_LED_R.set(0);
+    			    this->main_button_LED_G.set(this->hold_toggle % 4  < 2 ? 1 : 0);
     			    this->main_button_LED_B.set(0);
     				break;
     			case ALARM:
