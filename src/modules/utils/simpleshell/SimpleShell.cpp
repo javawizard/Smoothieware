@@ -88,6 +88,7 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"net",      SimpleShell::net_command},
 	{"wlan",     SimpleShell::wlan_command},
 	{"diagnose",   SimpleShell::diagnose_command},
+	{"sleep",   SimpleShell::sleep_command},
     {"load",     SimpleShell::load_command},
     {"save",     SimpleShell::save_command},
     {"remount",  SimpleShell::remount_command},
@@ -899,6 +900,14 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     stream->printf("%s", str.c_str());
 
 }
+
+// sleep command
+void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
+{
+	THEKERNEL->set_sleeping(true);
+	THEKERNEL->call_event(ON_HALT, nullptr);
+}
+
 
 // print out build version
 void SimpleShell::version_command( string parameters, StreamOutput *stream)

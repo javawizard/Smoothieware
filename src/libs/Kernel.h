@@ -33,6 +33,15 @@ class PublicData;
 class SimpleShell;
 class Configurator;
 
+enum STATE {
+	IDLE   = 0,
+	RUN    = 1,
+	HOLD   = 2,
+	HOME   = 3,
+	ALARM  = 4,
+	SLEEP  = 5
+};
+
 class Kernel {
     public:
         Kernel();
@@ -63,6 +72,9 @@ class Kernel {
         void set_laser_mode(bool f) { laser_mode = f; }
         bool get_laser_mode() const { return laser_mode; }
 
+        void set_sleeping(bool f) { sleeping = f; }
+        bool is_sleeping() const { return sleeping; }
+
         std::string get_query_string();
 
         // These modules are available to all other modules
@@ -82,6 +94,8 @@ class Kernel {
         std::string       current_path;
         uint32_t          base_stepping_frequency;
 
+        uint8_t get_state();
+
     private:
         // When a module asks to be called for a specific event ( a hook ), this is where that request is remembered
         std::array<std::vector<Module*>, NUMBER_OF_DEFINED_EVENTS> hooks;
@@ -95,6 +109,7 @@ class Kernel {
             bool bad_mcu:1;
             volatile bool uploading:1;
             bool laser_mode:1;
+            bool sleeping:1;
         };
 
 };

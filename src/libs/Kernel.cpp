@@ -66,6 +66,7 @@ Kernel::Kernel()
     bad_mcu= true;
     uploading = false;
     laser_mode = false;
+    sleeping = false;
 
     instance = this; // setup the Singleton instance of the kernel
 
@@ -178,26 +179,50 @@ Kernel::Kernel()
     this->configurator = new Configurator();
 }
 
-// return a GRBL-like query string for serial ?
-std::string Kernel::get_query_string()
+// get current state
+uint8_t Kernel::get_state()
 {
-    std::string str;
     bool homing;
     bool ok = PublicData::get_value(endstops_checksum, get_homing_status_checksum, 0, &homing);
     if(!ok) homing = false;
+    if (sleeping) {
+    	return SLEEP;
+    } else if(halted) {
+    	return ALARM;
+    } else if (homing) {
+    	return HOME;
+    } else if (feed_hold) {
+    	return HOLD;
+    } else if (this->conveyor->is_idle()) {
+    	return IDLE;
+    } else {
+    	return RUN;
+    }
+}
+
+// return a GRBL-like query string for serial ?
+std::string Kernel::get_query_string()
+{
+
+    std::string str;
     bool running = false;
+    bool ok = false;
+
+    uint8_t state = this->get_state();
 
     str.append("<");
-    if(halted) {
+    if (state == SLEEP) {
+    	str.append("Sleep");
+    } else if (state == ALARM) {
         str.append("Alarm");
-    } else if(homing) {
+    } else if (state == HOME) {
         running = true;
         str.append("Home");
-    } else if(feed_hold) {
+    } else if (state == HOLD) {
         str.append("Hold");
-    } else if(this->conveyor->is_idle()) {
+    } else if (state == IDLE) {
         str.append("Idle");
-    } else {
+    } else if (state == RUN) {
         running = true;
         str.append("Run");
     }

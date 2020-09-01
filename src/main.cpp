@@ -28,7 +28,7 @@
 #include "modules/utils/configurator/Configurator.h"
 #include "modules/utils/currentcontrol/CurrentControl.h"
 #include "modules/utils/player/Player.h"
-#include "modules/utils/killbutton/KillButton.h"
+#include "modules/utils/mainbutton/MainButton.h"
 #include "modules/utils/PlayLed/PlayLed.h"
 #include "modules/utils/panel/Panel.h"
 #include "libs/Network/uip/Network.h"
@@ -102,7 +102,7 @@ void init() {
     // open 12V
     GPIO v12 = GPIO(P0_11);
     v12.output();
-    v12 = 1;
+    v12 = 0;
 
     GPIO v24 = GPIO(P1_29);
     v24.output();
@@ -143,7 +143,7 @@ void init() {
     kernel->add_module( new(AHB0) WifiProvider() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
-    kernel->add_module( new(AHB0) KillButton() );
+    kernel->add_module( new(AHB0) MainButton() );
     kernel->add_module( new(AHB0) PlayLed() );
 
     // these modules can be completely disabled in the Makefile by adding to EXCLUDE_MODULES

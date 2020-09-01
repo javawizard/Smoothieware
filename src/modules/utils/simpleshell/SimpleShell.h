@@ -59,6 +59,7 @@ private:
     static void net_command( string parameters, StreamOutput *stream);
     static void wlan_command( string parameters, StreamOutput *stream);
     static void diagnose_command( string parameters, StreamOutput *stream);
+    static void sleep_command( string parameters, StreamOutput *stream);
 
     static void load_command( string parameters, StreamOutput *stream);
     static void save_command( string parameters, StreamOutput *stream);
