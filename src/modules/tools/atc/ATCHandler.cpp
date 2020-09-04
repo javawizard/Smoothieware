@@ -357,6 +357,7 @@ void ATCHandler::home_clamp()
 
     if (!atc_home_info.triggered) {
         THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(ATC_HOME_FAIL);
         THEKERNEL->streams->printf("ERROR: Homing atc failed - check the atc max travel settings\n");
         return;
     }
@@ -503,12 +504,14 @@ void ATCHandler::on_gcode_received(void *argument)
 				// check true
 				if (!laser_detect()) {
 			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
 			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 				}
 			} else if (gcode->subcode == 2) {
 				// check false
 				if (laser_detect()) {
 			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
 			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 
 				}

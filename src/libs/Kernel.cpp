@@ -67,6 +67,7 @@ Kernel::Kernel()
     uploading = false;
     laser_mode = false;
     sleeping = false;
+    halt_reason = MANUAL;
 
     instance = this; // setup the Singleton instance of the kernel
 

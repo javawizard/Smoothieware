@@ -42,6 +42,23 @@ enum STATE {
 	SLEEP  = 5
 };
 
+enum HALT_REASON {
+	// No need to reset when triggered
+	MANUAL     				= 0,
+	HOME_FAIL  				= 1,
+	PROBE_FAIL 				= 2,
+	ATC_HOME_FAIL   		= 3,
+	ATC_NO_TOOL				= 4,
+	ATC_HAS_TOOL			= 5,
+	SPINDLE_OVERHEATED 		= 6,
+	// Need to reset when triggered
+	HARD_LIMIT				= 10,
+	MOTOR_ERROR_X			= 11,
+	MOTOR_ERROR_Y			= 12,
+	MOTOR_ERROR_Z			= 13,
+	SPINDLE_ERROR			= 14
+};
+
 class Kernel {
     public:
         Kernel();
@@ -75,6 +92,8 @@ class Kernel {
         void set_sleeping(bool f) { sleeping = f; }
         bool is_sleeping() const { return sleeping; }
 
+        void set_halt_reason(uint8_t reason) { halt_reason = reason; }
+
         std::string get_query_string();
 
         // These modules are available to all other modules
@@ -95,6 +114,7 @@ class Kernel {
         uint32_t          base_stepping_frequency;
 
         uint8_t get_state();
+        uint8_t halt_reason;
 
     private:
         // When a module asks to be called for a specific event ( a hook ), this is where that request is remembered
