@@ -24,24 +24,26 @@ PlayLed::PlayLed() {
 
 void PlayLed::on_module_loaded()
 {
-    if(THEKERNEL->config->value( play_led_disable_checksum )->by_default(false)->as_bool()) {
+    if(THEKERNEL->config->value( play_led_disable_checksum )->by_default(true)->as_bool()) {
         delete this;
         return;
     }
 
     on_config_reload(this);
 
-    THEKERNEL->slow_ticker->attach(12, this, &PlayLed::led_tick);
+    // THEKERNEL->slow_ticker->attach(12, this, &PlayLed::led_tick);
 }
 
 void PlayLed::on_config_reload(void *argument)
 {
+	/*
     string ledpin = "1.14!";
 
     ledpin = THEKERNEL->config->value( pause_led_pin_checksum )->by_default(ledpin)->as_string(); // check for pause_led_pin first
     ledpin = THEKERNEL->config->value( play_led_pin_checksum  )->by_default(ledpin)->as_string(); // override with play_led_pin if it's found
 
     led.from_string(ledpin)->as_output()->set(false);
+    */
 }
 
 uint32_t PlayLed::led_tick(uint32_t)

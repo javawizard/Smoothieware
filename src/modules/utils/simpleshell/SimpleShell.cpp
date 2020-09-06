@@ -934,8 +934,8 @@ void SimpleShell::version_command( string parameters, StreamOutput *stream)
 // Reset the system
 void SimpleShell::reset_command( string parameters, StreamOutput *stream)
 {
-    stream->printf("Smoothie out. Peace. Rebooting in 5 seconds...\r\n");
-    reset_delay_secs = 5; // reboot in 5 seconds
+    stream->printf("Rebooting machine in 3 seconds...\r\n");
+    reset_delay_secs = 3; // reboot in 3 seconds
 }
 
 // go into dfu boot mode

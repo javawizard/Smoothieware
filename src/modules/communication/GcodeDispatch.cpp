@@ -263,6 +263,7 @@ try_again:
                                 // this is also handled out-of-band (it is now with ^X in the serial driver)
                                 // disables heaters and motors, ignores further incoming Gcode and clears block queue
                                 THEKERNEL->call_event(ON_HALT, nullptr);
+                                THEKERNEL->set_halt_reason(MANUAL);
                                 THEKERNEL->streams->printf("ok Emergency Stop Requested - reset or M999 required to exit HALT state\r\n");
                                 delete gcode;
                                 return;

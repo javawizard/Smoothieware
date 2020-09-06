@@ -355,6 +355,13 @@ std::string Kernel::get_query_string()
         }
     }
 
+    // if halted
+    if (halted) {
+        n = snprintf(buf, sizeof(buf), "|H:%d", halt_reason);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
     str.append(">\n");
     return str;
 }

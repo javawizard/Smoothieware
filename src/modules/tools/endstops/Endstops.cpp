@@ -445,7 +445,7 @@ bool Endstops::debounced_get(Pin *pin)
 {
     if(pin == nullptr) return false;
     uint32_t debounce = 0;
-    while(pin->get()) {
+    while (pin->get()) {
         if ( ++debounce >= this->debounce_count ) {
             // pin triggered
             return true;
@@ -480,6 +480,8 @@ void Endstops::on_idle(void *argument)
         return;
     }
 
+    if(THEKERNEL->is_halted()) return;
+
     for(auto& i : endstops) {
         if(i->limit_enable && STEPPER[i->axis_index]->is_moving()) {
             // check min and max endstops
@@ -491,9 +493,10 @@ void Endstops::on_idle(void *argument)
                     THEKERNEL->streams->printf("ALARM: Hard limit %c%c\n", STEPPER[i->axis_index]->which_direction() ? '-' : '+', i->axis);
                 }
                 this->status = LIMIT_TRIGGERED;
-                i->debounce= 0;
+                i->debounce = 0;
                 // disables heaters and motors, ignores incoming Gcode and flushes block queue
                 THEKERNEL->call_event(ON_HALT, nullptr);
+                THEKERNEL->set_halt_reason(HARD_LIMIT);
                 return;
             }
         }
@@ -508,10 +511,10 @@ void Endstops::on_idle(void *argument)
 			}else{
 				THEKERNEL->streams->printf("ALARM: %c motor alarm triggered -  reset required\n", i->axis);
 			}
-			this->status = MOTOR_ERROR_X + i->axis_index;
 			i->debounce= 0;
 			// disables heaters and motors, ignores incoming Gcode and flushes block queue
 			THEKERNEL->call_event(ON_HALT, nullptr);
+			THEKERNEL->set_halt_reason(MOTOR_ERROR_X + i->axis_index);
 			return;
 		}
 	}
@@ -727,6 +730,7 @@ void Endstops::home(axis_bitmap_t a)
             if((axis_to_home[i] || this->is_delta || this->is_rdelta) && !homing_axis[i].pin_info->triggered) {
                 this->status = NOT_HOMING;
                 THEKERNEL->call_event(ON_HALT, nullptr);
+                THEKERNEL->set_halt_reason(HOME_FAIL);
                 THEROBOT->disable_segmentation= false;
                 return;
             }
@@ -739,7 +743,8 @@ void Endstops::home(axis_bitmap_t a)
             if(axis_to_home[i] && !homing_axis[i].pin_info->triggered) {
                 this->status = NOT_HOMING;
                 THEKERNEL->call_event(ON_HALT, nullptr);
-                THEROBOT->disable_segmentation= false;
+                THEKERNEL->set_halt_reason(HOME_FAIL);
+                THEROBOT->disable_segmentation = false;
                 return;
             }
         }

@@ -58,6 +58,7 @@ void MainButton::on_idle(void *argument)
     if (button_state ==  BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
     	// get current status
     	uint8_t state = THEKERNEL->get_state();
+    	uint8_t halt_reason;
     	if (button_state == BUTTON_SHORT_PRESSED) {
     		switch (state) {
     			case IDLE:
@@ -95,6 +96,16 @@ void MainButton::on_idle(void *argument)
     				THEKERNEL->set_feed_hold(false);
     				break;
     			case ALARM:
+    				halt_reason = THEKERNEL->get_halt_reason();
+    				if (halt_reason > 10) {
+    					// reset
+        				system_reset(false);
+    				} else {
+    					// unlock
+    		            THEKERNEL->call_event(ON_HALT, (void *)1); // clears on_halt
+    		            THEKERNEL->streams->printf("UnKill button pressed, Halt cleared\r\n");
+    				}
+    				break;
     			case SLEEP:
     				// reset
     				system_reset(false);
@@ -109,8 +120,12 @@ void MainButton::on_idle(void *argument)
     			    this->main_button_LED_B.set(1);
     				break;
     			case RUN:
-    			case HOME:
     			    this->main_button_LED_R.set(0);
+    			    this->main_button_LED_G.set(1);
+    			    this->main_button_LED_B.set(0);
+    				break;
+    			case HOME:
+    			    this->main_button_LED_R.set(1);
     			    this->main_button_LED_G.set(1);
     			    this->main_button_LED_B.set(0);
     				break;
@@ -124,10 +139,11 @@ void MainButton::on_idle(void *argument)
     			    this->main_button_LED_R.set(1);
     			    this->main_button_LED_G.set(0);
     			    this->main_button_LED_B.set(0);
+    			    break;
     			case SLEEP:
-    			    this->main_button_LED_R.set(0);
-    			    this->main_button_LED_G.set(0);
-    			    this->main_button_LED_B.set(0);
+    			    this->main_button_LED_R.set(1);
+    			    this->main_button_LED_G.set(1);
+    			    this->main_button_LED_B.set(1);
     				break;
     		}
     	}

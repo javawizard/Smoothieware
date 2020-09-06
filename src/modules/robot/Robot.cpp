@@ -1232,6 +1232,7 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
 
                     THEKERNEL->streams->printf("Soft Endstop %c was exceeded - reset or $X or M999 required\n", i+'X');
                     THEKERNEL->call_event(ON_HALT, nullptr);
+                    THEKERNEL->set_halt_reason(SOFT_LIMIT);
                     return false;
 
                 //} else if(soft_endstop_truncate) {

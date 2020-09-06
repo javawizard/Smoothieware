@@ -44,19 +44,21 @@ enum STATE {
 
 enum HALT_REASON {
 	// No need to reset when triggered
-	MANUAL     				= 0,
-	HOME_FAIL  				= 1,
-	PROBE_FAIL 				= 2,
-	ATC_HOME_FAIL   		= 3,
-	ATC_NO_TOOL				= 4,
-	ATC_HAS_TOOL			= 5,
-	SPINDLE_OVERHEATED 		= 6,
+	MANUAL     				= 1,
+	HOME_FAIL  				= 2,
+	PROBE_FAIL 				= 3,
+	CALIBRATE_FAIL			= 4,
+	ATC_HOME_FAIL   		= 5,
+	ATC_NO_TOOL				= 6,
+	ATC_HAS_TOOL			= 7,
+	SPINDLE_OVERHEATED 		= 8,
+	SOFT_LIMIT				= 9,
 	// Need to reset when triggered
-	HARD_LIMIT				= 10,
-	MOTOR_ERROR_X			= 11,
-	MOTOR_ERROR_Y			= 12,
-	MOTOR_ERROR_Z			= 13,
-	SPINDLE_ERROR			= 14
+	HARD_LIMIT				= 11,
+	MOTOR_ERROR_X			= 12,
+	MOTOR_ERROR_Y			= 13,
+	MOTOR_ERROR_Z			= 14,
+	SPINDLE_ERROR			= 15
 };
 
 class Kernel {
@@ -93,6 +95,7 @@ class Kernel {
         bool is_sleeping() const { return sleeping; }
 
         void set_halt_reason(uint8_t reason) { halt_reason = reason; }
+        uint8_t get_halt_reason() const { return halt_reason; }
 
         std::string get_query_string();
 

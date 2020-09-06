@@ -10,6 +10,7 @@
 
 #include "SpindleControl.h"
 #include <stdint.h>
+#include "Pin.h"
 
 namespace mbed {
     class PwmOut;
@@ -23,7 +24,8 @@ class PWMSpindleControl: public SpindleControl {
         virtual ~PWMSpindleControl() {};
         void on_module_loaded();
         void on_get_public_data(void* argument);
-    
+        void on_idle(void* argument);
+
     private:
         
         void on_pin_rise();
@@ -53,6 +55,7 @@ class PWMSpindleControl: public SpindleControl {
         float max_pwm;
         int   delay_s;
         float acc_ratio;
+        Pin alarm_pin;
 
         // These fields are updated by the interrupt
         uint32_t last_edge; // Timestamp of last edge
@@ -75,7 +78,7 @@ class PWMSpindleControl: public SpindleControl {
         void set_i_term(float);
         void set_d_term(float);
         void report_settings(void);
-
+        bool get_alarm(void);
         void set_factor(float);
 };
 

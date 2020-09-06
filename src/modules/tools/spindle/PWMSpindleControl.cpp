@@ -39,6 +39,7 @@
 #define spindle_control_smoothing_checksum  CHECKSUM("control_smoothing")
 #define spindle_delay_s_checksum			CHECKSUM("delay_s")
 #define spindle_acc_ratio_checksum			CHECKSUM("acc_ratio")
+#define spindle_alarm_pin_checksum			CHECKSUM("alarm_pin")
 
 #define UPDATE_FREQ 100
 
@@ -67,6 +68,7 @@ void PWMSpindleControl::on_module_loaded()
 
     delay_s        = THEKERNEL->config->value(spindle_checksum, spindle_delay_s_checksum)->by_default(3)->as_number();
     acc_ratio      = THEKERNEL->config->value(spindle_checksum, spindle_acc_ratio_checksum)->by_default(1.0f)->as_number();
+    alarm_pin.from_string(THEKERNEL->config->value(spindle_checksum, spindle_alarm_pin_checksum)->by_default("nc")->as_string())->as_input();
 
     // Smoothing value is low pass filter time constant in seconds.
     float smoothing_time = THEKERNEL->config->value(spindle_checksum, spindle_control_smoothing_checksum)->by_default(0.1f)->as_number();
@@ -257,3 +259,27 @@ void PWMSpindleControl::on_get_public_data(void* argument)
 		pdr->set_taken();
     }
 }
+
+// returns spindle status
+bool PWMSpindleControl::get_alarm(void)
+{
+	uint32_t debounce = 0;
+	while (this->alarm_pin.get()) {
+		if ( ++debounce >= 10 ) {
+			// pin triggered
+			return true;
+		}
+	}
+	return false;
+}
+
+void PWMSpindleControl::on_idle(void *argument)
+{
+	if(THEKERNEL->is_halted()) return;
+    if (this->get_alarm()) {
+		THEKERNEL->streams->printf("ALARM: Spindle alarm triggered -  reset required\n");
+		THEKERNEL->call_event(ON_HALT, nullptr);
+		THEKERNEL->set_halt_reason(SPINDLE_ERROR);
+    }
+}
+

@@ -188,6 +188,7 @@ temperature_control.spindle.heater_pin		nc				# Pin that controls the heater, se
 temperature_control.spindle.beta			3950			# Or set the beta value
 temperature_control.spindle.get_m_code		105				# M-code to set the temperature for this module
 temperature_control.spindle.designator		M				# designator
+temperature_control.spindle.max_temp		70				# max temperatur
 
 ## Temperatureswitch
 # Automatically toggle a switch at a specified temperature. Different ones of these may be defined to monitor different temperatures and switch different switches
@@ -214,7 +215,7 @@ alpha_fast_homing_rate_mm_s					15				# Alpha/X fast homing feedrate in mm/secon
 alpha_slow_homing_rate_mm_s					3				# Alpha/X slow homing feedrate in mm/second
 alpha_limit_enable                          true            # Set to true to enable X min and max limit switches
 alpha_homing_retract_mm						1				# Distance to retract from the endstop after it is hit for alpha/X
-alpha_motor_alarm_pin						0.1				# servo motor alarm for X axis
+alpha_motor_alarm_pin						0.1!^				# servo motor alarm for X axis
 
 beta_min_endstop							1.1^            # Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
 beta_max_endstop							1.0^            # Pin to read max endstop, uncomment this and comment the above if using max endstops
@@ -226,7 +227,7 @@ beta_fast_homing_rate_mm_s					15				# Beta/Y  fast homing feedrate in mm/second
 beta_slow_homing_rate_mm_s					3				# Beta/Y  slow homing feedrate in mm/second
 beta_limit_enable                           true            # Set to true to enable Y min and max limit switches
 beta_homing_retract_mm						1				# Distance to retract from the endstop after it is hit for beta/Y
-beta_motor_alarm_pin						0.0				# servo motor alarm for Y axis
+beta_motor_alarm_pin						0.0!^				# servo motor alarm for Y axis
 
 #gamma_min_endstop							0.26^			# Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
 gamma_max_endstop							0.25^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
@@ -238,7 +239,7 @@ gamma_fast_homing_rate_mm_s					10				# Gamma/Z fast homing feedrate in mm/secon
 gamma_slow_homing_rate_mm_s					3				# Gamma/Z slow homing feedrate in mm/second
 gamma_limit_enable                          true            # Set to true to enable Z min and max limit switches
 gamma_homing_retract_mm						1				# Distance to retract from the endstop after it is hit for gamma/Z
-gamma_motor_alarm_pin						3.25			# servo motor alarm for Z axis
+gamma_motor_alarm_pin						3.25!^			# servo motor alarm for Z axis
 
 
 # Optional order in which axis will home, default is they all home at the same time,
@@ -287,7 +288,7 @@ uart0.baud_rate								115200			# Baud rate for the default hardware ( UART ) se
 
 second_usb_serial_enable					false			# This enables a second USB serial port
 #leds_disable								true			# Disable using leds after config loaded
-#play_led_disable							true			# Disable the play led
+play_led_disable							true			# Disable the play led
 
 # Main button
 main_button_enable							true			# Set to true to enable main button
@@ -318,4 +319,5 @@ spindle.control_D							0.00005			# default 0.0001. D value for the PID controll
 spindle.control_smoothing					0.1				# default 0.1. This value is low pass filter time constant in seconds.
 spindle.delay_s								3.0				# delay seconds before next motion after spindle turn on or off
 spindle.acc_ratio							1.28			# acceleration ratio
+spindle.alarm_pin							0.19^			# spindle alarm trigger pin
 

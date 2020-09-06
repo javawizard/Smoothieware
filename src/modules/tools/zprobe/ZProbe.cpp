@@ -493,6 +493,7 @@ void ZProbe::probe_XYZ(Gcode *gcode)
         // issue error if probe was not triggered and subcode is 2 or 4
         gcode->stream->printf("ALARM: Probe fail\n");
         THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(PROBE_FAIL);
     }
 }
 
@@ -554,6 +555,7 @@ void ZProbe::calibrate_Z(Gcode *gcode)
         // issue error if probe was not triggered and subcode is 2 or 4
         gcode->stream->printf("ALARM: Calibrate fail!\n");
         THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(CALIBRATE_FAIL);
     }
 }
 
