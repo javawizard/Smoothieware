@@ -26,6 +26,11 @@ class MainButton : public Module {
         uint8_t led_update_timer;
         uint32_t button_press_time;
         uint32_t long_press_time_ms;
+
+        bool auto_sleep;
+        uint8_t auto_sleep_min;
+        uint32_t sleep_countdown_us;
+
         bool button_pressed;
         volatile BUTTON_STATE button_state;
         

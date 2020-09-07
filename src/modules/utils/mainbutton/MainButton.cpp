@@ -21,12 +21,17 @@ using namespace std;
 #define main_button_poll_frequency_checksum			CHECKSUM("main_button_poll_frequency")
 #define main_long_press_time_ms_checksum			CHECKSUM("main_button_long_press_time")
 
+#define power_checksum								CHECKSUM("power")
+#define auto_sleep_checksum							CHECKSUM("auto_sleep")
+#define auto_sleep_min_checksum						CHECKSUM("auto_sleep_min")
+
 MainButton::MainButton()
 {
 	this->led_update_timer = 0;
 	this->hold_toggle = 0;
     this->button_state = NONE;
     this->button_pressed = false;
+    this->sleep_countdown_us = us_ticker_read();
 }
 
 void MainButton::on_module_loaded()
@@ -44,6 +49,9 @@ void MainButton::on_module_loaded()
     this->poll_frequency = THEKERNEL->config->value( main_button_poll_frequency_checksum )->by_default(20)->as_number();
     this->long_press_time_ms = THEKERNEL->config->value( main_long_press_time_ms_checksum )->by_default(3000)->as_number();
 
+    this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
+    this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
+
     this->register_for_event(ON_IDLE);
 
     this->main_button_LED_R.set(0);
@@ -58,6 +66,18 @@ void MainButton::on_idle(void *argument)
     if (button_state ==  BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
     	// get current status
     	uint8_t state = THEKERNEL->get_state();
+    	if (this->auto_sleep) {
+        	if (state == IDLE) {
+        		// reset sleep timer counte
+        		if (us_ticker_read() - sleep_countdown_us > (uint32_t)auto_sleep_min * 60 * 1000000) {
+        			// go to sleep
+    				THEKERNEL->set_sleeping(true);
+    				THEKERNEL->call_event(ON_HALT, nullptr);
+        		}
+        	} else {
+        		sleep_countdown_us = us_ticker_read();
+        	}
+    	}
     	uint8_t halt_reason;
     	if (button_state == BUTTON_SHORT_PRESSED) {
     		switch (state) {
