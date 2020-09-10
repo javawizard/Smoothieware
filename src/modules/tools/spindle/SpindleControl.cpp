@@ -40,17 +40,16 @@ void SpindleControl::on_gcode_received(void *argument)
         else if (gcode->m == 3 && !THEKERNEL->get_laser_mode())
         {
             THECONVEYOR->wait_for_idle();
-            // M3: Spindle on
-            if (!spindle_on) {
-                turn_on();
-            }
-            
             // M3 with S value provided: set speed
             if (gcode->has_letter('S'))
             {
                 set_speed(gcode->get_value('S'));
             }
-        }
+            // M3: Spindle on
+            if (!spindle_on) {
+                turn_on();
+            }
+                    }
         else if (gcode->m == 5 && !THEKERNEL->get_laser_mode())
         {
             THECONVEYOR->wait_for_idle();

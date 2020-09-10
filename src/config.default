@@ -318,6 +318,9 @@ spindle.control_I							0.00005			# default 0.0001. I value for the PID controll
 spindle.control_D							0.00005			# default 0.0001. D value for the PID controller
 spindle.control_smoothing					0.1				# default 0.1. This value is low pass filter time constant in seconds.
 spindle.delay_s								3.0				# delay seconds before next motion after spindle turn on or off
-spindle.acc_ratio							1.28			# acceleration ratio
+spindle.acc_ratio							1.56			# acceleration ratio
 spindle.alarm_pin							0.19^			# spindle alarm trigger pin
+spindle.stall_s								1.0				# how many seconds before report stall status
+spindle.stall_count_rpm						1000			# don't calculate stall when lower than this RPM
+spindle.stall_alarm_rpm						300				# consider as stall alarm if lower than this RPM
 

@@ -53,7 +53,11 @@ class PWMSpindleControl: public SpindleControl {
         float control_D_term;
         float smoothing_decay;
         float max_pwm;
-        int   delay_s;
+        int  delay_s;
+        int  stall_s;
+        int  stall_count_rpm;
+        int  stall_alarm_rpm;
+        uint32_t stall_timer;
         float acc_ratio;
         Pin alarm_pin;
 
@@ -79,6 +83,7 @@ class PWMSpindleControl: public SpindleControl {
         void set_d_term(float);
         void report_settings(void);
         bool get_alarm(void);
+        bool get_stall(void);
         void set_factor(float);
 };
 
