@@ -70,7 +70,7 @@ delta_acceleration							300				# degree/secÂ²
 epsilon_steps_per_mm						16576			# may be steps per degree for example
 epsilon_step_pin							1.18			# Pin for delta stepper step signal
 epsilon_dir_pin								1.19			# Pin for delta stepper direction
-epsilon_en_pin								4.29			# Pin for delta enable
+epsilon_en_pin								0.24			# Pin for delta enable
 epsilon_current								0.5				# B stepper motor current
 epsilon_max_rate							100.0			# mm/min
 epsilon_acceleration						10.0			# mm/secÂ²
@@ -179,6 +179,12 @@ switch.toolsensor.output_type				digital			# Digital means this is just an on or
 switch.toolsensor.input_on_command			M831			# Command that will turn this switch on
 switch.toolsensor.input_off_command			M832			# Command that will turn this switch off
 
+switch.powerext.enable						true			# Enable this module
+switch.powerext.output_pin					2.13			# Pin this module controls
+switch.powerext.output_type					digital			# Digital means this is just an on or off pin
+switch.powerext.input_on_command			M841			# Command that will turn this switch on
+switch.powerext.input_off_command			M842			# Command that will turn this switch off
+
 
 ## Temperature control configuration
 # spindle temperature configuration
@@ -252,13 +258,14 @@ home_z_first								true			# Uncomment and set to true to home the Z first, othe
 
 ## Z-probe
 zprobe.enable								true			# Set to true to enable a zprobe
-zprobe.probe_pin							2.8!^			# Pin probe is attached to, if NC remove the !
+zprobe.probe_pin							2.8^			# Pin probe is attached to, if NC remove the !
 zprobe.slow_feedrate						1				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
 zprobe.fast_feedrate						5				# Move feedrate mm/sec
 zprobe.return_feedrate						5				# Return feedrate mm/sec
 zprobe.probe_height							5				# How much above bed to start probe
 zprobe.max_z								100				# max z
+zprobe.calibrate_pin						0.21^			# calibrate_pin
 
 # Leveling strategy
 leveling-strategy.rectangular-grid.enable					true

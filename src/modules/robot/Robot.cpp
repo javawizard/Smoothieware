@@ -1058,9 +1058,9 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
 
     // process ABC axis, this is mutually exclusive to using E for an extruder, so if E is used and A then the results are undefined
     for (int i = A_AXIS; i < n_motors; ++i) {
-        char letter= 'A'+i-A_AXIS;
-        if(gcode->has_letter(letter)) {
-            float p= gcode->get_value(letter);
+        char letter = 'A' + i - A_AXIS;
+        if (letter != 'B' && gcode->has_letter(letter)) {
+            float p = gcode->get_value(letter);
             if(this->absolute_mode) {
                 target[i]= p;
             }else{
