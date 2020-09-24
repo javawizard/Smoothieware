@@ -40,10 +40,10 @@ class Endstops : public Module{
         void process_home_command(Gcode* gcode);
         void set_homing_offset(Gcode* gcode);
         uint32_t read_endstops(uint32_t dummy);
-        void handle_park();
+        void handle_park_g28();
 
         // global settings
-        float saved_position[3]{0}; // save G28 (in grbl mode)
+        float g28_position[3]{0}; // save G28 (in grbl mode)
         uint32_t debounce_count;
         uint32_t  debounce_ms;
         axis_bitmap_t axis_to_home;

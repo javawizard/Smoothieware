@@ -135,6 +135,16 @@ void Robot::on_module_loaded()
 
     // Configuration
     this->load_config();
+
+    // load tlo data from eeprom
+    float tlo[3] = {0, 0, THEKERNEL->eeprom_data->TLO};
+    this->setToolOffset(tlo);
+
+    // load wcs data from eeprom
+	float x = THEKERNEL->eeprom_data->G54[0];
+	float y = THEKERNEL->eeprom_data->G54[1];
+	float z = THEKERNEL->eeprom_data->G54[2];
+    wcs_offsets[0] = wcs_t(x, y, z);
 }
 
 #define ACTUATOR_CHECKSUMS(X) {     \
@@ -552,6 +562,13 @@ void Robot::on_gcode_received(void *argument)
                         }
                         wcs_offsets[n] = wcs_t(x, y, z);
 
+                		// save wcs data to eeprom
+                        if (n == 0) {
+                    	    THEKERNEL->eeprom_data->G54[0] = x;
+                    	    THEKERNEL->eeprom_data->G54[1] = y;
+                    	    THEKERNEL->eeprom_data->G54[2] = z;
+                    	    THEKERNEL->write_eeprom_data();
+                        }
                     }
                 }
                 break;
@@ -1705,11 +1722,19 @@ void Robot::select_plane(uint8_t axis_0, uint8_t axis_1, uint8_t axis_2)
 void Robot::clearToolOffset()
 {
     this->tool_offset= wcs_t(0,0,0);
+
+    THEKERNEL->eeprom_data->TLO = 0;
+
 }
 
 void Robot::setToolOffset(const float offset[3])
 {
     this->tool_offset= wcs_t(offset[0], offset[1], offset[2]);
+
+    // save tlo data to eeprom
+    THEKERNEL->eeprom_data->TLO = offset[2];
+    THEKERNEL->write_eeprom_data();
+
 }
 
 float Robot::get_feed_rate() const

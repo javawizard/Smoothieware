@@ -13,6 +13,7 @@
 #define THEROBOT THEKERNEL->robot
 
 #include "Module.h"
+#include "I2C.h" // mbed.h lib
 #include <array>
 #include <vector>
 #include <string>
@@ -61,9 +62,22 @@ enum HALT_REASON {
 	SPINDLE_ERROR			= 15
 };
 
+typedef struct {
+	float TLO;
+	int TOOL;
+	float G54[3];
+	float G28[3];
+} EEPROM_data;
+
 class Kernel {
     public:
         Kernel();
+
+        ~Kernel() {
+            delete this->i2c;
+            delete this->eeprom_data;
+        }
+
         static Kernel* instance; // the Singleton instance of Kernel usable anywhere
         const char* config_override_filename(){ return "/sd/config-override"; }
 
@@ -97,6 +111,10 @@ class Kernel {
         void set_halt_reason(uint8_t reason) { halt_reason = reason; }
         uint8_t get_halt_reason() const { return halt_reason; }
 
+        void read_eeprom_data();
+        void write_eeprom_data();
+        void erase_eeprom_data();
+
         std::string get_query_string();
 
         // These modules are available to all other modules
@@ -118,9 +136,11 @@ class Kernel {
 
         uint8_t get_state();
         uint8_t halt_reason;
+        EEPROM_data *eeprom_data;
 
     private:
         // When a module asks to be called for a specific event ( a hook ), this is where that request is remembered
+        mbed::I2C* i2c;
         std::array<std::vector<Module*>, NUMBER_OF_DEFINED_EVENTS> hooks;
         struct {
             bool use_leds:1;

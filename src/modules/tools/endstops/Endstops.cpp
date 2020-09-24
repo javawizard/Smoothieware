@@ -136,6 +136,11 @@ void Endstops::on_module_loaded()
 
 
     THEKERNEL->slow_ticker->attach(1000, this, &Endstops::read_endstops);
+
+    // load g28 data from eeprom
+    this->g28_position[0] = THEKERNEL->eeprom_data->G28[0];
+    this->g28_position[1] = THEKERNEL->eeprom_data->G28[1];
+    this->g28_position[2] = THEKERNEL->eeprom_data->G28[2];
 }
 
 // Get config using old deprecated syntax Does not support ABC
@@ -577,7 +582,7 @@ void Endstops::move_to_origin(axis_bitmap_t axis)
     if(park_after_home) {
         // do park instead of goto origin
         this->status = MOVE_TO_ORIGIN;
-        handle_park();
+        handle_park_g28();
         this->status = NOT_HOMING;
         return;
     }
@@ -1031,13 +1036,13 @@ void Endstops::set_homing_offset(Gcode *gcode)
     gcode->stream->printf("Homing Offset: X %5.3f Y %5.3f Z %5.3f will take effect next home\n", homing_axis[X_AXIS].home_offset, homing_axis[Y_AXIS].home_offset, homing_axis[Z_AXIS].home_offset);
 }
 
-void Endstops::handle_park()
+void Endstops::handle_park_g28()
 {
     // TODO: spec says if XYZ specified move to them first then move to MCS of specifed axis
     THEROBOT->push_state();
     THEROBOT->absolute_mode = true;
     char buf[32];
-    snprintf(buf, sizeof(buf), "G53 G0 X%f Y%f", THEROBOT->from_millimeters(saved_position[X_AXIS]), THEROBOT->from_millimeters(saved_position[Y_AXIS])); // must use machine coordinates in case G92 or WCS is in effect
+    snprintf(buf, sizeof(buf), "G53 G0 X%f Y%f", THEROBOT->from_millimeters(g28_position[X_AXIS]), THEROBOT->from_millimeters(g28_position[Y_AXIS])); // must use machine coordinates in case G92 or WCS is in effect
     struct SerialMessage message;
     message.message = buf;
     message.stream = &(StreamOutput::NullStream);
@@ -1051,12 +1056,11 @@ void Endstops::handle_park()
 void Endstops::on_gcode_received(void *argument)
 {
     Gcode *gcode = static_cast<Gcode *>(argument);
-
     if ( gcode->has_g && gcode->g == 28) {
         switch(gcode->subcode) {
             case 0: // G28 in grbl mode will do a rapid to the predefined position otherwise it is home command
                 if(THEKERNEL->is_grbl_mode()){
-                    handle_park();
+                    handle_park_g28();
                 }else{
                     process_home_command(gcode);
                 }
@@ -1064,18 +1068,25 @@ void Endstops::on_gcode_received(void *argument)
 
             case 1: // G28.1 set pre defined park position
                 // saves current position in absolute machine coordinates
-                THEROBOT->get_axis_position(saved_position); // Only XY are used
+                THEROBOT->get_axis_position(g28_position); // Only XY are used
                 // Note the following is only meant to be used for recovering a saved position from config-override
                 // Not a standard Gcode and not to be relied on
-                if (gcode->has_letter('X')) saved_position[X_AXIS] = gcode->get_value('X');
-                if (gcode->has_letter('Y')) saved_position[Y_AXIS] = gcode->get_value('Y');
+                if (gcode->has_letter('X')) g28_position[X_AXIS] = gcode->get_value('X');
+                if (gcode->has_letter('Y')) g28_position[Y_AXIS] = gcode->get_value('Y');
+
+                // save g28 data to eeprom
+                THEKERNEL->eeprom_data->G28[0] = g28_position[X_AXIS];
+                THEKERNEL->eeprom_data->G28[1] = g28_position[Y_AXIS];
+                THEKERNEL->eeprom_data->G28[2] = g28_position[Z_AXIS];
+                THEKERNEL->write_eeprom_data();
+
                 break;
 
             case 2: // G28.2 in grbl mode does homing (triggered by $H), otherwise it moves to the park position
                 if(THEKERNEL->is_grbl_mode()) {
                     process_home_command(gcode);
                 }else{
-                    handle_park();
+                    handle_park_g28();
                 }
                 break;
 
@@ -1195,8 +1206,8 @@ void Endstops::on_gcode_received(void *argument)
                     gcode->stream->printf(";Trim (mm):\nM666 X%1.3f Y%1.3f Z%1.3f\n", trim_mm[0], trim_mm[1], trim_mm[2]);
                     gcode->stream->printf(";Max Z\nM665 Z%1.3f\n", homing_axis[Z_AXIS].homing_position);
                 }
-                if(saved_position[X_AXIS] != 0 || saved_position[Y_AXIS] != 0) {
-                    gcode->stream->printf(";predefined position:\nG28.1 X%1.4f Y%1.4f\n", saved_position[X_AXIS], saved_position[Y_AXIS]);
+                if(g28_position[X_AXIS] != 0 || g28_position[Y_AXIS] != 0) {
+                    gcode->stream->printf(";predefined position:\nG28.1 X%1.4f Y%1.4f\n", g28_position[X_AXIS], g28_position[Y_AXIS]);
                 }
                 break;
 
@@ -1245,10 +1256,9 @@ void Endstops::on_get_public_data(void* argument)
         }
         pdr->set_taken();
 
-    } else if(pdr->second_element_is(saved_position_checksum)) {
-        pdr->set_data_ptr(&this->saved_position);
+    } else if(pdr->second_element_is(g28_position_checksum)) {
+        pdr->set_data_ptr(&this->g28_position);
         pdr->set_taken();
-
     } else if(pdr->second_element_is(get_homing_status_checksum)) {
         bool *homing = static_cast<bool *>(pdr->get_data_ptr());
         *homing = this->status != NOT_HOMING;

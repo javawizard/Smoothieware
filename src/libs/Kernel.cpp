@@ -33,6 +33,7 @@
 #include "ATCHandlerPublicAccess.h"
 #include "PlayerPublicAccess.h"
 #include "SpindlePublicAccess.h"
+#include "mbed.h"
 
 #ifndef NO_TOOLS_LASER
 #include "Laser.h"
@@ -169,6 +170,14 @@ Kernel::Kernel()
     // Configure the step ticker
     this->step_ticker->set_frequency( this->base_stepping_frequency );
     this->step_ticker->set_unstep_time( microseconds_per_step_pulse );
+
+    // init EEPROM data
+    this->i2c = new mbed::I2C(P0_27, P0_28);
+    this->i2c->frequency(200000);
+
+    this->eeprom_data = new EEPROM_data();
+    // read eeprom data
+    this->read_eeprom_data();
 
     // Core modules
     this->add_module( this->conveyor       = new Conveyor()      );
@@ -419,6 +428,68 @@ void Kernel::unregister_for_event(_EVENT_ENUM id_event, Module *mod)
             hooks[id_event].erase(i);
             return;
         }
+    }
+}
+
+void Kernel::read_eeprom_data()
+{
+	size_t size = sizeof(EEPROM_data);
+	char i2c_buffer[size];
+
+    short address = 0;
+    i2c_buffer[0] = (unsigned char)(address >> 8);
+    i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
+
+    this->i2c->start();
+    this->i2c->write(0xA0);
+    this->i2c->write(i2c_buffer[0]);
+    this->i2c->write(i2c_buffer[1]);
+    this->i2c->start();
+    this->i2c->write(0xA1);
+
+    for (size_t i = 0; i < size; i ++) {
+    	i2c_buffer[i] = this->i2c->read(1);
+    }
+
+	this->i2c->stop();
+	this->i2c->stop();
+
+    wait(0.05);
+
+    memcpy(this->eeprom_data, i2c_buffer, size);
+}
+
+void Kernel::write_eeprom_data()
+{
+	size_t size = sizeof(EEPROM_data);
+	char i2c_buffer[size + 2];
+	memcpy(i2c_buffer + 2, this->eeprom_data, size);
+
+	short address = 0;
+    i2c_buffer[0] = (unsigned char)(address >> 8);
+    i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
+
+    int result = this->i2c->write(0xA0, i2c_buffer, 2 + size, false);
+    wait(0.05);
+    if (result != 0) {
+    	this->streams->printf("ALARM: EEPROM data write error.\n");
+    }
+}
+
+void Kernel::erase_eeprom_data()
+{
+	size_t size = sizeof(EEPROM_data);
+	char i2c_buffer[size + 2];
+	memset(i2c_buffer, 0, sizeof(i2c_buffer));
+
+	short address = 0;
+    i2c_buffer[0] = (unsigned char)(address >> 8);
+    i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
+
+    int result = this->i2c->write(0xA0, i2c_buffer, 2 + length, false);
+    wait(0.05);
+    if (result != 0) {
+    	this->streams->printf("ALARM: EEPROM data erase error.\n");
     }
 }
 

@@ -203,6 +203,10 @@ void ATCHandler::on_module_loaded()
 
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_endstop);
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_detector);
+
+    // load current tool from eeprom
+    this->active_tool = THEKERNEL->eeprom_data->TOOL;
+
 }
 
 void ATCHandler::on_config_reload(void *argument)
@@ -526,7 +530,12 @@ void ATCHandler::on_gcode_received(void *argument)
             atc_status = PROBE;
     	    this->fill_zprobe_scripts();
 		} else if (gcode->m == 495) {
-
+			THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
+			THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
+			THEKERNEL->streams->printf("EEPRROM Data: G54: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G54[0], THEKERNEL->eeprom_data->G54[1], THEKERNEL->eeprom_data->G54[2]);
+			THEKERNEL->streams->printf("EEPRROM Data: G28: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G28[0], THEKERNEL->eeprom_data->G28[1], THEKERNEL->eeprom_data->G28[2]);
+		} else if (gcode->m == 496) {
+			THEKERNEL->erase_eeprom_data();
 		} else if ( gcode->m == 499) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
@@ -564,6 +573,12 @@ void ATCHandler::on_main_loop(void *argument)
         // update tool info
         if (this->atc_status == DROP || this->atc_status == PICK || this->atc_status == FULL) {
     		this->active_tool = this->new_tool;
+
+    		// save current tool data to eeprom
+    		if (THEKERNEL->eeprom_data->TOOL != this->active_tool) {
+        	    THEKERNEL->eeprom_data->TOOL = this->active_tool;
+        	    THEKERNEL->write_eeprom_data();
+    		}
         }
 		set_inner_playing(false);
         // save to config file to persist data

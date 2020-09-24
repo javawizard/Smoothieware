@@ -1008,13 +1008,13 @@ void SimpleShell::grblDP_command( string parameters, StreamOutput *stream)
     }
 
     float *rd;
-    PublicData::get_value( endstops_checksum, saved_position_checksum, &rd );
+    PublicData::get_value( endstops_checksum, g28_position_checksum, &rd );
     stream->printf("[G28:%1.4f,%1.4f,%1.4f]\n",
         THEROBOT->from_millimeters(rd[0]),
         THEROBOT->from_millimeters(rd[1]),
         THEROBOT->from_millimeters(rd[2]));
 
-    stream->printf("[G30:%1.4f,%1.4f,%1.4f]\n",  0.0F, 0.0F, 0.0F); // not implemented
+    stream->printf("[G30:%1.4f,%1.4f,%1.4f]\n", 0.0, 0.0, 0.0); // not supported
 
     stream->printf("[G92:%1.4f,%1.4f,%1.4f]\n",
         THEROBOT->from_millimeters(std::get<0>(v[n+1])),
