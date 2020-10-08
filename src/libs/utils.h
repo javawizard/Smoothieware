@@ -32,6 +32,7 @@ bool file_exists( const std::string file_name );
 void system_reset( bool dfu= false );
 
 std::string absolute_from_relative( std::string path );
+std::string change_to_md5_path( std::string origin );
 
 int append_parameters(char *buf, std::vector<std::pair<char,float>> params, size_t bufsize);
 std::string wcs2gcode(int wcs);

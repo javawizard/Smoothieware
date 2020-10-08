@@ -365,6 +365,7 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
 {
 	bool send_eof = false;
     string path = absolute_from_relative(shift_parameter( parameters ));
+    string md5_path = change_to_md5_path(path);
     if(!parameters.empty() && shift_parameter(parameters) == "-e") {
     	send_eof = true;
     }
@@ -372,14 +373,23 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
     const char *fn = absolute_from_relative(path).c_str();
     int s = remove(fn);
     if (s != 0) {
-    	stream->printf("Could not delete %s \r\n", fn);
         if(send_eof) {
             stream->puts("\032"); // ^Z terminates error
         }
+    	stream->printf("Could not delete %s \r\n", fn);
     } else {
-        if(send_eof) {
-            stream->puts("\004"); // ^D terminates the upload
-        }
+    	const char *fn_md5 = absolute_from_relative(md5_path).c_str();
+    	s = remove(fn_md5);
+		if (s != 0) {
+			if(send_eof) {
+				stream->puts("\032"); // ^Z terminates error
+			}
+			stream->printf("Could not delete %s \r\n", fn_md5);
+		} else {
+	        if(send_eof) {
+	            stream->puts("\004"); // ^D terminates the upload
+	        }
+		}
     }
 }
 
@@ -388,21 +398,32 @@ void SimpleShell::mv_command( string parameters, StreamOutput *stream )
 {
 	bool send_eof = false;
     string from = absolute_from_relative(shift_parameter( parameters ));
+    string md5_from = change_to_md5_path(from);
     string to = absolute_from_relative(shift_parameter(parameters));
+    string md5_to = change_to_md5_path(to);
     if(!parameters.empty() && shift_parameter(parameters) == "-e") {
     	send_eof = true;
     }
     int s = rename(from.c_str(), to.c_str());
     if (s != 0)  {
-    	stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
     	if (send_eof) {
     		stream->puts("\032"); // ^Z terminates error
     	}
+    	stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
     } else  {
-    	stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
-    	if (send_eof) {
-        	stream->puts("\004"); // ^D terminates the upload
-    	}
+    	s = rename(md5_from.c_str(), md5_to.c_str());
+        if (s != 0)  {
+        	if (send_eof) {
+        		stream->puts("\032"); // ^Z terminates error
+        	}
+        	stream->printf("Could not rename %s to %s\r\n", md5_from.c_str(), md5_to.c_str());
+        }
+        else {
+			if (send_eof) {
+				stream->puts("\004"); // ^D terminates the upload
+			}
+			stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
+        }
     }
 }
 
@@ -411,6 +432,7 @@ void SimpleShell::mkdir_command( string parameters, StreamOutput *stream )
 {
 	bool send_eof = false;
     string path = absolute_from_relative(shift_parameter( parameters ));
+    string md5_path = change_to_md5_path(path);
     if(!parameters.empty() && shift_parameter(parameters) == "-e") {
     	send_eof = true;
     }
@@ -420,12 +442,19 @@ void SimpleShell::mkdir_command( string parameters, StreamOutput *stream )
     	if (send_eof) {
     		stream->puts("\032"); // ^Z terminates error
     	}
-
     } else {
-    	stream->printf("created directory %s\r\n", path.c_str());
-    	if (send_eof) {
-        	stream->puts("\004"); // ^D terminates the upload
-    	}
+    	result = mkdir(md5_path.c_str(), 0);
+        if (result != 0) {
+        	stream->printf("could not create md5 directory %s\r\n", md5_path.c_str());
+        	if (send_eof) {
+        		stream->puts("\032"); // ^Z terminates error
+        	}
+        } else {
+        	stream->printf("created directory %s\r\n", path.c_str());
+        	if (send_eof) {
+            	stream->puts("\004"); // ^D terminates the upload
+        	}
+        }
     }
 }
 
@@ -555,6 +584,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 
     // open file to upload to
     string upload_filename = absolute_from_relative( parameters );
+    string md5_filename = change_to_md5_path(upload_filename);
 
     FILE *fd = fopen(upload_filename.c_str(), "w");
     if(fd != NULL) {
@@ -564,9 +594,22 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         return;
     }
 
+    FILE *fd_md5 = fopen(md5_filename.c_str(), "w");
+    if(fd_md5 == NULL) {
+        fclose(fd);
+        fd = NULL;
+        remove(upload_filename.c_str());
+        stream->printf("failed to open MD5 file: %s.\r\n", md5_filename.c_str());
+        return;
+    }
+
     int cnt = 0;
     int recv_count;
     char* recv_buff;
+    bool file_finished = false;
+    MD5 md5;
+    string calculated_md5;
+    char uploaded_md5[32];
     THEKERNEL->set_uploading(true);
     while (THEKERNEL->is_uploading()) {
         if (!stream->ready()) {
@@ -576,40 +619,78 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         }
 
         recv_count = stream->gets(&recv_buff);
-
         for (int i = 0; i < recv_count; i ++) {
-            if (recv_buff[i] == 4 || recv_buff[i] == 26) { // ctrl-D or ctrl-Z
-                // close file
-                fclose(fd);
-                fd = NULL;
-            	THEKERNEL->set_uploading(false);
-                if (recv_buff[i] == 26) {
-                	// rm file
-                	remove(upload_filename.c_str());
-                	stream->printf("upload canceled, %d bytes transferred\n", cnt);
-                } else {
-                    stream->printf("upload finished, %d bytes transferred\n", cnt);
-                }
-                return;
-
-            } else {
-                // write character to file
-                cnt ++;
-                if (fputc(recv_buff[i], fd) != recv_buff[i]) {
-                    // error writing to file
-                	stream->printf("upload error! %d bytes transferred\n", cnt);
-                    fclose(fd);
-                    fd = NULL;
+			if (recv_buff[i] == 4) {
+				if (!file_finished) {
+					file_finished = true;
+					// close file
+					fclose(fd);
+					fd = NULL;
+					// Append MD5
+					if (i > 0) {
+						md5.update(recv_buff, i);
+					}
+					calculated_md5 = md5.finalize().hexdigest();
+					stream->printf("upload finished, %d bytes transferred\n", cnt);
+					cnt = 0;
+				} else {
+					// compare and save md5
+					if (strncmp(uploaded_md5, calculated_md5.c_str(), 32) != 0) {
+						fclose(fd_md5);
+						fd_md5 = NULL;
+						remove(md5_filename.c_str());
+						remove(upload_filename.c_str());
+						stream->printf("Error: check MD5 error!\n");
+					} else {
+						fwrite(uploaded_md5 , sizeof(char), sizeof(uploaded_md5), fd_md5);
+						fclose(fd_md5);
+						fd_md5 = NULL;
+						stream->printf("MD5: %s\n", calculated_md5.c_str());
+					}
                     THEKERNEL->set_uploading(false);
-                    return;
-                } else {
-                    if ((cnt % 1000) == 0) {
-                        // we need to kick things or they die
-                        THEKERNEL->call_event(ON_IDLE);
+					return;
+				}
+			} else if (recv_buff[i] == 26) {
+				// close file
+				fclose(fd);
+				fd = NULL;
+				remove(upload_filename.c_str());
+				fclose(fd_md5);
+				fd_md5 = NULL;
+				remove(md5_filename.c_str());
+				THEKERNEL->set_uploading(false);
+				stream->printf("upload cancelled, %d bytes transferred\n", cnt);
+				return;
+            } else {
+                cnt ++;
+            	if (file_finished) {
+            		if (cnt < 33) {
+            			uploaded_md5[cnt - 1] = recv_buff[i];
+            		}
+            	} else {
+                    // write character to file
+                    if (fputc(recv_buff[i], fd) != recv_buff[i]) {
+                        // error writing to file
+                    	stream->printf("upload error! %d bytes transferred\n", cnt);
+                        fclose(fd);
+                        fd = NULL;
+                        remove(upload_filename.c_str());
+                        THEKERNEL->set_uploading(false);
+                        return;
+                    } else {
+                        if ((cnt % 1000) == 0) {
+                            // we need to kick things or they die
+                            THEKERNEL->call_event(ON_IDLE);
+                        }
                     }
-                }
+            	}
             }
         }
+
+        // upload MD5
+        if(recv_count > 0) md5.update(recv_buff, recv_count);
+
+
     }
 }
 
@@ -1273,10 +1354,29 @@ void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
 	bool send_eof = false;
 
     string filename = absolute_from_relative(shift_parameter(parameters));
+    string md5_filename = change_to_md5_path(filename);
+
     if(!parameters.empty() && shift_parameter(parameters) == "-e") {
     	send_eof = true;
     }
 
+    FILE *fd_md5 = fopen(md5_filename.c_str(), "r");
+    if (fd_md5) {
+    	char local_md5[33];
+    	local_md5[32] = 0;
+    	fread(local_md5, 1, 32, fd_md5);
+        if(send_eof) {
+        	stream->puts(local_md5);
+            stream->puts("\004"); // ^D terminates the upload
+        } else {
+            stream->printf("%s %s\n", local_md5, filename.c_str());
+        }
+        fclose(fd_md5);
+        fd_md5 = NULL;
+        return;
+    }
+    fclose(fd_md5);
+    fd_md5 = NULL;
 
     // Open file
     FILE *lp = fopen(filename.c_str(), "r");

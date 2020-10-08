@@ -201,6 +201,14 @@ string absolute_from_relative( string path )
     return cwd + '/' + path;
 }
 
+// Change from origin path to sub path
+string change_to_md5_path( string origin )
+{
+	unsigned found = origin.find("gcodes/");
+	string filename = origin.substr(found + 7);
+	return "/sd/gcodes/.md5/" + filename;
+}
+
 // FIXME this does not handle empty strings correctly
 //split a string on a delimiter, return a vector of the split tokens
 vector<string> split(const char *str, char c)

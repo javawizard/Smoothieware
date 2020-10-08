@@ -486,7 +486,7 @@ void Kernel::erase_eeprom_data()
     i2c_buffer[0] = (unsigned char)(address >> 8);
     i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
 
-    int result = this->i2c->write(0xA0, i2c_buffer, 2 + length, false);
+    int result = this->i2c->write(0xA0, i2c_buffer, 2 + size, false);
     wait(0.05);
     if (result != 0) {
     	this->streams->printf("ALARM: EEPROM data erase error.\n");
