@@ -63,7 +63,7 @@ delta_step_pin								1.20			# Pin for delta stepper step signal
 delta_dir_pin								1.21			# Pin for delta stepper direction
 delta_en_pin								3.26			# Pin for delta enable
 delta_current								0.5				# A stepper motor current
-delta_max_rate								3000			# degree/min
+delta_max_rate								1000.0			# mm/min transform from degree/min
 delta_acceleration							300				# degree/secÂ²
 
 # B axis

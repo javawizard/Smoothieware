@@ -1302,9 +1302,9 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
 
     // it is unlikely but we need to protect against divide by zero, so ignore insanely small moves here
     // as the last milestone won't be updated we do not actually lose any moves as they will be accounted for in the next move
-    if(!auxilliary_move && distance < 0.00001F) return false;
+    if (!auxilliary_move && distance < 0.00001F) return false;
 
-    if(!auxilliary_move) {
+    if (!auxilliary_move) {
          for (size_t i = X_AXIS; i < N_PRIMARY_AXIS; i++) {
             // find distance unit vector for primary axis only
             unit_vec[i] = deltas[i] / distance;
@@ -1336,9 +1336,9 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     }
 
 #if MAX_ROBOT_ACTUATORS > 3
-    sos= 0;
+    sos = 0;
     // for the extruders just copy the position, and possibly scale it from mm³ to mm
-    for (size_t i = E_AXIS; i < n_motors; i++) {
+    for (size_t i = A_AXIS; i < n_motors; i++) {
         actuator_pos[i]= transformed_target[i];
         if(actuators[i]->is_extruder() && get_e_scale_fnc) {
             // NOTE this relies on the fact only one extruder is active at a time
@@ -1347,14 +1347,14 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
             // for volumetric it basically converts mm³ to mm, but what about flow rate?
             actuator_pos[i] *= get_e_scale_fnc();
         }
-        if(auxilliary_move) {
+        if (auxilliary_move) {
             // for E only moves we need to use the scaled E to calculate the distance
             sos += powf(actuator_pos[i] - actuators[i]->get_last_milestone(), 2);
         }
     }
-    if(auxilliary_move) {
-        distance= sqrtf(sos); // distance in mm of the e move
-        if(distance < 0.00001F) return false;
+    if (auxilliary_move) {
+        distance = sqrtf(sos); // distance in mm of the e move
+        if (distance < 0.00001F) return false;
     }
 #endif
 
@@ -1365,31 +1365,59 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
 
     float isecs = rate_mm_s / distance;
 
-    // check per-actuator speed limits
-    for (size_t actuator = 0; actuator < n_motors; actuator++) {
-        float d = fabsf(actuator_pos[actuator] - actuators[actuator]->get_last_milestone());
-        if(d < 0.00001F || !actuators[actuator]->is_selected()) continue; // no realistic movement for this actuator
+	// check per-actuator speed limits
+	for (size_t actuator = 0; actuator < n_motors; actuator++) {
 
-        float actuator_rate= d * isecs;
-        if (actuator_rate > actuators[actuator]->get_max_rate()) {
-            rate_mm_s *= (actuators[actuator]->get_max_rate() / actuator_rate);
-            isecs = rate_mm_s / distance;
-            DEBUG_PRINTF("new rate: %f - %d\n", rate_mm_s, actuator);
-        }
+		float d = fabsf(actuator_pos[actuator] - actuators[actuator]->get_last_milestone());
+		if (d < 0.00001F || !actuators[actuator]->is_selected()) continue; // no realistic movement for this actuator
 
-        DEBUG_PRINTF("act: %d, d: %f, distance: %f, actrate: %f, rate: %f, secs: %f, acc: %f\n", actuator, d, distance, actuator_rate, rate_mm_s, 1/isecs, acceleration);
+		float actuator_rate = d * isecs;
 
-        // adjust acceleration to lowest found, for all actuators as this also corrects
-        // the math for a tiny X move and large A move
-        float ma =  actuators[actuator]->get_acceleration(); // in mm/sec²
-        if(!isnan(ma)) {  // if axis does not have acceleration set then it uses the default_acceleration
-            float ca = (d/distance) * acceleration;
-            if (ca > ma) {
-                acceleration *= ( ma / ca );
-                DEBUG_PRINTF("new acceleration: %f\n", acceleration);
-            }
-        }
-    }
+		if (actuator == A_AXIS) {
+		    float a_perimeter = PI * 2;
+			// A Axis moved, calculate real A Axis real speed based on Y and Z wcs
+	        wcs_t curr_mpos = wcs_t(target[X_AXIS], target[Y_AXIS], target[Z_AXIS]);
+	        wcs_t curr_wpos = this->mcs2wcs(curr_mpos);
+			float abs_y_wcs = fabsf(std::get<Y_AXIS>(curr_wpos));
+			float abs_z_wcs = fabsf(std::get<Z_AXIS>(curr_wpos));
+			float rotation_radius = (abs_y_wcs > 0.00001 || abs_z_wcs > 0.00001) ? sqrtf(powf(abs_y_wcs, 2) + powf(abs_z_wcs, 2)) : 0;
+			if (rotation_radius > 1.0) {
+				a_perimeter = PI * 2 * rotation_radius;
+		    }
+			if (auxilliary_move) {
+				// A axis move only, speed up if necessary, up to 30 revolutions per minute
+				float revolutions_s = rate_mm_s / a_perimeter;
+				if (revolutions_s > 0.5) {
+					revolutions_s = 0.5;
+				}
+				rate_mm_s = revolutions_s * 360.0;
+				// THEKERNEL->streams->printf("auxilliary_move: %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, rate_mm_s, a_perimeter);
+				continue;
+			} else {
+				actuator_rate = a_perimeter * d * isecs / 360.0;
+				// THEKERNEL->streams->printf("auxilliary_move: %1.4f, %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, actuator_rate, actuators[actuator]->get_max_rate(), a_perimeter);
+			}
+		}
+
+		if (actuator_rate > actuators[actuator]->get_max_rate()) {
+			rate_mm_s *= (actuators[actuator]->get_max_rate() / actuator_rate);
+			isecs = rate_mm_s / distance;
+			DEBUG_PRINTF("new rate: %f - %d\n", rate_mm_s, actuator);
+		}
+
+		DEBUG_PRINTF("act: %d, d: %f, distance: %f, actrate: %f, rate: %f, secs: %f, acc: %f\n", actuator, d, distance, actuator_rate, rate_mm_s, 1/isecs, acceleration);
+
+		// adjust acceleration to lowest found, for all actuators as this also corrects
+		// the math for a tiny X move and large A move
+		float ma = actuators[actuator]->get_acceleration(); // in mm/sec²
+		if (!isnan(ma)) {  // if axis does not have acceleration set then it uses the default_acceleration
+			float ca = (d / distance) * acceleration;
+			if (ca > ma) {
+				acceleration *= (ma / ca);
+				DEBUG_PRINTF("new acceleration: %f\n", acceleration);
+			}
+		}
+	}
 
     // if we are in feed hold wait here until it is released, this means that even segmented lines will pause
     while(THEKERNEL->get_feed_hold()) {
@@ -1403,7 +1431,7 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     // NOTE this call will bock until there is room in the block queue, on_idle will continue to be called
     if(THEKERNEL->planner->append_block( actuator_pos, n_motors, rate_mm_s, distance, auxilliary_move ? nullptr : unit_vec, acceleration, s_value, is_g123, line)) {
         // this is the new compensated machine position
-        memcpy(this->compensated_machine_position, transformed_target, n_motors*sizeof(float));
+        memcpy(this->compensated_machine_position, transformed_target, n_motors * sizeof(float));
         return true;
     }
 
