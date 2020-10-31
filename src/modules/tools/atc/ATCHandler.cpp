@@ -49,6 +49,7 @@
 #define action_mm_checksum      	CHECKSUM("action_mm")
 #define action_rate_mm_s_checksum   CHECKSUM("action_rate_mm_s")
 
+#define detector_switch_checksum    CHECKSUM("toolsensor")
 #define detector_checksum           CHECKSUM("detector")
 #define detect_pin_checksum			CHECKSUM("detect_pin")
 #define detect_rate_mm_s_checksum	CHECKSUM("detect_rate_mm_s")
@@ -73,7 +74,6 @@
 
 ATCHandler::ATCHandler()
 {
-	new_tool = 0;
     atc_status = NONE;
     atc_home_info.clamp_status = UNHOMED;
     atc_home_info.triggered = false;
@@ -92,9 +92,9 @@ void ATCHandler::clear_script_queue(){
 	}
 }
 
-void ATCHandler::fill_drop_scripts() {
+void ATCHandler::fill_drop_scripts(int old_tool) {
 	char buff[100];
-	struct atc_tool *current_tool = &atc_tools[active_tool];
+	struct atc_tool *current_tool = &atc_tools[old_tool];
     // lift z axis to atc start position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -102,7 +102,7 @@ void ATCHandler::fill_drop_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is empty
-	// this->script_queue.push("M492.2");
+	this->script_queue.push("M492.2");
     // drop z axis to z position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
@@ -115,19 +115,22 @@ void ATCHandler::fill_drop_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool is dropped, halt if not
-	// this->script_queue.push("M492.1");
+	this->script_queue.push("M492.1");
+	// set new tool to -1
+	this->script_queue.push("M493.2 T-1");
 }
 
-void ATCHandler::fill_pick_scripts() {
+void ATCHandler::fill_pick_scripts(int new_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	this->script_queue.push(buff);
 	// move x and y to new tool position
 	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is filled
-	// this->script_queue.push("M492.1");
+	this->script_queue.push("M492.1");
 	// loose tool
 	this->script_queue.push("M490.2");
     // drop z axis to z position with fast speed
@@ -140,8 +143,12 @@ void ATCHandler::fill_pick_scripts() {
 	this->script_queue.push("M490.1");
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	this->script_queue.push(buff);
 	// move around to see if tool rack is empty, halt if not
-	// this->script_queue.push("M492.2");
+	this->script_queue.push("M492.2");
+	// set new tool
+	snprintf(buff, sizeof(buff), "M493.2 T%d", new_tool);
+	this->script_queue.push(buff);
 
 }
 
@@ -163,16 +170,19 @@ void ATCHandler::fill_cali_scripts() {
 	snprintf(buff, sizeof(buff), "G38.6 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
 	this->script_queue.push(buff);
 	// save new tool offset
-	this->script_queue.push("M493");
+	this->script_queue.push("M493.1");
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
 	this->script_queue.push(buff);
-
-	// goto saved position
 }
 
-void ATCHandler::fill_zprobe_scripts() {
+void ATCHandler::fill_zprobe_scripts(bool goto_last_pos) {
 	char buff[100];
+	if (goto_last_pos) {
+		// goto last pos
+		snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", this->last_pos[0], this->last_pos[1]);
+		this->script_queue.push(buff);
+	}
 	// do calibrate with fast speed
 	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
@@ -255,7 +265,7 @@ void ATCHandler::on_config_reload(void *argument)
 
 void ATCHandler::on_halt(void* argument)
 {
-    if(argument == nullptr && this->atc_status != NONE ) {
+    if(argument == nullptr ) {
         this->atc_status = NONE;
         this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
@@ -309,7 +319,7 @@ bool ATCHandler::laser_detect() {
     detector_info.triggered = false;
     // switch on detector
     bool switch_state = true;
-    bool ok = PublicData::set_value(switch_checksum, detector_checksum, state_checksum, &switch_state);
+    bool ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
     if (!ok) {
         THEKERNEL->streams->printf("ERROR: Failed switch on detector switch.\r\n");
         return false;
@@ -318,16 +328,29 @@ bool ATCHandler::laser_detect() {
 
 	float delta[Y_AXIS + 1];
 	for (size_t i = 0; i <= Y_AXIS; i++) delta[i] = 0;
-	delta[Y_AXIS]= detector_info.detect_travel; // we go the max
+	delta[Y_AXIS]= detector_info.detect_travel / 2;
 	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
 	if(THEKERNEL->is_halted()) return false;
 
+	delta[Y_AXIS]= 0 - detector_info.detect_travel;
+	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
+	// wait for it
+	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return false;
+
+	delta[Y_AXIS]= detector_info.detect_travel / 2;
+	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
+	// wait for it
+	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return false;
+
+
 	detecting = false;
 	// switch off detector
 	switch_state = false;
-    ok = PublicData::set_value(switch_checksum, detector_checksum, state_checksum, &switch_state);
+    ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
     if (!ok) {
         THEKERNEL->streams->printf("ERROR: Failed switch off detector switch.\r\n");
         return false;
@@ -447,7 +470,7 @@ void ATCHandler::on_gcode_received(void *argument)
     			gcode->stream->printf("ATC already begun\r\n");
     			return;
     		}
-            new_tool = gcode->get_value('T');
+            int new_tool = gcode->get_value('T');
             if (new_tool > this->tool_number) {
             	gcode->stream->printf("T%d invalid tool\r\n", new_tool);
             } else {
@@ -461,19 +484,19 @@ void ATCHandler::on_gcode_received(void *argument)
                 		gcode->stream->printf("Start picking new tool: T%d\r\n", new_tool);
                 		// just pick up tool
                 		atc_status = PICK;
-                		this->fill_pick_scripts();
+                		this->fill_pick_scripts(new_tool);
                 		this->fill_cali_scripts();
                 	} else if (new_tool < 0) {
                 		gcode->stream->printf("Start dropping current tool: T%d\r\n", this->active_tool);
                 		// just drop tool
                 		atc_status = DROP;
-                		this->fill_drop_scripts();
+                		this->fill_drop_scripts(active_tool);
                 	} else {
                 		gcode->stream->printf("Start atc, old tool: T%d, new tool: T%d\r\n", this->active_tool, new_tool);
                 		// full atc progress
                 		atc_status = FULL;
-                	    this->fill_drop_scripts();
-                	    this->fill_pick_scripts();
+                	    this->fill_drop_scripts(active_tool);
+                	    this->fill_pick_scripts(new_tool);
                 	    this->fill_cali_scripts();
                 	}
 
@@ -507,28 +530,74 @@ void ATCHandler::on_gcode_received(void *argument)
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// check true
 				if (!laser_detect()) {
-			        THEKERNEL->call_event(ON_HALT, nullptr);
-			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
-			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
+//			        THEKERNEL->call_event(ON_HALT, nullptr);
+//			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
+//			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 				}
 			} else if (gcode->subcode == 2) {
 				// check false
 				if (laser_detect()) {
-			        THEKERNEL->call_event(ON_HALT, nullptr);
-			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
-			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
-
+//			        THEKERNEL->call_event(ON_HALT, nullptr);
+//			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
+//			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 				}
 			}
 		} else if (gcode->m == 493) {
-			//
-			set_tool_offset();
+			if (gcode->subcode == 0 || gcode->subcode == 1) {
+				// set tooll offset
+				set_tool_offset();
+			} else if (gcode->subcode == 2) {
+				// set new tool
+				if (gcode->has_letter('T')) {
+		    		this->active_tool = gcode->get_value('T');
+		    		// save current tool data to eeprom
+		    		if (THEKERNEL->eeprom_data->TOOL != this->active_tool) {
+		        	    THEKERNEL->eeprom_data->TOOL = this->active_tool;
+		        	    THEKERNEL->write_eeprom_data();
+		    		}
+
+				} else {
+					THEKERNEL->call_event(ON_HALT, nullptr);
+					THEKERNEL->set_halt_reason(ATC_NO_TOOL);
+					THEKERNEL->streams->printf("ERROR: No tool was set!\n");
+
+				}
+			}
 		} else if (gcode->m == 494) {
             THEROBOT->push_state();
 			set_inner_playing(true);
             this->clear_script_queue();
-            atc_status = PROBE;
-    	    this->fill_zprobe_scripts();
+        	if (active_tool == 0) {
+        		gcode->stream->printf("Do Probe right away\r\n");
+                atc_status = PROBE;
+        	    this->fill_zprobe_scripts(false);
+        	} else {
+                // save current position
+                THEROBOT->get_axis_position(last_pos, 3);
+
+        		if (active_tool < 0) {
+        			//
+            		gcode->stream->printf("Picking Probe tool and do Probe\r\n");
+            		atc_status = PROBE_PICK;
+            		this->fill_pick_scripts(0);
+            		this->fill_cali_scripts();
+            		this->fill_zprobe_scripts(true);
+        		} else {
+            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
+            		atc_status = PROBE_FULL;
+            		int old_tool = active_tool;
+            		// change to probe tool
+            		this->fill_drop_scripts(old_tool);
+            		this->fill_pick_scripts(0);
+            		this->fill_cali_scripts();
+            		// do z probe
+            		this->fill_zprobe_scripts(true);
+            		// change back to last tool
+            		this->fill_drop_scripts(0);
+            		this->fill_pick_scripts(old_tool);
+            		this->fill_cali_scripts();
+        		}
+        	}
 		} else if (gcode->m == 495) {
 			THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
 			THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
@@ -570,20 +639,6 @@ void ATCHandler::on_main_loop(void *argument)
             return;
         }
 
-        // update tool info
-        if (this->atc_status == DROP || this->atc_status == PICK || this->atc_status == FULL) {
-    		this->active_tool = this->new_tool;
-
-    		// save current tool data to eeprom
-    		if (THEKERNEL->eeprom_data->TOOL != this->active_tool) {
-        	    THEKERNEL->eeprom_data->TOOL = this->active_tool;
-        	    THEKERNEL->write_eeprom_data();
-    		}
-        }
-		set_inner_playing(false);
-        // save to config file to persist data
-		// TODO
-
 		if (this->atc_status != PROBE) {
 	        // return to saved x and y position
 	        rapid_move(last_pos[0], last_pos[1], NAN);
@@ -593,6 +648,11 @@ void ATCHandler::on_main_loop(void *argument)
 		}
 
         this->atc_status = NONE;
+
+		set_inner_playing(false);
+
+        // save to config file to persist data
+		// TODO
 
         // pop old state
         THEROBOT->pop_state();

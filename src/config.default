@@ -12,6 +12,8 @@ new_status_format							true
 
 dfu_enable									false
 
+home_on_boot								true			# If do home when bootup
+
 # Basic motion configuration
 default_feed_rate							1000			# Default speed (mm/minute) for G1/G2/G3 moves
 default_seek_rate							2000			# Default speed (mm/minute) for G0 moves
@@ -22,8 +24,8 @@ mm_max_arc_error							0.002			# The maximum error for line segments that divide
 															# if both are used, will use largest segment length based on radius
 
 # Arm solution configuration : Cartesian robot. Translates mm positions into stepper positions
-alpha_steps_per_mm							300				# Steps per mm for alpha ( X ) stepper
-beta_steps_per_mm							300				# Steps per mm for beta ( Y ) stepper
+alpha_steps_per_mm							200				# Steps per mm for alpha ( X ) stepper
+beta_steps_per_mm							200				# Steps per mm for beta ( Y ) stepper
 gamma_steps_per_mm							200				# Steps per mm for gamma ( Z ) stepper
 
 # Planner module configuration : Look-ahead and acceleration configuration
@@ -40,13 +42,13 @@ z_axis_max_speed							2000			# Maximum speed in mm/min
 # Stepper module configuration
 # Pins are defined as  ports, and pin numbers, appending "!" to the number will invert a pin
 alpha_step_pin								1.26			# Pin for alpha stepper step signal
-alpha_dir_pin								1.27!			# Pin for alpha stepper direction, add '!' to reverse direction
+alpha_dir_pin								1.27			# Pin for alpha stepper direction, add '!' to reverse direction
 alpha_en_pin								nc				# Pin for alpha enable pin
 alpha_current								0.5				# X stepper motor current
 alpha_max_rate								2000.0			# Maximum rate in mm/min
 
 beta_step_pin								1.24			# Pin for beta stepper step signal
-beta_dir_pin								1.25!			# Pin for beta stepper direction, add '!' to reverse direction
+beta_dir_pin								1.25			# Pin for beta stepper direction, add '!' to reverse direction
 beta_en_pin									nc				# Pin for beta enable
 beta_current								0.5				# Y stepper motor current
 beta_max_rate								2000.0			# Maxmimum rate in mm/min
@@ -58,7 +60,7 @@ gamma_current								0.5				# Z stepper motor current
 gamma_max_rate								2000.0			# Maximum rate in mm/min
 
 # A axis
-delta_steps_per_mm							71.11			# may be steps per degree for example
+delta_steps_per_mm							35.555			# may be steps per degree for example
 delta_step_pin								1.20			# Pin for delta stepper step signal
 delta_dir_pin								1.21			# Pin for delta stepper direction
 delta_en_pin								3.26			# Pin for delta enable
@@ -67,7 +69,7 @@ delta_max_rate								1000.0			# mm/min transform from degree/min
 delta_acceleration							300				# degree/secÂ²
 
 # B axis
-epsilon_steps_per_mm						16576			# may be steps per degree for example
+epsilon_steps_per_mm						8288			# may be steps per degree for example
 epsilon_step_pin							1.18			# Pin for delta stepper step signal
 epsilon_dir_pin								1.19			# Pin for delta stepper direction
 epsilon_en_pin								0.24			# Pin for delta enable
@@ -91,12 +93,12 @@ atc.homing_debounce_ms						1
 atc.homing_max_travel_mm					8
 atc.homing_retract_mm						2
 atc.homing_rate_mm_s						1.5
-atc.action_mm								2
+atc.action_mm								2.1
 atc.action_rate_mm_s						1.5
 
 atc.detector.detect_pin						0.20^
-atc.detector.detect_rate_mm_s				1
-atc.detector.detect_travel_mm				3	
+atc.detector.detect_rate_mm_s				2
+atc.detector.detect_travel_mm				2	
 
 atc.tool_number								6		
 atc.active_tool								0
@@ -105,33 +107,42 @@ atc.safe_z_offset_mm						15.0
 atc.fast_z_rate_mm_m						500				
 atc.slow_z_rate_mm_m						120
 
-atc.probe.mx_mm								-2.4
-atc.probe.my_mm								-24.1
+atc.probe.mx_mm								-4.6
+atc.probe.my_mm								-51.5
 atc.probe.mz_mm								-150.0
+
 atc.probe.fast_rate_mm_m					300
 atc.probe.slow_rate_mm_m					60
 atc.probe.retract_mm						2
 atc.probe.probe_height_mm					0.0
 
-atc.tool0.mx_mm								-2.8
-atc.tool0.my_mm								-64.1
-atc.tool0.mz_mm								-104.0
+atc.tool0.mx_mm								-4.6
+atc.tool0.my_mm								-22.0 
+atc.tool0.mz_mm								-104.2
 
-atc.tool1.mx_mm								-2.5
-atc.tool1.my_mm								-104.1
-atc.tool1.mz_mm								-104.0
+atc.tool1.mx_mm								-4.7
+atc.tool1.my_mm								-81.5
+atc.tool1.mz_mm								-105.1
 
-atc.tool2.mx_mm								-2.6
-atc.tool2.my_mm								-144.1
-atc.tool2.mz_mm								-104.0
+atc.tool2.mx_mm								-4.8
+atc.tool2.my_mm								-111.5
+atc.tool2.mz_mm								-105.1
 
-atc.tool3.mx_mm								-2.5
-atc.tool3.my_mm								-184.1
-atc.tool3.mz_mm								-104.0
+atc.tool3.mx_mm								-4.5, 
+atc.tool3.my_mm								-141.5
+atc.tool3.mz_mm								-105.1
 
-atc.tool4.mx_mm								-2.5
-atc.tool4.my_mm								-224.1
-atc.tool4.mz_mm								-104.0
+atc.tool4.mx_mm								-4.6, 
+atc.tool4.my_mm								-171.5 
+atc.tool4.mz_mm								-105.1
+
+atc.tool5.mx_mm								-4.6
+atc.tool5.my_mm								-201.5
+atc.tool5.mz_mm								-105.1
+
+atc.tool6.mx_mm								-4.5
+atc.tool6.my_mm								-231.9
+atc.tool6.mz_mm								-105.1
 
 
 # Laser module configuration

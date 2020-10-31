@@ -30,6 +30,8 @@ private:
         PICK, // M6T?
 		CALI, // M491
 		PROBE,// M494
+		PROBE_PICK, // M494
+		PROBE_FULL	// M494
     } ATC_STATUS;
 
     typedef enum {
@@ -58,12 +60,12 @@ private:
     void set_tool_offset();
 
     //
-    void fill_drop_scripts();
-    void fill_pick_scripts();
+    void fill_drop_scripts(int old_tool);
+    void fill_pick_scripts(int new_tool);
     void fill_cali_scripts();
 
     //
-    void fill_zprobe_scripts();
+    void fill_zprobe_scripts(bool goto_last_pos);
 
     void clear_script_queue();
 
@@ -122,7 +124,6 @@ private:
 
     vector<struct atc_tool> atc_tools;
 
-    int new_tool;
     int active_tool;
     int tool_number;
 

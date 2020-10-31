@@ -38,6 +38,7 @@
 
 #include "mbed.h"
 
+#define home_on_boot_checksum             CHECKSUM("home_on_boot")
 #define on_boot_gcode_checksum            CHECKSUM("on_boot_gcode")
 #define on_boot_gcode_enable_checksum     CHECKSUM("on_boot_gcode_enable")
 #define after_suspend_gcode_checksum      CHECKSUM("after_suspend_gcode")
@@ -70,6 +71,8 @@ void Player::on_module_loaded()
 
     this->on_boot_gcode = THEKERNEL->config->value(on_boot_gcode_checksum)->by_default("/sd/on_boot.gcode")->as_string();
     this->on_boot_gcode_enable = THEKERNEL->config->value(on_boot_gcode_enable_checksum)->by_default(true)->as_bool();
+
+    this->home_on_boot = THEKERNEL->config->value(home_on_boot_checksum)->by_default(true)->as_bool();
 
     this->after_suspend_gcode = THEKERNEL->config->value(after_suspend_gcode_checksum)->by_default("")->as_string();
     this->before_resume_gcode = THEKERNEL->config->value(before_resume_gcode_checksum)->by_default("")->as_string();
@@ -436,11 +439,18 @@ void Player::on_main_loop(void *argument)
 
     if( !this->booted ) {
         this->booted = true;
-        if( this->on_boot_gcode_enable ) {
-            this->play_command(this->on_boot_gcode, THEKERNEL->serial);
-        } else {
-            //THEKERNEL->serial->printf("On boot gcode disabled! skipping...\n");
+        if (this->home_on_boot) {
+    		struct SerialMessage message;
+    		message.message = "$H";
+    		message.stream = THEKERNEL->streams;
+    		message.line = 0;
+    		THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
         }
+
+        if (this->on_boot_gcode_enable) {
+            this->play_command(this->on_boot_gcode, THEKERNEL->serial);
+        }
+
     }
 
     if( this->playing_file ) {

@@ -63,6 +63,7 @@ class Player : public Module {
         struct {
             bool on_boot_gcode_enable:1;
             bool booted:1;
+            bool home_on_boot:1;
             bool playing_file:1;
             bool suspended:1;
             bool was_playing_file:1;
