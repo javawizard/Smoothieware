@@ -730,8 +730,15 @@ void CartGridStrategy::doCompensation(float *target, bool inverse)
 
     // clamp the input to the bounds of the compensation grid
     // if a point is beyond the bounds of the grid, it will get the offset of the closest grid point
-    float x_target = std::min(std::max(target[X_AXIS], min_x), max_x);
-    float y_target = std::min(std::max(target[Y_AXIS], min_y), max_y);
+    //    float x_target = std::min(std::max(target[X_AXIS], min_x), max_x);
+    //    float y_target = std::min(std::max(target[Y_AXIS], min_y), max_y);
+
+    // change to set offset = 0 if a point is beyond the bounds of the grid
+    float x_target = target[X_AXIS];
+    float y_target = target[Y_AXIS];
+    if (x_target < min_x || x_target > max_x || y_target < min_y || y_target > max_y) {
+    	return;
+    }
 
     // we need to make sure that floor_x and floor_y are always < grid_size-1
     float grid_x = std::max(0.001F, std::min(this->current_grid_x_size - 1.001F, (x_target - this->x_start) / (this->x_size / (this->current_grid_x_size - 1))));

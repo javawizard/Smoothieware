@@ -25,13 +25,19 @@ public:
 private:
     typedef enum {
         NONE,
-        FULL, // M6T?
-        DROP, // M6T-1
-        PICK, // M6T?
-		CALI, // M491
-		PROBE,// M494
-		PROBE_PICK, // M494
-		PROBE_FULL	// M494
+        FULL, 				// M6T?
+        DROP, 				// M6T-1
+        PICK, 				// M6T?
+		CALI, 				// M491
+		PROBE,				// M494
+		PROBE_PICK,			// M494
+		PROBE_FULL,			// M494
+		AUTOLEVEL,			// M495
+		AUTOLEVEL_PICK, 	// M495
+		AUTOLEVEL_FULL,		// M495
+		PROBELEVEL,			// M496
+		PROBELEVEL_PICK,	// M496
+		PROBELEVEL_FULL		// M496
     } ATC_STATUS;
 
     typedef enum {
@@ -66,6 +72,7 @@ private:
 
     //
     void fill_zprobe_scripts(bool goto_last_pos);
+    void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids);
 
     void clear_script_queue();
 

@@ -23,6 +23,7 @@
 
 #include "modules/robot/Conveyor.h"
 #include "DirHandle.h"
+#include "ATCHandlerPublicAccess.h"
 #include "PublicDataRequest.h"
 #include "PublicData.h"
 #include "PlayerPublicAccess.h"
@@ -297,6 +298,20 @@ void Player::buffer_command( string parameters, StreamOutput *stream )
 // Play a gcode file by considering each line as if it was received on the serial console
 void Player::play_command( string parameters, StreamOutput *stream )
 {
+//    // current tool number and tool offset
+//    struct tool_status tool;
+//    bool tool_ok = PublicData::get_value( atc_handler_checksum, get_tool_status_checksum, &tool );
+//    if (tool_ok) {
+//    	tool_ok = tool.active_tool > 0;
+//    }
+//	// check if is tool -1 or tool 0
+//	if (!tool_ok) {
+//		THEKERNEL->call_event(ON_HALT, nullptr);
+//		THEKERNEL->set_halt_reason(MANUAL);
+//		THEKERNEL->streams->printf("ERROR: No tool or probe tool!\n");
+//		return;
+//	}
+
     // extract any options from the line and terminate the line there
     string options= extract_options(parameters);
     // Get filename which is the entire parameter line upto any options found or entire line
@@ -770,7 +785,7 @@ void Player::resume_command(string parameters, StreamOutput *stream )
     {
         // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
         char buf[128];
-        snprintf(buf, sizeof(buf), "G0 X%f Y%f Z%f", saved_position[0], saved_position[1], saved_position[2]);
+        snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f Z%.3f", saved_position[0], saved_position[1], saved_position[2]);
         struct SerialMessage message;
         message.message = buf;
         message.stream = &(StreamOutput::NullStream);

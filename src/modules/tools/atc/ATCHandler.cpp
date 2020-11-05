@@ -96,23 +96,23 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[old_tool];
     // lift z axis to atc start position
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
     // move x and y to active tool position
-	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is empty
 	this->script_queue.push("M492.2");
     // drop z axis to z position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
+	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
     // drop z axis with slow speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm, slow_z_rate);
+	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm, slow_z_rate);
 	this->script_queue.push(buff);
 	// loose tool
 	this->script_queue.push("M490.2");
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool is dropped, halt if not
 	this->script_queue.push("M492.1");
@@ -124,25 +124,25 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move x and y to new tool position
-	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", current_tool->mx_mm, current_tool->my_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is filled
 	this->script_queue.push("M492.1");
 	// loose tool
 	this->script_queue.push("M490.2");
     // drop z axis to z position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
+	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
     // drop z axis with slow speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%f F%f", current_tool->mz_mm, slow_z_rate);
+	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm, slow_z_rate);
 	this->script_queue.push(buff);
 	// clamp tool
 	this->script_queue.push("M490.1");
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool rack is empty, halt if not
 	this->script_queue.push("M492.2");
@@ -155,24 +155,24 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 void ATCHandler::fill_cali_scripts() {
 	char buff[100];
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move x and y to calibrate position
-	snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", probe_mx_mm, probe_my_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", probe_mx_mm, probe_my_mm);
 	this->script_queue.push(buff);
 	// do calibrate with fast speed
-	snprintf(buff, sizeof(buff), "G38.6 Z%f F%f", probe_mz_mm, probe_fast_rate);
+	snprintf(buff, sizeof(buff), "G38.6 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
 	// lift a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
 	this->script_queue.push(buff);
 	// do calibrate with slow speed
-	snprintf(buff, sizeof(buff), "G38.6 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
+	snprintf(buff, sizeof(buff), "G38.6 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
 	this->script_queue.push(buff);
 	// save new tool offset
 	this->script_queue.push("M493.1");
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 }
 
@@ -180,23 +180,37 @@ void ATCHandler::fill_zprobe_scripts(bool goto_last_pos) {
 	char buff[100];
 	if (goto_last_pos) {
 		// goto last pos
-		snprintf(buff, sizeof(buff), "G53 G0 X%f Y%f", this->last_pos[0], this->last_pos[1]);
+		snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", this->last_pos[0], this->last_pos[1]);
 		this->script_queue.push(buff);
 	}
 	// do calibrate with fast speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", probe_mz_mm, probe_fast_rate);
+	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
 	// lift a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
 	this->script_queue.push(buff);
 	// do calibrate with slow speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%f F%f", -1 - probe_retract_mm, probe_slow_rate);
+	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
 	this->script_queue.push(buff);
 	// set z working coordinate
-	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%f", probe_height_mm);
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", probe_height_mm);
 	this->script_queue.push(buff);
 	// retract z a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%f", probe_retract_mm);
+	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
+	this->script_queue.push(buff);
+}
+
+void ATCHandler::fill_autolevel_scripts(float x_pos, float y_pos,
+		float x_size, float y_size, int x_grids, int y_grids)
+{
+	char buff[100];
+
+	// goto x and y path origin
+	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
+	this->script_queue.push(buff);
+
+	// do auto leveling
+	snprintf(buff, sizeof(buff), "G32R1X0Y0A%.3fB%.3fI%dJ%d", x_size, y_size, x_grids, y_grids);
 	this->script_queue.push(buff);
 }
 
@@ -412,6 +426,9 @@ void ATCHandler::clamp_tool()
 	}
 	if (atc_home_info.clamp_status == UNHOMED) {
 		home_clamp();
+		// change clamp status
+		atc_home_info.clamp_status = CLAMPED;
+		return;
 	}
 	float delta[ATC_AXIS + 1];
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
@@ -530,16 +547,16 @@ void ATCHandler::on_gcode_received(void *argument)
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// check true
 				if (!laser_detect()) {
-//			        THEKERNEL->call_event(ON_HALT, nullptr);
-//			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
-//			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
+			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
+			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 				}
 			} else if (gcode->subcode == 2) {
 				// check false
 				if (laser_detect()) {
-//			        THEKERNEL->call_event(ON_HALT, nullptr);
-//			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
-//			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
+			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
+			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
 				}
 			}
 		} else if (gcode->m == 493) {
@@ -564,6 +581,7 @@ void ATCHandler::on_gcode_received(void *argument)
 				}
 			}
 		} else if (gcode->m == 494) {
+			// Do Z Probe, change probe tool if needed
             THEROBOT->push_state();
 			set_inner_playing(true);
             this->clear_script_queue();
@@ -574,7 +592,6 @@ void ATCHandler::on_gcode_received(void *argument)
         	} else {
                 // save current position
                 THEROBOT->get_axis_position(last_pos, 3);
-
         		if (active_tool < 0) {
         			//
             		gcode->stream->printf("Picking Probe tool and do Probe\r\n");
@@ -599,12 +616,108 @@ void ATCHandler::on_gcode_received(void *argument)
         		}
         	}
 		} else if (gcode->m == 495) {
-			THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
-			THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
-			THEKERNEL->streams->printf("EEPRROM Data: G54: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G54[0], THEKERNEL->eeprom_data->G54[1], THEKERNEL->eeprom_data->G54[2]);
-			THEKERNEL->streams->printf("EEPRROM Data: G28: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G28[0], THEKERNEL->eeprom_data->G28[1], THEKERNEL->eeprom_data->G28[2]);
+			// Do Auto Leveling, change probe tool if needed
+			if (gcode->has_letter('X') && gcode->has_letter('Y') && gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J')) {
+				float x_pos = gcode->get_value('X');
+				float y_pos = gcode->get_value('Y');
+	    		float x_size = gcode->get_value('A');
+	    		float y_size = gcode->get_value('B');
+	    		int x_grids = gcode->get_value('I');
+	    		int y_grids = gcode->get_value('J');
+	            THEROBOT->push_state();
+				set_inner_playing(true);
+	            this->clear_script_queue();
+	        	if (active_tool == 0) {
+	        		gcode->stream->printf("Do Auto Leveling right away\r\n");
+	                atc_status = AUTOLEVEL;
+	        	    this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	        	} else {
+	                // save current position
+	                THEROBOT->get_axis_position(last_pos, 3);
+	        		if (active_tool < 0) {
+	        			//
+	            		gcode->stream->printf("Picking Probe tool and do Auto Leveling\r\n");
+	            		atc_status = AUTOLEVEL_PICK;
+	            		this->fill_pick_scripts(0);
+	            		this->fill_cali_scripts();
+	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	        		} else {
+	            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
+	            		atc_status = AUTOLEVEL_FULL;
+	            		int old_tool = active_tool;
+	            		// change to probe tool
+	            		this->fill_drop_scripts(old_tool);
+	            		this->fill_pick_scripts(0);
+	            		this->fill_cali_scripts();
+	            		// do auto leveling
+	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	            		// change back to last tool
+	            		this->fill_drop_scripts(0);
+	            		this->fill_pick_scripts(old_tool);
+	            		this->fill_cali_scripts();
+	        		}
+	        	}
+			} else {
+				gcode->stream->printf("ALARM: Miss AutoLevel Parameter: X/Y/A/B/I/J\r\n");
+			}
 		} else if (gcode->m == 496) {
-			THEKERNEL->erase_eeprom_data();
+			// Do z probe, then do Auto Leveling, change probe tool if needed
+			if (gcode->has_letter('X') && gcode->has_letter('Y') && gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J')) {
+				float x_pos = gcode->get_value('X');
+				float y_pos = gcode->get_value('Y');
+	    		float x_size = gcode->get_value('A');
+	    		float y_size = gcode->get_value('B');
+	    		int x_grids = gcode->get_value('I');
+	    		int y_grids = gcode->get_value('J');
+	            THEROBOT->push_state();
+				set_inner_playing(true);
+	            this->clear_script_queue();
+	        	if (active_tool == 0) {
+	        		gcode->stream->printf("Do Probe and Auto Leveling right away\r\n");
+	                atc_status = PROBELEVEL;
+	                this->fill_zprobe_scripts(false);
+	        	    this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	        	} else {
+	                // save current position
+	                THEROBOT->get_axis_position(last_pos, 3);
+	        		if (active_tool < 0) {
+	        			//
+	            		gcode->stream->printf("Picking Probe tool and do Probe and Auto Leveling\r\n");
+	            		atc_status = PROBELEVEL_PICK;
+	            		this->fill_pick_scripts(0);
+	            		this->fill_cali_scripts();
+	            		this->fill_zprobe_scripts(true);
+	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	        		} else {
+	            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
+	            		atc_status = AUTOLEVEL_FULL;
+	            		int old_tool = active_tool;
+	            		// change to probe tool
+	            		this->fill_drop_scripts(old_tool);
+	            		this->fill_pick_scripts(0);
+	            		this->fill_cali_scripts();
+	            		// do z probe
+	            		this->fill_zprobe_scripts(true);
+	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
+	            		// change back to last tool
+	            		this->fill_drop_scripts(0);
+	            		this->fill_pick_scripts(old_tool);
+	            		this->fill_cali_scripts();
+	        		}
+	        	}
+			} else {
+				gcode->stream->printf("ALARM: Miss AutoLevel Parameter: X/Y/A/B/I/J\r\n");
+			}
+		} else if (gcode->m == 498) {
+			if (gcode->subcode == 0 || gcode->subcode == 1) {
+				THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
+				THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
+				THEKERNEL->streams->printf("EEPRROM Data: G54: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G54[0], THEKERNEL->eeprom_data->G54[1], THEKERNEL->eeprom_data->G54[2]);
+				THEKERNEL->streams->printf("EEPRROM Data: G28: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G28[0], THEKERNEL->eeprom_data->G28[1], THEKERNEL->eeprom_data->G28[2]);
+			} else if (gcode->subcode == 2) {
+				// Show EEPROM DATA
+				THEKERNEL->erase_eeprom_data();
+			}
 		} else if ( gcode->m == 499) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
@@ -639,7 +752,7 @@ void ATCHandler::on_main_loop(void *argument)
             return;
         }
 
-		if (this->atc_status != PROBE) {
+		if (this->atc_status != PROBE && this->atc_status != AUTOLEVEL) {
 	        // return to saved x and y position
 	        rapid_move(last_pos[0], last_pos[1], NAN);
 

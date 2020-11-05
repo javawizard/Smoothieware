@@ -84,8 +84,9 @@ void MainButton::on_idle(void *argument)
     			case IDLE:
     			case RUN:
     			case HOME:
-    				// feed hold
-    				THEKERNEL->set_feed_hold(true);
+    				// Halt
+    		        THEKERNEL->call_event(ON_HALT, nullptr);
+    		        THEKERNEL->set_halt_reason(MANUAL);
     				break;
     			case HOLD:
     				// resume
@@ -108,8 +109,9 @@ void MainButton::on_idle(void *argument)
     				break;
     			case RUN:
     			case HOME:
-    				// feed hold
-    				THEKERNEL->set_feed_hold(true);
+    				// halt
+    		        THEKERNEL->call_event(ON_HALT, nullptr);
+    		        THEKERNEL->set_halt_reason(MANUAL);
     				break;
     			case HOLD:
     				// resume

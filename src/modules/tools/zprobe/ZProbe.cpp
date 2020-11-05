@@ -278,7 +278,7 @@ bool ZProbe::run_probe_return(float& mm, float feedrate, float max_dist, bool re
 bool ZProbe::doProbeAt(float &mm, float x, float y)
 {
     // move to xy
-    coordinated_move(x, y, NAN, getFastFeedrate());
+    coordinated_move(x, y, NAN, getFastFeedrate() * 4);
     return run_probe_return(mm, slow_feedrate);
 }
 
@@ -467,7 +467,9 @@ void ZProbe::probe_XYZ(Gcode *gcode)
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {x, y, z};
     if(!THEROBOT->delta_move(delta, rate, 3)) {
-        gcode->stream->printf("error:No move detected or too small\n");
+    	gcode->stream->printf("ERROR: Move too small,  %1.3f, %1.3f, %1.3f\n", x, y, z);
+        THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(PROBE_FAIL);
         probing= false;
         return;
     }
@@ -529,7 +531,9 @@ void ZProbe::calibrate_Z(Gcode *gcode)
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {0, 0, z};
     if(!THEROBOT->delta_move(delta, rate, 3)) {
-        gcode->stream->printf("error:No move detected or too small\n");
+        gcode->stream->printf("ERROR: Move too small,  %1.3f\n", z);
+        THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(PROBE_FAIL);
         calibrating = false;
         return;
     }

@@ -10,6 +10,9 @@
 #include "Gcode.h"
 #include "Conveyor.h"
 #include "SpindleControl.h"
+#include "libs/StreamOutputPool.h"
+#include "libs/PublicData.h"
+#include "ATCHandlerPublicAccess.h"
 
 void SpindleControl::on_gcode_received(void *argument) 
 {
@@ -39,6 +42,20 @@ void SpindleControl::on_gcode_received(void *argument)
         }
         else if (gcode->m == 3 && !THEKERNEL->get_laser_mode())
         {
+            // current tool number and tool offset
+            struct tool_status tool;
+            bool tool_ok = PublicData::get_value( atc_handler_checksum, get_tool_status_checksum, &tool );
+            if (tool_ok) {
+            	tool_ok = tool.active_tool > 0;
+            }
+        	// check if is tool -1 or tool 0
+        	if (!tool_ok) {
+    			THEKERNEL->call_event(ON_HALT, nullptr);
+    			THEKERNEL->set_halt_reason(MANUAL);
+    			THEKERNEL->streams->printf("ERROR: No tool or probe tool!\n");
+    			return;
+        	}
+
             THECONVEYOR->wait_for_idle();
             // M3 with S value provided: set speed
             if (gcode->has_letter('S'))
@@ -49,7 +66,7 @@ void SpindleControl::on_gcode_received(void *argument)
             if (!spindle_on) {
                 turn_on();
             }
-                    }
+        }
         else if (gcode->m == 5 && !THEKERNEL->get_laser_mode())
         {
             THECONVEYOR->wait_for_idle();

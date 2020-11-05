@@ -436,7 +436,7 @@ void Kernel::read_eeprom_data()
 	size_t size = sizeof(EEPROM_data);
 	char i2c_buffer[size];
 
-    short address = 0;
+    short address = 32;
     i2c_buffer[0] = (unsigned char)(address >> 8);
     i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
 
@@ -465,7 +465,7 @@ void Kernel::write_eeprom_data()
 	char i2c_buffer[size + 2];
 	memcpy(i2c_buffer + 2, this->eeprom_data, size);
 
-	short address = 0;
+	short address = 32;
     i2c_buffer[0] = (unsigned char)(address >> 8);
     i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
 
@@ -482,7 +482,7 @@ void Kernel::erase_eeprom_data()
 	char i2c_buffer[size + 2];
 	memset(i2c_buffer, 0, sizeof(i2c_buffer));
 
-	short address = 0;
+	short address = 32;
     i2c_buffer[0] = (unsigned char)(address >> 8);
     i2c_buffer[1] = (unsigned char)((unsigned char)address & 0xff);
 

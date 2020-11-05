@@ -16,9 +16,9 @@ home_on_boot								true			# If do home when bootup
 
 # Basic motion configuration
 default_feed_rate							1000			# Default speed (mm/minute) for G1/G2/G3 moves
-default_seek_rate							2000			# Default speed (mm/minute) for G0 moves
+default_seek_rate							3000			# Default speed (mm/minute) for G0 moves
 mm_per_arc_segment							0.0				# Fixed length for line segments that divide arcs, 0 to disable
-mm_per_line_segment							1				# Cut lines into segments this size
+mm_per_line_segment							5				# Cut lines into segments this size
 mm_max_arc_error							0.002			# The maximum error for line segments that divide arcs 0 to disable
 															# note it is invalid for both the above be 0
 															# if both are used, will use largest segment length based on radius
@@ -35,8 +35,8 @@ junction_deviation							0.01			#
 #z_junction_deviation						0.0				# For Z only moves, -1 uses junction_deviation, zero disables junction_deviation on z moves DO NOT SET ON A DELTA
 
 # Cartesian axis speed limits
-x_axis_max_speed							2000			# Maximum speed in mm/min
-y_axis_max_speed							2000			# Maximum speed in mm/min
+x_axis_max_speed							3000			# Maximum speed in mm/min
+y_axis_max_speed							3000			# Maximum speed in mm/min
 z_axis_max_speed							2000			# Maximum speed in mm/min
 
 # Stepper module configuration
@@ -45,13 +45,13 @@ alpha_step_pin								1.26			# Pin for alpha stepper step signal
 alpha_dir_pin								1.27			# Pin for alpha stepper direction, add '!' to reverse direction
 alpha_en_pin								nc				# Pin for alpha enable pin
 alpha_current								0.5				# X stepper motor current
-alpha_max_rate								2000.0			# Maximum rate in mm/min
+alpha_max_rate								3000.0			# Maximum rate in mm/min
 
 beta_step_pin								1.24			# Pin for beta stepper step signal
 beta_dir_pin								1.25			# Pin for beta stepper direction, add '!' to reverse direction
 beta_en_pin									nc				# Pin for beta enable
 beta_current								0.5				# Y stepper motor current
-beta_max_rate								2000.0			# Maxmimum rate in mm/min
+beta_max_rate								3000.0			# Maxmimum rate in mm/min
 
 gamma_step_pin								1.22			# Pin for gamma stepper step signal
 gamma_dir_pin								1.23			# Pin for gamma stepper direction, add '!' to reverse direction
@@ -88,7 +88,7 @@ wifi.tcp_timeout_s							10
 
 # ATC
 atc.enable									true
-atc.homing_endstop_pin						1.9^
+atc.homing_endstop_pin						1.9!^
 atc.homing_debounce_ms						1
 atc.homing_max_travel_mm					8
 atc.homing_retract_mm						2
@@ -97,22 +97,22 @@ atc.action_mm								2.1
 atc.action_rate_mm_s						1.5
 
 atc.detector.detect_pin						0.20^
-atc.detector.detect_rate_mm_s				2
+atc.detector.detect_rate_mm_s				5
 atc.detector.detect_travel_mm				2	
 
 atc.tool_number								6		
 atc.active_tool								0
 atc.safe_z_mm								-20.0
 atc.safe_z_offset_mm						15.0
-atc.fast_z_rate_mm_m						500				
-atc.slow_z_rate_mm_m						120
+atc.fast_z_rate_mm_m						1000				
+atc.slow_z_rate_mm_m						200
 
 atc.probe.mx_mm								-4.6
 atc.probe.my_mm								-51.5
 atc.probe.mz_mm								-150.0
 
-atc.probe.fast_rate_mm_m					300
-atc.probe.slow_rate_mm_m					60
+atc.probe.fast_rate_mm_m					500
+atc.probe.slow_rate_mm_m					100
 atc.probe.retract_mm						2
 atc.probe.probe_height_mm					0.0
 
@@ -168,6 +168,8 @@ switch.vacuum.output_type					digitalpwm		# Digital means this is just an on or 
 switch.vacuum.pwm_pin						2.3				#
 switch.vacuum.min_pwm						0				#
 switch.vacuum.max_pwm						100				#
+switch.vacuum.startup_value					20				#
+switch.vacuum.default_on_value				50				#
 
 switch.spindlefan.enable					true			# Enable this module
 switch.spindlefan.input_on_command			M811			# Command that will turn this switch on
@@ -177,6 +179,9 @@ switch.spindlefan.output_type				digitalpwm		# Digital means this is just an on 
 switch.spindlefan.pwm_pin					2.1				#
 switch.spindlefan.min_pwm					0				#
 switch.spindlefan.max_pwm					100				#
+switch.spindlefan.startup_value				20				#
+switch.spindlefan.default_on_value			90				#
+
 
 switch.light.enable							true			# Enable this module
 switch.light.output_pin						0.22			# Pin this module controls
@@ -273,7 +278,7 @@ zprobe.probe_pin							2.8^			# Pin probe is attached to, if NC remove the !
 zprobe.slow_feedrate						1				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
 zprobe.fast_feedrate						5				# Move feedrate mm/sec
-zprobe.return_feedrate						5				# Return feedrate mm/sec
+zprobe.return_feedrate						20				# Return feedrate mm/sec
 zprobe.probe_height							5				# How much above bed to start probe
 zprobe.max_z								100				# max z
 zprobe.calibrate_pin						0.21^			# calibrate_pin
@@ -336,7 +341,7 @@ spindle.control_I							0.00005			# default 0.0001. I value for the PID controll
 spindle.control_D							0.00005			# default 0.0001. D value for the PID controller
 spindle.control_smoothing					0.1				# default 0.1. This value is low pass filter time constant in seconds.
 spindle.delay_s								3.0				# delay seconds before next motion after spindle turn on or off
-spindle.acc_ratio							1.56			# acceleration ratio
+spindle.acc_ratio							1.27			# acceleration ratio
 spindle.alarm_pin							0.19^			# spindle alarm trigger pin
 spindle.stall_s								1.0				# how many seconds before report stall status
 spindle.stall_count_rpm						1000			# don't calculate stall when lower than this RPM
