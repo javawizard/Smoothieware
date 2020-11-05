@@ -337,16 +337,14 @@ std::string Kernel::get_query_string()
 	}
 
     // current running file info
-    if (running) {
-        void *returned_data;
-        bool ok = PublicData::get_value( player_checksum, get_progress_checksum, &returned_data );
-        if (ok) {
-            struct pad_progress p =  *static_cast<struct pad_progress *>(returned_data);
-            n= snprintf(buf, sizeof(buf), "|P:%lu,%d,%lu", p.played_lines, p.percent_complete, p.elapsed_secs);
-            if(n > sizeof(buf)) n= sizeof(buf);
-            str.append(buf, n);
-        }
-    }
+	void *returned_data;
+	ok = PublicData::get_value( player_checksum, get_progress_checksum, &returned_data );
+	if (ok) {
+		struct pad_progress p =  *static_cast<struct pad_progress *>(returned_data);
+		n= snprintf(buf, sizeof(buf), "|P:%lu,%d,%lu", p.played_lines, p.percent_complete, p.elapsed_secs);
+		if(n > sizeof(buf)) n= sizeof(buf);
+		str.append(buf, n);
+	}
 
     // if not grbl mode get temperatures
     if(!is_grbl_mode()) {
