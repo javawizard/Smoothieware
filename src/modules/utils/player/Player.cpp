@@ -468,7 +468,7 @@ void Player::on_main_loop(void *argument)
 
     }
 
-    if( this->playing_file ) {
+    if ( this->playing_file ) {
         if(THEKERNEL->is_halted() || this->inner_playing) {
             return;
         }

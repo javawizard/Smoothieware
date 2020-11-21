@@ -178,12 +178,17 @@ void ATCHandler::fill_cali_scripts() {
 
 void ATCHandler::fill_zprobe_scripts(bool goto_last_pos) {
 	char buff[100];
+
+	// lift z to safe position with fast speed
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	this->script_queue.push(buff);
+
 	if (goto_last_pos) {
 		// goto last pos
 		snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", this->last_pos[0], this->last_pos[1]);
 		this->script_queue.push(buff);
 	}
-	// do calibrate with fast speed
+	// do probe with fast speed
 	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
 	// lift a bit
@@ -279,7 +284,7 @@ void ATCHandler::on_config_reload(void *argument)
 
 void ATCHandler::on_halt(void* argument)
 {
-    if(argument == nullptr ) {
+    if (argument == nullptr ) {
         this->atc_status = NONE;
         this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
@@ -327,10 +332,6 @@ uint32_t ATCHandler::read_detector(uint32_t dummy)
 }
 
 bool ATCHandler::laser_detect() {
-    // First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
-    // move around and check laser detector
-    detector_info.triggered = false;
     // switch on detector
     bool switch_state = true;
     bool ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
@@ -338,24 +339,30 @@ bool ATCHandler::laser_detect() {
         THEKERNEL->streams->printf("ERROR: Failed switch on detector switch.\r\n");
         return false;
     }
+
+    // First wait for the queue to be empty
+    THECONVEYOR->wait_for_idle();
+
+    // move around and check laser detector
     detecting = true;
+    detector_info.triggered = false;
 
 	float delta[Y_AXIS + 1];
 	for (size_t i = 0; i <= Y_AXIS; i++) delta[i] = 0;
 	delta[Y_AXIS]= detector_info.detect_travel / 2;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
+	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
 	if(THEKERNEL->is_halted()) return false;
 
 	delta[Y_AXIS]= 0 - detector_info.detect_travel;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
+	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
 	if(THEKERNEL->is_halted()) return false;
 
 	delta[Y_AXIS]= detector_info.detect_travel / 2;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, ATC_AXIS + 1);
+	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
 	if(THEKERNEL->is_halted()) return false;
@@ -430,6 +437,10 @@ void ATCHandler::clamp_tool()
 		atc_home_info.clamp_status = CLAMPED;
 		return;
 	}
+
+    // First wait for the queue to be empty
+    THECONVEYOR->wait_for_idle();
+
 	float delta[ATC_AXIS + 1];
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
 	delta[4] = atc_home_info.action_dist;
@@ -449,6 +460,10 @@ void ATCHandler::loose_tool()
 	if (atc_home_info.clamp_status == UNHOMED) {
 		home_clamp();
 	}
+
+	// First wait for the queue to be empty
+    THECONVEYOR->wait_for_idle();
+
 	float delta[ATC_AXIS + 1];
 	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
 	delta[4] = -atc_home_info.action_dist;
@@ -594,13 +609,13 @@ void ATCHandler::on_gcode_received(void *argument)
                 THEROBOT->get_axis_position(last_pos, 3);
         		if (active_tool < 0) {
         			//
-            		gcode->stream->printf("Picking Probe tool and do Probe\r\n");
+            		gcode->stream->printf("Picking Probe tool, Do Probe\r\n");
             		atc_status = PROBE_PICK;
             		this->fill_pick_scripts(0);
             		this->fill_cali_scripts();
             		this->fill_zprobe_scripts(true);
         		} else {
-            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
+            		gcode->stream->printf("Change to Probe tool, Do Probe\r\n");
             		atc_status = PROBE_FULL;
             		int old_tool = active_tool;
             		// change to probe tool
@@ -610,9 +625,9 @@ void ATCHandler::on_gcode_received(void *argument)
             		// do z probe
             		this->fill_zprobe_scripts(true);
             		// change back to last tool
-            		this->fill_drop_scripts(0);
-            		this->fill_pick_scripts(old_tool);
-            		this->fill_cali_scripts();
+            		// this->fill_drop_scripts(0);
+            		// this->fill_pick_scripts(old_tool);
+            		// this->fill_cali_scripts();
         		}
         	}
 		} else if (gcode->m == 495) {
@@ -636,13 +651,13 @@ void ATCHandler::on_gcode_received(void *argument)
 	                THEROBOT->get_axis_position(last_pos, 3);
 	        		if (active_tool < 0) {
 	        			//
-	            		gcode->stream->printf("Picking Probe tool and do Auto Leveling\r\n");
+	            		gcode->stream->printf("Picking Probe tool, Do Auto Leveling\r\n");
 	            		atc_status = AUTOLEVEL_PICK;
 	            		this->fill_pick_scripts(0);
 	            		this->fill_cali_scripts();
 	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
 	        		} else {
-	            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
+	            		gcode->stream->printf("Change to Probe tool, Do Auto Leveling\r\n");
 	            		atc_status = AUTOLEVEL_FULL;
 	            		int old_tool = active_tool;
 	            		// change to probe tool
@@ -652,9 +667,9 @@ void ATCHandler::on_gcode_received(void *argument)
 	            		// do auto leveling
 	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
 	            		// change back to last tool
-	            		this->fill_drop_scripts(0);
-	            		this->fill_pick_scripts(old_tool);
-	            		this->fill_cali_scripts();
+	            		// this->fill_drop_scripts(0);
+	            		// this->fill_pick_scripts(old_tool);
+	            		// this->fill_cali_scripts();
 	        		}
 	        	}
 			} else {
@@ -682,15 +697,15 @@ void ATCHandler::on_gcode_received(void *argument)
 	                THEROBOT->get_axis_position(last_pos, 3);
 	        		if (active_tool < 0) {
 	        			//
-	            		gcode->stream->printf("Picking Probe tool and do Probe and Auto Leveling\r\n");
+	            		gcode->stream->printf("Picking Probe tool, do Probe and Auto Leveling\r\n");
 	            		atc_status = PROBELEVEL_PICK;
 	            		this->fill_pick_scripts(0);
 	            		this->fill_cali_scripts();
 	            		this->fill_zprobe_scripts(true);
 	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
 	        		} else {
-	            		gcode->stream->printf("Change to Probe tool, change back when done\r\n");
-	            		atc_status = AUTOLEVEL_FULL;
+	            		gcode->stream->printf("Picking Probe tool, do Probe and Auto Leveling\r\n");
+	            		atc_status = PROBELEVEL_FULL;
 	            		int old_tool = active_tool;
 	            		// change to probe tool
 	            		this->fill_drop_scripts(old_tool);
@@ -700,9 +715,9 @@ void ATCHandler::on_gcode_received(void *argument)
 	            		this->fill_zprobe_scripts(true);
 	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
 	            		// change back to last tool
-	            		this->fill_drop_scripts(0);
-	            		this->fill_pick_scripts(old_tool);
-	            		this->fill_cali_scripts();
+	            		// this->fill_drop_scripts(0);
+	            		// this->fill_pick_scripts(old_tool);
+	            		// this->fill_cali_scripts();
 	        		}
 	        	}
 			} else {
@@ -752,12 +767,12 @@ void ATCHandler::on_main_loop(void *argument)
             return;
         }
 
-		if (this->atc_status != PROBE && this->atc_status != AUTOLEVEL) {
+		if (this->atc_status != PROBE && this->atc_status != AUTOLEVEL && this->atc_status != PROBELEVEL) {
+	        // return to safe z position
+	        rapid_move(NAN, NAN, this->safe_z_mm);
+
 	        // return to saved x and y position
 	        rapid_move(last_pos[0], last_pos[1], NAN);
-
-	        // return to saved z position
-	        // rapid_move(NAN, NAN, last_pos[2]);
 		}
 
         this->atc_status = NONE;
