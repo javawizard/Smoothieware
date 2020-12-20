@@ -29,15 +29,16 @@ private:
         DROP, 				// M6T-1
         PICK, 				// M6T?
 		CALI, 				// M491
-		PROBE,				// M494
-		PROBE_PICK,			// M494
-		PROBE_FULL,			// M494
-		AUTOLEVEL,			// M495
-		AUTOLEVEL_PICK, 	// M495
-		AUTOLEVEL_FULL,		// M495
-		PROBELEVEL,			// M496
-		PROBELEVEL_PICK,	// M496
-		PROBELEVEL_FULL		// M496
+		AUTOMATION			// M495
+//		PROBE,				// M494
+//		PROBE_PICK,			// M494
+//		PROBE_FULL,			// M494
+//		AUTOLEVEL,			// M495
+//		AUTOLEVEL_PICK, 	// M495
+//		AUTOLEVEL_FULL,		// M495
+//		PROBELEVEL,			// M496
+//		PROBELEVEL_PICK,	// M496
+//		PROBELEVEL_FULL		// M496
     } ATC_STATUS;
 
     typedef enum {
@@ -71,8 +72,9 @@ private:
     void fill_cali_scripts();
 
     //
-    void fill_zprobe_scripts(bool goto_last_pos);
-    void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids);
+    void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
+    void fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset);
+    void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids, float height);
 
     void clear_script_queue();
 
@@ -112,6 +114,7 @@ private:
     float safe_z_offset_mm;
     float fast_z_rate;
     float slow_z_rate;
+    float margin_rate;
     float probe_mx_mm;
     float probe_my_mm;
     float probe_mz_mm;

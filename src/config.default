@@ -117,27 +117,27 @@ atc.probe.retract_mm						2
 atc.probe.probe_height_mm					0.0
 
 atc.tool0.mx_mm								-4.6
-atc.tool0.my_mm								-22.0 
+atc.tool0.my_mm								-21.9 
 atc.tool0.mz_mm								-104.2
 
 atc.tool1.mx_mm								-4.7
-atc.tool1.my_mm								-81.5
+atc.tool1.my_mm								-81.9
 atc.tool1.mz_mm								-105.1
 
 atc.tool2.mx_mm								-4.8
-atc.tool2.my_mm								-111.5
+atc.tool2.my_mm								-111.9
 atc.tool2.mz_mm								-105.1
 
 atc.tool3.mx_mm								-4.5, 
-atc.tool3.my_mm								-141.5
+atc.tool3.my_mm								-141.9
 atc.tool3.mz_mm								-105.1
 
 atc.tool4.mx_mm								-4.6, 
-atc.tool4.my_mm								-171.5 
+atc.tool4.my_mm								-171.9 
 atc.tool4.mz_mm								-105.1
 
 atc.tool5.mx_mm								-4.6
-atc.tool5.my_mm								-201.5
+atc.tool5.my_mm								-201.9
 atc.tool5.mz_mm								-105.1
 
 atc.tool6.mx_mm								-4.5

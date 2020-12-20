@@ -65,6 +65,7 @@
 #define safe_z_offset_checksum		CHECKSUM("safe_z_offset_mm")
 #define fast_z_rate_checksum		CHECKSUM("fast_z_rate_mm_m")
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
+#define margin_rate_checksum		CHECKSUM("margin_rate_mm_m")
 
 #define probe_checksum				CHECKSUM("probe")
 #define fast_rate_mm_m_checksum		CHECKSUM("fast_rate_mm_m")
@@ -175,38 +176,75 @@ void ATCHandler::fill_cali_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 }
-
-void ATCHandler::fill_zprobe_scripts(bool goto_last_pos) {
+void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max) {
 	char buff[100];
 
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 
-	if (goto_last_pos) {
-		// goto last pos
-		snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", this->last_pos[0], this->last_pos[1]);
-		this->script_queue.push(buff);
-	}
+	// goto margin start position
+	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
+	this->script_queue.push(buff);
+
+	// open probe laser
+	this->script_queue.push("M494.1");
+
+	// goto margin top left corner
+	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos, y_pos_max, this->margin_rate);
+	this->script_queue.push(buff);
+
+	// goto margin top right corner
+	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos_max, y_pos_max, this->margin_rate);
+	this->script_queue.push(buff);
+
+	// goto margin bottom right corner
+	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos_max, y_pos, this->margin_rate);
+	this->script_queue.push(buff);
+
+	// goto margin start position
+	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos, y_pos, this->margin_rate);
+	this->script_queue.push(buff);
+
+	// close probe laser
+	this->script_queue.push("M494.2");
+
+}
+
+void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset) {
+	char buff[100];
+
+	// lift z to safe position with fast speed
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	this->script_queue.push(buff);
+
+	// goto z probe position
+	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos + x_offset, y_pos + y_offset);
+	this->script_queue.push(buff);
+
 	// do probe with fast speed
 	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
 	this->script_queue.push(buff);
+
 	// lift a bit
 	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
 	this->script_queue.push(buff);
+
 	// do calibrate with slow speed
 	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
 	this->script_queue.push(buff);
+
 	// set z working coordinate
 	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", probe_height_mm);
 	this->script_queue.push(buff);
+
 	// retract z a bit
 	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
 	this->script_queue.push(buff);
 }
 
 void ATCHandler::fill_autolevel_scripts(float x_pos, float y_pos,
-		float x_size, float y_size, int x_grids, int y_grids)
+		float x_size, float y_size, int x_grids, int y_grids, float height)
 {
 	char buff[100];
 
@@ -258,6 +296,7 @@ void ATCHandler::on_config_reload(void *argument)
 	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
 	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
 	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
+	this->margin_rate = THEKERNEL->config->value(atc_checksum, margin_rate_checksum)->by_default(600)->as_number();
 	this->active_tool = THEKERNEL->config->value(atc_checksum, active_tool_checksum)->by_default(0)->as_number();
 	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
 
@@ -332,6 +371,9 @@ uint32_t ATCHandler::read_detector(uint32_t dummy)
 }
 
 bool ATCHandler::laser_detect() {
+    // First wait for the queue to be empty
+    THECONVEYOR->wait_for_idle();
+
     // switch on detector
     bool switch_state = true;
     bool ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
@@ -339,9 +381,6 @@ bool ATCHandler::laser_detect() {
         THEKERNEL->streams->printf("ERROR: Failed switch on detector switch.\r\n");
         return false;
     }
-
-    // First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
 
     // move around and check laser detector
     detecting = true;
@@ -596,132 +635,79 @@ void ATCHandler::on_gcode_received(void *argument)
 				}
 			}
 		} else if (gcode->m == 494) {
-			// Do Z Probe, change probe tool if needed
-            THEROBOT->push_state();
-			set_inner_playing(true);
-            this->clear_script_queue();
-        	if (active_tool == 0) {
-        		gcode->stream->printf("Do Probe right away\r\n");
-                atc_status = PROBE;
-        	    this->fill_zprobe_scripts(false);
-        	} else {
-                // save current position
-                THEROBOT->get_axis_position(last_pos, 3);
-        		if (active_tool < 0) {
-        			//
-            		gcode->stream->printf("Picking Probe tool, Do Probe\r\n");
-            		atc_status = PROBE_PICK;
-            		this->fill_pick_scripts(0);
-            		this->fill_cali_scripts();
-            		this->fill_zprobe_scripts(true);
-        		} else {
-            		gcode->stream->printf("Change to Probe tool, Do Probe\r\n");
-            		atc_status = PROBE_FULL;
-            		int old_tool = active_tool;
-            		// change to probe tool
-            		this->fill_drop_scripts(old_tool);
-            		this->fill_pick_scripts(0);
-            		this->fill_cali_scripts();
-            		// do z probe
-            		this->fill_zprobe_scripts(true);
-            		// change back to last tool
-            		// this->fill_drop_scripts(0);
-            		// this->fill_pick_scripts(old_tool);
-            		// this->fill_cali_scripts();
-        		}
-        	}
+			// control probe laser
+
 		} else if (gcode->m == 495) {
-			// Do Auto Leveling, change probe tool if needed
-			if (gcode->has_letter('X') && gcode->has_letter('Y') && gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J')) {
-				float x_pos = gcode->get_value('X');
-				float y_pos = gcode->get_value('Y');
-	    		float x_size = gcode->get_value('A');
-	    		float y_size = gcode->get_value('B');
-	    		int x_grids = gcode->get_value('I');
-	    		int y_grids = gcode->get_value('J');
-	            THEROBOT->push_state();
-				set_inner_playing(true);
-	            this->clear_script_queue();
-	        	if (active_tool == 0) {
-	        		gcode->stream->printf("Do Auto Leveling right away\r\n");
-	                atc_status = AUTOLEVEL;
-	        	    this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	        	} else {
-	                // save current position
-	                THEROBOT->get_axis_position(last_pos, 3);
-	        		if (active_tool < 0) {
-	        			//
-	            		gcode->stream->printf("Picking Probe tool, Do Auto Leveling\r\n");
-	            		atc_status = AUTOLEVEL_PICK;
+			// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
+			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
+				bool margin = false;
+				bool zprobe = false;
+				bool leveling = false;
+
+				float x_path_pos = gcode->get_value('X');
+				float y_path_pos = gcode->get_value('Y');
+
+	    		float x_level_size = 0;
+	    		float y_level_size = 0;
+	    		int x_level_grids = 0;
+	    		int y_level_grids = 0;
+	    		float z_level_height = 5;
+	    		float x_margin_pos_max = 0;
+	    		float y_margin_pos_max = 0;
+	    		float x_zprobe_offset = 0;
+	    		float y_zprobe_offset = 0;
+	    		if (gcode->has_letter('C') && gcode->has_letter('D')) {
+	    			margin = true;
+	    			x_margin_pos_max =  gcode->get_value('C');
+	    			y_margin_pos_max =  gcode->get_value('D');
+	    		}
+	    		if (gcode->has_letter('E') && gcode->has_letter('F')) {
+	    			zprobe = true;
+	    			x_zprobe_offset =  gcode->get_value('E');
+	    			y_zprobe_offset =  gcode->get_value('F');
+	    		}
+	    		if (gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J') && gcode->has_letter('H')) {
+	    			leveling = true;
+	    			x_level_size =  gcode->get_value('A');
+	    			y_level_size =  gcode->get_value('B');
+		    		x_level_grids = gcode->get_value('I');
+		    		y_level_grids = gcode->get_value('J');
+		    		z_level_height = gcode->get_value('H');
+				}
+	    		if (margin || zprobe || leveling) {
+		            THEROBOT->push_state();
+					set_inner_playing(true);
+					atc_status = AUTOMATION;
+		            this->clear_script_queue();
+		            if (active_tool != 0) {
+		            	// need to change to probe tool first
+		        		gcode->stream->printf("Change to probe tool first!\r\n");
+		                // save current position
+		                THEROBOT->get_axis_position(last_pos, 3);
+		        		if (active_tool > 0) {
+		        			// drop current tool
+		            		int old_tool = active_tool;
+		            		// change to probe tool
+		            		this->fill_drop_scripts(old_tool);
+		        		}
 	            		this->fill_pick_scripts(0);
 	            		this->fill_cali_scripts();
-	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	        		} else {
-	            		gcode->stream->printf("Change to Probe tool, Do Auto Leveling\r\n");
-	            		atc_status = AUTOLEVEL_FULL;
-	            		int old_tool = active_tool;
-	            		// change to probe tool
-	            		this->fill_drop_scripts(old_tool);
-	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts();
-	            		// do auto leveling
-	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	            		// change back to last tool
-	            		// this->fill_drop_scripts(0);
-	            		// this->fill_pick_scripts(old_tool);
-	            		// this->fill_cali_scripts();
-	        		}
-	        	}
+		            }
+		            if (margin) {
+		            	gcode->stream->printf("Auto scan margin\r\n");
+		            	this->fill_margin_scripts(x_path_pos, y_path_pos, x_margin_pos_max, y_margin_pos_max);
+		            }
+		            if (zprobe) {
+		            	gcode->stream->printf("Auto z probe, offset: %1.3f, %1.3f\r\n", x_zprobe_offset, y_zprobe_offset);
+		            	this->fill_zprobe_scripts(x_path_pos, y_path_pos, x_zprobe_offset, y_zprobe_offset);
+		            }
+		            if (leveling) {
+		            	gcode->stream->printf("Auto leveling, grid: %d * %d height: %1.2f\r\n", x_level_grids, y_level_grids, z_level_height);
+	            		this->fill_autolevel_scripts(x_path_pos, y_path_pos, x_level_size, y_level_size, x_level_grids, y_level_grids, z_level_height);
+		            }
+	    		}
 			} else {
-				gcode->stream->printf("ALARM: Miss AutoLevel Parameter: X/Y/A/B/I/J\r\n");
-			}
-		} else if (gcode->m == 496) {
-			// Do z probe, then do Auto Leveling, change probe tool if needed
-			if (gcode->has_letter('X') && gcode->has_letter('Y') && gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J')) {
-				float x_pos = gcode->get_value('X');
-				float y_pos = gcode->get_value('Y');
-	    		float x_size = gcode->get_value('A');
-	    		float y_size = gcode->get_value('B');
-	    		int x_grids = gcode->get_value('I');
-	    		int y_grids = gcode->get_value('J');
-	            THEROBOT->push_state();
-				set_inner_playing(true);
-	            this->clear_script_queue();
-	        	if (active_tool == 0) {
-	        		gcode->stream->printf("Do Probe and Auto Leveling right away\r\n");
-	                atc_status = PROBELEVEL;
-	                this->fill_zprobe_scripts(false);
-	        	    this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	        	} else {
-	                // save current position
-	                THEROBOT->get_axis_position(last_pos, 3);
-	        		if (active_tool < 0) {
-	        			//
-	            		gcode->stream->printf("Picking Probe tool, do Probe and Auto Leveling\r\n");
-	            		atc_status = PROBELEVEL_PICK;
-	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts();
-	            		this->fill_zprobe_scripts(true);
-	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	        		} else {
-	            		gcode->stream->printf("Picking Probe tool, do Probe and Auto Leveling\r\n");
-	            		atc_status = PROBELEVEL_FULL;
-	            		int old_tool = active_tool;
-	            		// change to probe tool
-	            		this->fill_drop_scripts(old_tool);
-	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts();
-	            		// do z probe
-	            		this->fill_zprobe_scripts(true);
-	            		this->fill_autolevel_scripts(x_pos, y_pos, x_size, y_size, x_grids, y_grids);
-	            		// change back to last tool
-	            		// this->fill_drop_scripts(0);
-	            		// this->fill_pick_scripts(old_tool);
-	            		// this->fill_cali_scripts();
-	        		}
-	        	}
-			} else {
-				gcode->stream->printf("ALARM: Miss AutoLevel Parameter: X/Y/A/B/I/J\r\n");
+				gcode->stream->printf("ALARM: Miss Automation Parameter: X/Y\r\n");
 			}
 		} else if (gcode->m == 498) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
@@ -767,7 +753,7 @@ void ATCHandler::on_main_loop(void *argument)
             return;
         }
 
-		if (this->atc_status != PROBE && this->atc_status != AUTOLEVEL && this->atc_status != PROBELEVEL) {
+		if (this->atc_status != AUTOMATION) {
 	        // return to safe z position
 	        rapid_move(NAN, NAN, this->safe_z_mm);
 
