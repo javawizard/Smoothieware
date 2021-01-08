@@ -31,6 +31,7 @@
 #include "libs/StreamOutput.h"
 #include "modules/utils/player/PlayerPublicAccess.h"
 #include "ATCHandlerPublicAccess.h"
+#include "SpindlePublicAccess.h"
 
 #include "FileStream.h"
 #include <math.h>
@@ -541,6 +542,18 @@ void ATCHandler::on_gcode_received(void *argument)
     			gcode->stream->printf("ATC already begun\r\n");
     			return;
     		}
+    		// check if spindle is on
+    	    // get spindle state
+    	    struct spindle_status ss;
+    	    if (PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss)) {
+    	    	if (ss.state) {
+			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(ATC_HOME_FAIL);
+			        THEKERNEL->streams->printf("ALARM: Can not do ATC while spindle is on!\n");
+			        return;
+    	    	}
+    	    }
+
             int new_tool = gcode->get_value('T');
             if (new_tool > this->tool_number) {
             	gcode->stream->printf("T%d invalid tool\r\n", new_tool);
@@ -636,7 +649,11 @@ void ATCHandler::on_gcode_received(void *argument)
 			}
 		} else if (gcode->m == 494) {
 			// control probe laser
-
+			if (gcode->subcode == 0 || gcode->subcode == 1) {
+				// open probe laser
+			} else {
+				// close probe laser
+			}
 		} else if (gcode->m == 495) {
 			// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
 			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
@@ -661,9 +678,9 @@ void ATCHandler::on_gcode_received(void *argument)
 	    			x_margin_pos_max =  gcode->get_value('C');
 	    			y_margin_pos_max =  gcode->get_value('D');
 	    		}
-	    		if (gcode->has_letter('E') && gcode->has_letter('F')) {
+	    		if (gcode->has_letter('O') && gcode->has_letter('F')) {
 	    			zprobe = true;
-	    			x_zprobe_offset =  gcode->get_value('E');
+	    			x_zprobe_offset =  gcode->get_value('O');
 	    			y_zprobe_offset =  gcode->get_value('F');
 	    		}
 	    		if (gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J') && gcode->has_letter('H')) {

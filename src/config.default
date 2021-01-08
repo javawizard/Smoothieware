@@ -106,6 +106,7 @@ atc.safe_z_mm								-20.0
 atc.safe_z_offset_mm						15.0
 atc.fast_z_rate_mm_m						1000				
 atc.slow_z_rate_mm_m						200
+atc.margin_rate_mm_m						600
 
 atc.probe.mx_mm								-4.6
 atc.probe.my_mm								-51.5
@@ -116,33 +117,33 @@ atc.probe.slow_rate_mm_m					100
 atc.probe.retract_mm						2
 atc.probe.probe_height_mm					0.0
 
-atc.tool0.mx_mm								-4.6
-atc.tool0.my_mm								-21.9 
+atc.tool0.mx_mm								-4.1
+atc.tool0.my_mm								-23.1 
 atc.tool0.mz_mm								-104.2
 
-atc.tool1.mx_mm								-4.7
-atc.tool1.my_mm								-81.9
-atc.tool1.mz_mm								-105.1
+atc.tool1.mx_mm								-4.1
+atc.tool1.my_mm								-83.1
+atc.tool1.mz_mm								-105
 
-atc.tool2.mx_mm								-4.8
-atc.tool2.my_mm								-111.9
-atc.tool2.mz_mm								-105.1
+atc.tool2.mx_mm								-4.1
+atc.tool2.my_mm								-113.1
+atc.tool2.mz_mm								-105
 
-atc.tool3.mx_mm								-4.5, 
-atc.tool3.my_mm								-141.9
-atc.tool3.mz_mm								-105.1
+atc.tool3.mx_mm								-4.1, 
+atc.tool3.my_mm								-143.1
+atc.tool3.mz_mm								-105
 
-atc.tool4.mx_mm								-4.6, 
-atc.tool4.my_mm								-171.9 
-atc.tool4.mz_mm								-105.1
+atc.tool4.mx_mm								-4.1, 
+atc.tool4.my_mm								-173.1 
+atc.tool4.mz_mm								-105
 
-atc.tool5.mx_mm								-4.6
-atc.tool5.my_mm								-201.9
-atc.tool5.mz_mm								-105.1
+atc.tool5.mx_mm								-4.1
+atc.tool5.my_mm								-203.1
+atc.tool5.mz_mm								-105
 
-atc.tool6.mx_mm								-4.5
-atc.tool6.my_mm								-231.9
-atc.tool6.mz_mm								-105.1
+atc.tool6.mx_mm								-4.1
+atc.tool6.my_mm								-233.1
+atc.tool6.mz_mm								-105
 
 
 # Laser module configuration
@@ -275,7 +276,7 @@ home_z_first								true			# Uncomment and set to true to home the Z first, othe
 ## Z-probe
 zprobe.enable								true			# Set to true to enable a zprobe
 zprobe.probe_pin							2.8^			# Pin probe is attached to, if NC remove the !
-zprobe.slow_feedrate						1				# Mm/sec probe feed rate
+zprobe.slow_feedrate						1.5				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
 zprobe.fast_feedrate						5				# Move feedrate mm/sec
 zprobe.return_feedrate						20				# Return feedrate mm/sec
