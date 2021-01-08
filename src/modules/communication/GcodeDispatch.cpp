@@ -139,21 +139,42 @@ try_again:
             }
 
             bool sent_ok= false; // used for G1 optimization
-            while(possible_command.size() > 0) {
+            string single_command;
+            size_t cmd_pos = string::npos;
+            while (possible_command.size() > 0) {
                 // assumes G or M are always the first on the line
-                size_t nextcmd = possible_command.find_first_of("GM", 2);
-                string single_command;
-                if(nextcmd == string::npos || first_char == 'T') {
+            	// -> G or M are in the line but not always the first char
+            	// -> S or T could be in front of or after M
+            	first_char = possible_command[0];
+            	if (first_char == 'G') {
+            		// find next G/M/S/T
+            		cmd_pos = possible_command.find_first_of("GMST", 2);
+            	} else if (first_char == 'M') {
+            		// find next G/M
+            		cmd_pos = possible_command.find_first_of("GM", 2);
+            	} else if (first_char == 'T' || first_char == 'S') {
+            		// find first M
+            		cmd_pos = possible_command.find_first_of("M", 2);
+            		if (cmd_pos == string::npos) {
+            			// find first G/S/T
+            			cmd_pos = possible_command.find_first_of("GST", 2);
+            		} else {
+            			// M found, find second G/M/S/T
+            			cmd_pos = possible_command.find_first_of("GMST", cmd_pos + 2);
+            		}
+            	}
+
+        		if (cmd_pos == string::npos) {
                     single_command = possible_command;
                     possible_command = "";
-                } else {
-                    single_command = possible_command.substr(0, nextcmd);
-                    possible_command = possible_command.substr(nextcmd);
-                }
-
+        		} else {
+                    single_command = possible_command.substr(0, cmd_pos);
+                    possible_command = possible_command.substr(cmd_pos);
+        		}
 
                 if(!uploading || upload_stream != new_message.stream) {
                     // Prepare gcode for dispatch
+                	new_message.stream->printf("GCode: %s!\n", single_command.c_str());
                     Gcode *gcode = new Gcode(single_command, new_message.stream, false, new_message.line);
 
                     if(THEKERNEL->is_halted()) {
