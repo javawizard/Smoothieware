@@ -192,7 +192,14 @@ void SimpleShell::on_gcode_received(void *argument)
         } else if (gcode->m == 30) { // remove file
             if(!args.empty() && !THEKERNEL->is_grbl_mode())
                 rm_command("/sd/" + args, gcode->stream);
-        }
+        } else if (gcode->m == 331) { // change to vacuum mode
+			THEKERNEL->set_vacuum_mode(true);
+			gcode->stream->printf("turning vacuum mode on\r\n");
+		} else if (gcode->m == 332) { // change to CNC mode
+			THEKERNEL->set_vacuum_mode(false);
+			// turn off vacuum mode
+			gcode->stream->printf("turning vacuum mode off\r\n");
+		}
     }
 }
 
@@ -335,13 +342,11 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
     d = opendir(path.c_str());
     if (d != NULL) {
         while ((p = readdir(d)) != NULL) {
-            stream->printf("%s", lc(string(p->d_name)).c_str());
-            if(p->d_isdir) {
-                stream->printf("/");
-            } else if(opts.find("-s", 0, 2) != string::npos) {
-                stream->printf(" %d", p->d_fsize);
-            }
-            stream->printf("\r\n");
+        	if (!p->d_isdir && opts.find("-s", 0, 2) != string::npos) {
+                stream->printf("%s %d\r\n", string(p->d_name).c_str(), p->d_fsize);
+        	} else {
+                stream->printf("%s%s\r\n", string(p->d_name).c_str(), p->d_isdir ? "/" : "");
+        	}
         }
         closedir(d);
         if(opts.find("-e", 0, 2) != string::npos) {
@@ -587,10 +592,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     string md5_filename = change_to_md5_path(upload_filename);
 
     FILE *fd = fopen(upload_filename.c_str(), "w");
-    if(fd != NULL) {
-        stream->printf("uploading to file: %s.\r\n", upload_filename.c_str());
-    } else {
-        stream->printf("failed to open file: %s.\r\n", upload_filename.c_str());
+    if(fd == NULL) {
+        stream->printf("Error: failed to open file: %s.\r\n", upload_filename.c_str());
         return;
     }
 
@@ -599,7 +602,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         fclose(fd);
         fd = NULL;
         remove(upload_filename.c_str());
-        stream->printf("failed to open MD5 file: %s.\r\n", md5_filename.c_str());
+        stream->printf("Error: failed to open MD5 file: %s.\r\n", md5_filename.c_str());
         return;
     }
 
@@ -631,7 +634,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 						md5.update(recv_buff, i);
 					}
 					calculated_md5 = md5.finalize().hexdigest();
-					stream->printf("upload finished, %d bytes transferred\n", cnt);
+					stream->printf("Upload finished, %d bytes transferred\n", cnt);
 					cnt = 0;
 				} else {
 					// compare and save md5
@@ -659,7 +662,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 				fd_md5 = NULL;
 				remove(md5_filename.c_str());
 				THEKERNEL->set_uploading(false);
-				stream->printf("upload cancelled, %d bytes transferred\n", cnt);
+				stream->printf("Upload cancelled, %d bytes transferred\n", cnt);
 				return;
             } else {
                 cnt ++;
@@ -671,10 +674,13 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
                     // write character to file
                     if (fputc(recv_buff[i], fd) != recv_buff[i]) {
                         // error writing to file
-                    	stream->printf("upload error! %d bytes transferred\n", cnt);
+                    	stream->printf("Upload error! %d bytes transferred\n", cnt);
                         fclose(fd);
                         fd = NULL;
                         remove(upload_filename.c_str());
+        				fclose(fd_md5);
+        				fd_md5 = NULL;
+        				remove(md5_filename.c_str());
                         THEKERNEL->set_uploading(false);
                         return;
                     } else {
@@ -689,8 +695,6 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 
         // upload MD5
         if(recv_count > 0) md5.update(recv_buff, recv_count);
-
-
     }
 }
 

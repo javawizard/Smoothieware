@@ -67,6 +67,7 @@ Kernel::Kernel()
     bad_mcu= true;
     uploading = false;
     laser_mode = false;
+    vacuum_mode = false;
     sleeping = false;
     halt_reason = MANUAL;
 
@@ -306,10 +307,11 @@ std::string Kernel::get_query_string()
     struct spindle_status ss;
     ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
     if (ok) {
-        n= snprintf(buf, sizeof(buf), "|S:%1.1f,%1.1f,%1.1f", ss.current_rpm, ss.target_rpm, ss.factor);
+        n= snprintf(buf, sizeof(buf), "|S:%1.1f,%1.1f,%1.1f,%d", ss.current_rpm, ss.target_rpm, ss.factor, int(this->get_vacuum_mode()));
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
     }
+
     // get spindle temperature
     struct pad_temperature temp;
     ok = PublicData::get_value( temperature_control_checksum, current_temperature_checksum, spindle_temperature_checksum, &temp );
@@ -331,7 +333,7 @@ std::string Kernel::get_query_string()
     // current Laser power and override
     struct laser_status ls;
 	if(PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls)) {
-		n = snprintf(buf, sizeof(buf), "|L:%d, %d, %d, %1.4f,%1.4f", int(ls.mode), int(ls.state), int(ls.testing), ls.power, ls.scale);
+		n = snprintf(buf, sizeof(buf), "|L:%d, %d, %d, %1.1f,%1.1f", int(ls.mode), int(ls.state), int(ls.testing), ls.power, ls.scale);
 		if(n > sizeof(buf)) n= sizeof(buf);
 		str.append(buf, n);
 	}

@@ -105,6 +105,9 @@ class Kernel {
         void set_laser_mode(bool f) { laser_mode = f; }
         bool get_laser_mode() const { return laser_mode; }
 
+        void set_vacuum_mode(bool f) { vacuum_mode = f; }
+        bool get_vacuum_mode() const { return vacuum_mode; }
+
         void set_sleeping(bool f) { sleeping = f; }
         bool is_sleeping() const { return sleeping; }
 
@@ -152,6 +155,7 @@ class Kernel {
             bool bad_mcu:1;
             volatile bool uploading:1;
             bool laser_mode:1;
+            bool vacuum_mode:1;
             bool sleeping:1;
         };
 
