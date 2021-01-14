@@ -69,7 +69,7 @@
 #define watchdog_timeout_checksum  CHECKSUM("watchdog_timeout")
 
 // USB Stuff
-SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_18, P0_17, P0_15, P0_16);      // this selects SPI1 as the sdcard as it is on Smoothieboard
+SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_9, P0_8, P0_7, P0_6);      // this selects SPI1 as the sdcard as it is on Smoothieboard
 //SDCard sd(P0_18, P0_17, P0_15, P0_16);  // this selects SPI0 as the sdcard
 //SDCard sd(P0_18, P0_17, P0_15, P2_8);  // this selects SPI0 as the sdcard witrh a different sd select
 
@@ -84,11 +84,11 @@ USBMSD *msc= NULL;
 SDFAT mounter __attribute__ ((section ("AHBSRAM0"))) ("sd", &sd);
 
 GPIO leds[5] = {
-    GPIO(P4_29),
-    GPIO(P4_28),
-    GPIO(P0_4),
-    GPIO(P0_5),
-    GPIO(P1_14)
+    GPIO(P1_18),
+    GPIO(P1_19),
+    GPIO(P1_20),
+    GPIO(P1_21),
+    GPIO(P4_28)
 };
 
 void init() {
@@ -98,15 +98,6 @@ void init() {
         leds[i].output();
         leds[i]= 0;
     }
-
-    // open 12V
-    GPIO v12 = GPIO(P0_11);
-    v12.output();
-    v12 = 1;
-
-    GPIO v24 = GPIO(P1_29);
-    v24.output();
-    v24 = 1;
 
     Kernel* kernel = new Kernel();
 

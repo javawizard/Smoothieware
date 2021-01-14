@@ -4,8 +4,11 @@
 using namespace std;
 #include "Module.h"
 #include <vector>
+#include <map>
 #include <queue>
 #include "Pin.h"
+
+class StreamOutput;
 
 class ATCHandler : public Module
 {
@@ -14,67 +17,42 @@ public:
 
     void on_module_loaded();
     void on_gcode_received(void *argument);
-    void on_get_public_data(void *argument);
-    void on_set_public_data(void *argument);
+    void on_console_line_received( void *argument );
+    void on_second_tick(void *);
     void on_main_loop( void* argument );
     void on_halt(void *argument);
-    int get_active_tool() const { return active_tool; }
     void on_config_reload(void *argument);
 
 
 private:
     typedef enum {
         NONE,
-        FULL, 				// M6T?
-        DROP, 				// M6T-1
-        PICK, 				// M6T?
-		CALI, 				// M491
-		AUTOMATION			// M495
-//		PROBE,				// M494
-//		PROBE_PICK,			// M494
-//		PROBE_FULL,			// M494
-//		AUTOLEVEL,			// M495
-//		AUTOLEVEL_PICK, 	// M495
-//		AUTOLEVEL_FULL,		// M495
-//		PROBELEVEL,			// M496
-//		PROBELEVEL_PICK,	// M496
-//		PROBELEVEL_FULL		// M496
-    } ATC_STATUS;
+        TEST,
+        STEP
+    } EXTRACTOR_STATUS;
 
-    typedef enum {
-    	UNHOMED,	// need to home first
-		CLAMPED,	// status after home or clamp
-		LOOSED,		// status after loose
-    } CLAMP_STATUS;
-
-    ATC_STATUS atc_status;
-
-    uint32_t read_endstop(uint32_t dummy);
-    uint32_t read_detector(uint32_t dummy);
-
-    // clamp actions
-    void clamp_tool();
-    void loose_tool();
-    void home_clamp();
-
-    // laser detect
-    bool laser_detect();
+    EXTRACTOR_STATUS extractor_status;
 
     void set_inner_playing(bool inner_playing);
     bool get_inner_playing() const;
 
-    // set tool offset afteer calibrating
-    void set_tool_offset();
+    void load_tests();
 
-    //
-    void fill_drop_scripts(int old_tool);
-    void fill_pick_scripts(int new_tool);
-    void fill_cali_scripts();
+    // send data to HMI screen
+    void hmi_load_tests(string parameters, StreamOutput *stream); //
+    void hmi_load_test_info(string parameters, StreamOutput *stream); //
+    // update data to HMI screen
+    void hmi_update_test(string parameters, StreamOutput *stream);
+    void hmi_update_step(string parameters, StreamOutput *stream);
+	// execute command from HMI screen
+    void hmi_home(string parameters, StreamOutput *stream);
+	void hmi_test(string parameters, StreamOutput *stream);
+	void hmi_step(string parameters, StreamOutput *stream);
+	void hmi_pause(string parameters, StreamOutput *stream);
+	void hmi_stop(string parameters, StreamOutput *stream);
 
-    //
-    void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
-    void fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset);
-    void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids, float height);
+    void fill_test_scripts();
+    void fill_step_scripts(int index, int minutes, int pressure);
 
     void clear_script_queue();
 
@@ -82,64 +60,22 @@ private:
 
     std::queue<string> script_queue;
 
-    uint16_t debounce;
-    bool atc_homing;
-    bool detecting;
+    float safe_z;
+    float z_rate_work;
+    float x_interval;
 
-    using atc_homing_info_t = struct {
-        Pin pin;
-        uint16_t debounce_ms;
-        float max_travel;
-        float retract;
-        float homing_rate;
-        float action_rate;
-        float action_dist;
+    float z_pos_work;
+    float x_pos_origin;
+    float y_pos_waste;
+    float y_pos_gather;
 
-        struct {
-            bool triggered:1;
-            CLAMP_STATUS clamp_status;
-        };
-    };
-    atc_homing_info_t atc_home_info;
-
-    using detector_info_t = struct {
-        Pin detect_pin;
-        float detect_rate;
-        float detect_travel;
-        bool triggered;
-    };
-    detector_info_t detector_info;
-
-    float safe_z_mm;
-    float safe_z_offset_mm;
-    float fast_z_rate;
-    float slow_z_rate;
-    float margin_rate;
-    float probe_mx_mm;
-    float probe_my_mm;
-    float probe_mz_mm;
-    float probe_fast_rate;
-    float probe_slow_rate;
-    float probe_retract_mm;
-    float probe_height_mm;
-
-    float last_pos[3];
-
-    struct atc_tool {
-    	int num;
-    	float mx_mm;
-    	float my_mm;
-    	float mz_mm;
+    struct reagent {
+    	string name;
+    	int minutes;	// 1 - 100
+    	int pressure;	// 10 - 100
     };
 
-    vector<struct atc_tool> atc_tools;
-
-    int active_tool;
-    int tool_number;
-
-    float ref_tool_mz;
-    float cur_tool_mz;
-    float tool_offset;
+    map<string, vector<struct reagent>> tests;
 
 };
 

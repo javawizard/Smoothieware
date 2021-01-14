@@ -21,7 +21,6 @@
 #include "ConfigValue.h"
 #include "StreamOutput.h"
 #include "StreamOutputPool.h"
-#include "utils.h"
 
 #include "PwmOut.h"
 
@@ -41,13 +40,12 @@
 #define    input_off_command_checksum   CHECKSUM("input_off_command")
 #define    output_pin_checksum          CHECKSUM("output_pin")
 #define    output_type_checksum         CHECKSUM("output_type")
-#define	   pwm_pin_checksum				CHECKSUM("pwm_pin")
-#define    min_pwm_checksum	            CHECKSUM("min_pwm")
 #define    max_pwm_checksum             CHECKSUM("max_pwm")
 #define    output_on_command_checksum   CHECKSUM("output_on_command")
 #define    output_off_command_checksum  CHECKSUM("output_off_command")
 #define    pwm_period_ms_checksum       CHECKSUM("pwm_period_ms")
 #define    failsafe_checksum            CHECKSUM("failsafe_set_to")
+#define    halt_setting_checksum        CHECKSUM("halt_set_to")
 #define    ignore_onhalt_checksum       CHECKSUM("ignore_on_halt")
 
 #define ROUND2DP(x) (roundf(x * 1e2F) / 1e2F)
@@ -68,11 +66,10 @@ void Switch::on_halt(void *arg)
 
         // set pin to failsafe value
         switch(this->output_type) {
-            case DIGITAL: this->digital_pin->set(this->failsafe); break;
-            case SIGMADELTA: this->sigmadelta_pin->set(this->failsafe); break;
-            case HWPWM: this->pwm_pin->write(switch_value / 100.0F); break;
-            case SWPWM: this->swpwm_pin->write(switch_value / 100.0F); break;
-            case DIGITALPWM: this->digital_pin->set(this->failsafe); break;
+            case DIGITAL: this->digital_pin->set(this->haltsetting); break;
+            case SIGMADELTA: this->sigmadelta_pin->set(this->haltsetting); break;
+            case HWPWM: this->pwm_pin->write(switch_value/100.0F); break;
+            case SWPWM: this->swpwm_pin->write(switch_value/100.0F); break;
             case NONE: return;
         }
         this->switch_state= this->failsafe;
@@ -103,7 +100,7 @@ void Switch::on_config_reload(void *argument)
     this->output_off_command = THEKERNEL->config->value(switch_checksum, this->name_checksum, output_off_command_checksum )->by_default("")->as_string();
     this->switch_state = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_state_checksum )->by_default(false)->as_bool();
 
-    this->input_pin = new Pin();
+    this->input_pin= new Pin();
     this->input_pin->from_string( THEKERNEL->config->value(switch_checksum, this->name_checksum, input_pin_checksum )->by_default("nc")->as_string())->as_input();
 
     bool is_input;
@@ -125,6 +122,7 @@ void Switch::on_config_reload(void *argument)
         string type = THEKERNEL->config->value(switch_checksum, this->name_checksum, output_type_checksum )->by_default("pwm")->as_string();
         this->failsafe= THEKERNEL->config->value(switch_checksum, this->name_checksum, failsafe_checksum )->by_default(0)->as_number();
         this->ignore_on_halt= THEKERNEL->config->value(switch_checksum, this->name_checksum, ignore_onhalt_checksum )->by_default(false)->as_bool();
+        this->haltsetting= THEKERNEL->config->value(switch_checksum, this->name_checksum, halt_setting_checksum )->by_default(false)->as_bool();
 
         if(type == "pwm"){
             this->output_type= SIGMADELTA;
@@ -170,7 +168,7 @@ void Switch::on_config_reload(void *argument)
             }
             delete pin;
             if(this->pwm_pin == nullptr) {
-                THEKERNEL->streams->printf("Selected Switch output pin is not PWM capable - disabled");
+                printf("Selected Switch output pin is not PWM capable - disabled\n");
                 this->output_type= NONE;
             }
 
@@ -189,36 +187,7 @@ void Switch::on_config_reload(void *argument)
                 this->output_type= NONE;
                 delete pin;
             }
-        } else if (type == "digitalpwm") {
-            this->output_type= DIGITALPWM;
-            this->digital_pin= new Pin();
-            this->digital_pin->from_string(THEKERNEL->config->value(switch_checksum, this->name_checksum, output_pin_checksum )->by_default("nc")->as_string())->as_output();
-            Pin *pin= new Pin();
-            pin->from_string(THEKERNEL->config->value(switch_checksum, this->name_checksum, pwm_pin_checksum )->by_default("nc")->as_string())->as_output();
-            this->pwm_pin = pin->hardware_pwm();
-            if (this->digital_pin->connected() && this->pwm_pin != nullptr)
-			{
-                if(failsafe == 1) {
-                    set_high_on_debug(pin->port_number, pin->pin);
-                	set_high_on_debug(digital_pin->port_number, digital_pin->pin);
-                }else{
-                    set_low_on_debug(pin->port_number, pin->pin);
-                    set_low_on_debug(digital_pin->port_number, digital_pin->pin);
-                }
-			} else {
-				if (!this->digital_pin->connected()) {
-	                delete this->digital_pin;
-	                this->digital_pin= nullptr;
-				}
-				if (this->pwm_pin == nullptr) {
-	                THEKERNEL->streams->printf("Selected Switch output pin is not PWM capable - disabled");
-				}
-                this->output_type = NONE;
-			}
-
-            delete pin;
-        }
-        else {
+        } else {
             this->output_type= NONE;
         }
 
@@ -226,6 +195,10 @@ void Switch::on_config_reload(void *argument)
         this->output_type= NONE;
         // set to initial state
         this->input_pin_state = this->input_pin->get();
+        if(this->input_pin_behavior == momentary_checksum) {
+            // initialize switch state to same as current pin level
+            this->switch_state = this->input_pin_state;
+        }
         // input pin polling
         THEKERNEL->slow_ticker->attach( 100, this, &Switch::pinpoll_tick);
     }
@@ -262,29 +235,14 @@ void Switch::on_config_reload(void *argument)
             // default is 0% duty cycle
             this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
             this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(0)->as_number();
-            if(this->switch_state) {
+           if(this->switch_state) {
                 this->swpwm_pin->write(this->default_on_value/100.0F);
             } else {
                 this->swpwm_pin->write(this->switch_value/100.0F);
             }
 
-        } else if (this->output_type == DIGITAL){
+        } else if(this->output_type == DIGITAL){
             this->digital_pin->set(this->switch_state);
-        } else if (this->output_type == DIGITALPWM) {
-            this->min_pwm = THEKERNEL->config->value(switch_checksum, this->name_checksum, min_pwm_checksum )->by_default(0)->as_number();
-            this->max_pwm = THEKERNEL->config->value(switch_checksum, this->name_checksum, max_pwm_checksum )->by_default(100)->as_number();
-        	this->digital_pin->set(this->switch_state);
-            // default is 50Hz
-            float p = THEKERNEL->config->value(switch_checksum, this->name_checksum, pwm_period_ms_checksum )->by_default(20)->as_number() * 1000.0F; // ms but fractions are allowed
-            this->pwm_pin->period_us(p);
-            // default is 0% duty cycle
-            this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
-            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(0)->as_number();
-            if(this->switch_state) {
-                this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
-            } else {
-            	this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
-            }
         }
     }
 
@@ -404,18 +362,6 @@ void Switch::on_gcode_received(void *argument)
             // logic pin turn on
             this->digital_pin->set(true);
             this->switch_state = true;
-        } else if (this->output_type == DIGITALPWM) {
-            // drain queue
-            THEKERNEL->conveyor->wait_for_idle();
-            // logic pin turn on
-            this->digital_pin->set(true);
-            this->switch_state = true;
-            if(gcode->has_letter('S')) {
-                this->switch_value = gcode->get_value('S');
-                this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
-            } else {
-                this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
-            }
         }
 
     } else if(match_input_off_gcode(gcode)) {
@@ -435,9 +381,6 @@ void Switch::on_gcode_received(void *argument)
         } else if (this->output_type == DIGITAL) {
             // logic pin turn off
             this->digital_pin->set(false);
-        } else if (this->output_type == DIGITALPWM) {
-        	this->digital_pin->set(false);
-        	this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
         }
     }
 }
@@ -452,7 +395,7 @@ void Switch::on_get_public_data(void *argument)
 
     // ok this is targeted at us, so send back the requested data
     // caller has provided the location to write the state to
-    struct pad_switch *pad = static_cast<struct pad_switch *>(pdr->get_data_ptr());
+    struct pad_switch *pad= static_cast<struct pad_switch *>(pdr->get_data_ptr());
     pad->name = this->name_checksum;
     pad->state = this->switch_state;
     pad->value = this->switch_value;
@@ -471,7 +414,7 @@ void Switch::on_set_public_data(void *argument)
     if(pdr->third_element_is(state_checksum)) {
         bool t = *static_cast<bool *>(pdr->get_data_ptr());
         this->switch_state = t;
-        this->switch_changed = true;
+        this->switch_changed= true;
         pdr->set_taken();
 
         // if there is no gcode to be sent then we can do this now (in on_idle)
@@ -497,8 +440,6 @@ void Switch::on_main_loop(void *argument)
 
             } else if (this->output_type == DIGITAL) {
                 this->digital_pin->set(true);
-            } else if (this->output_type == DIGITALPWM) {
-            	this->digital_pin->set(true);
             }
 
         } else {
@@ -516,8 +457,6 @@ void Switch::on_main_loop(void *argument)
 
             } else if (this->output_type == DIGITAL) {
                 this->digital_pin->set(false);
-            } else if (this->output_type == DIGITALPWM) {
-            	this->digital_pin->set(false);
             }
         }
         this->switch_changed = false;
@@ -568,4 +507,3 @@ void Switch::send_gcode(std::string msg, StreamOutput *stream)
     message.stream = stream;
     THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
 }
-

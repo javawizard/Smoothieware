@@ -36,57 +36,91 @@
 #include "FileStream.h"
 #include <math.h>
 
-#define ATC_AXIS 4
 #define STEPPER THEROBOT->actuators
 #define STEPS_PER_MM(a) (STEPPER[a]->get_steps_per_mm())
 
-#define atc_checksum            	CHECKSUM("atc")
-#define enable_checksum          	CHECKSUM("enable")
-#define endstop_pin_checksum      	CHECKSUM("homing_endstop_pin")
-#define debounce_ms_checksum      	CHECKSUM("homing_debounce_ms")
-#define max_travel_mm_checksum    	CHECKSUM("homing_max_travel_mm")
-#define homing_retract_mm_checksum  CHECKSUM("homing_retract_mm")
-#define homing_rate_mm_s_checksum   CHECKSUM("homing_rate_mm_s")
-#define action_mm_checksum      	CHECKSUM("action_mm")
-#define action_rate_mm_s_checksum   CHECKSUM("action_rate_mm_s")
+#define extractor_checksum          CHECKSUM("extractor")
+#define safe_z_checksum      		CHECKSUM("safe_z")
+#define z_rate_work_checksum      	CHECKSUM("z_rate_work")
+#define x_interval_checksum    		CHECKSUM("x_interval")
+#define z_pos_work_checksum  		CHECKSUM("z_pos_work")
+#define x_pos_origin_checksum   	CHECKSUM("x_pos_origin")
+#define y_pos_waste_checksum      	CHECKSUM("y_pos_waste")
+#define y_pos_gather_checksum   	CHECKSUM("y_pos_gather")
 
-#define detector_switch_checksum    CHECKSUM("toolsensor")
-#define detector_checksum           CHECKSUM("detector")
-#define detect_pin_checksum			CHECKSUM("detect_pin")
-#define detect_rate_mm_s_checksum	CHECKSUM("detect_rate_mm_s")
-#define detect_travel_mm_checksum 	CHECKSUM("detect_travel_mm")
-
-#define tool_number_checksum     	CHECKSUM("tool_number")
-#define active_tool_checksum     	CHECKSUM("active_tool")
-
-#define mx_mm_checksum     			CHECKSUM("mx_mm")
-#define my_mm_checksum     			CHECKSUM("my_mm")
-#define mz_mm_checksum     			CHECKSUM("mz_mm")
-#define safe_z_checksum				CHECKSUM("safe_z_mm")
-#define safe_z_offset_checksum		CHECKSUM("safe_z_offset_mm")
-#define fast_z_rate_checksum		CHECKSUM("fast_z_rate_mm_m")
-#define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
-#define margin_rate_checksum		CHECKSUM("margin_rate_mm_m")
-
-#define probe_checksum				CHECKSUM("probe")
-#define fast_rate_mm_m_checksum		CHECKSUM("fast_rate_mm_m")
-#define slow_rate_mm_m_checksum		CHECKSUM("slow_rate_mm_m")
-#define retract_mm_checksum			CHECKSUM("retract_mm")
-#define probe_height_mm_checksum	CHECKSUM("probe_height_mm")
 
 ATCHandler::ATCHandler()
 {
-    atc_status = NONE;
-    atc_home_info.clamp_status = UNHOMED;
-    atc_home_info.triggered = false;
-    detector_info.triggered = false;
-    ref_tool_mz = 0.0;
-    cur_tool_mz = 0.0;
-    tool_offset = 0.0;
-    last_pos[0] = 0.0;
-    last_pos[1] = 0.0;
-    last_pos[2] = 0.0;
+	extractor_status = NONE;
 }
+
+void ATCHandler::hmi_load_tests(string parameters, StreamOutput *stream) {
+	int index = 1;
+	map<string, vector<struct reagent>>::iterator it;
+	for (it = this->tests.begin(); it != this->tests.end(); it++) {
+		THEKERNEL->streams->printf("bTest%d.txt=\"%s\"\xff\xff\xff", index, it->first.c_str());
+		index ++;
+		if (index > 6) {
+			break;
+		}
+	}
+	// disable lines
+	for (; index <= 6; index ++) {
+		THEKERNEL->streams->printf("vis bTest%d,0\xff\xff\xff", index);
+	}
+}
+
+void ATCHandler::hmi_load_test_info(string parameters, StreamOutput *stream) {
+    string test_name = shift_parameter( parameters );
+    map<string, vector<struct reagent>>::iterator it = this->tests.find(test_name);
+	if (it != this->tests.end()) {
+		unsigned int index = 1;
+		for (; index <= it->second.size(); index ++) {
+			THEKERNEL->streams->printf("tName%d.txt=\"%s(%dmin, %d%%)\"\xff\xff\xff",
+					index, it->second[index].name.c_str(), it->second[index].minutes, it->second[index].pressure);
+		}
+		// disable lines
+		for (; index <= 5; index ++) {
+			THEKERNEL->streams->printf("vis tName%d,0\xff\xff\xff", index);
+			THEKERNEL->streams->printf("vis j%d,0\xff\xff\xff", index);
+		}
+	}
+}
+
+// update data to HMI screen
+void ATCHandler::hmi_update_test(string parameters, StreamOutput *stream) {
+
+}
+
+void ATCHandler::hmi_update_step(string parameters, StreamOutput *stream) {
+
+}
+
+// execute command from HMI screen
+void ATCHandler::hmi_home(string parameters, StreamOutput *stream) {
+	struct SerialMessage message;
+	message.message = "$H";
+	message.stream = &(StreamOutput::NullStream);
+	message.line = 0;
+	THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+}
+
+void ATCHandler::hmi_test(string parameters, StreamOutput *stream) {
+
+}
+
+void ATCHandler::hmi_step(string parameters, StreamOutput *stream) {
+
+}
+
+void ATCHandler::hmi_pause(string parameters, StreamOutput *stream) {
+
+}
+
+void ATCHandler::hmi_stop(string parameters, StreamOutput *stream) {
+
+}
+
 
 void ATCHandler::clear_script_queue(){
 	while (!this->script_queue.empty()) {
@@ -94,656 +128,163 @@ void ATCHandler::clear_script_queue(){
 	}
 }
 
-void ATCHandler::fill_drop_scripts(int old_tool) {
+void ATCHandler::fill_test_scripts(string test_name) {
+	this->extractor_status = TEST;
+
 	char buff[100];
-	struct atc_tool *current_tool = &atc_tools[old_tool];
-    // lift z axis to atc start position
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-    // move x and y to active tool position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
-	this->script_queue.push(buff);
-	// move around to see if tool rack is empty
-	this->script_queue.push("M492.2");
-    // drop z axis to z position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
-	this->script_queue.push(buff);
-    // drop z axis with slow speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm, slow_z_rate);
-	this->script_queue.push(buff);
-	// loose tool
-	this->script_queue.push("M490.2");
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-	// move around to see if tool is dropped, halt if not
-	this->script_queue.push("M492.1");
-	// set new tool to -1
-	this->script_queue.push("M493.2 T-1");
-}
+	// home first
+	this->script_queue.push("$H");
 
-void ATCHandler::fill_pick_scripts(int new_tool) {
-	char buff[100];
-	struct atc_tool *current_tool = &atc_tools[new_tool];
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-	// move x and y to new tool position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
-	this->script_queue.push(buff);
-	// move around to see if tool rack is filled
-	this->script_queue.push("M492.1");
-	// loose tool
-	this->script_queue.push("M490.2");
-    // drop z axis to z position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
-	this->script_queue.push(buff);
-    // drop z axis with slow speed
-	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm, slow_z_rate);
-	this->script_queue.push(buff);
-	// clamp tool
-	this->script_queue.push("M490.1");
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-	// move around to see if tool rack is empty, halt if not
-	this->script_queue.push("M492.2");
-	// set new tool
-	snprintf(buff, sizeof(buff), "M493.2 T%d", new_tool);
-	this->script_queue.push(buff);
+	// wait for idle
+	this->script_queue.push("M490");
 
-}
+	// loop add step info
+    map<string, vector<struct reagent>>::iterator it = this->tests.find(test_name);
+	if (it != this->tests.end()) {
+		for (unsigned int i = 0; i < it->second.size(); i ++) {
+			// z move to safe position
+			snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
+			this->script_queue.push(buff);
 
-void ATCHandler::fill_cali_scripts() {
-	char buff[100];
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-	// move x and y to calibrate position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", probe_mx_mm, probe_my_mm);
-	this->script_queue.push(buff);
-	// do calibrate with fast speed
-	snprintf(buff, sizeof(buff), "G38.6 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
-	this->script_queue.push(buff);
-	// lift a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
-	this->script_queue.push(buff);
-	// do calibrate with slow speed
-	snprintf(buff, sizeof(buff), "G38.6 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
-	this->script_queue.push(buff);
-	// save new tool offset
-	this->script_queue.push("M493.1");
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-}
-void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max) {
-	char buff[100];
+			// move x to work position
+			snprintf(buff, sizeof(buff), "G53 G0 X%.3f", this->x_pos_origin + this->x_interval * i);
+			this->script_queue.push(buff);
 
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+			// move y to position
+			if (i < it->second.size() - 1) {
+				snprintf(buff, sizeof(buff), "G53 G0 Y%.3f", this->y_pos_waste);
+				this->script_queue.push(buff);
+			} else {
+				snprintf(buff, sizeof(buff), "G53 G0 Y%.3f", this->y_pos_gather);
+				this->script_queue.push(buff);
+			}
+
+			// move z to work position
+			snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", this->z_pos_work, this->z_rate_work);
+			this->script_queue.push(buff);
+
+			// turn on motor
+			snprintf(buff, sizeof(buff), "M3 S%d", it->second[i].pressure);
+			this->script_queue.push(buff);
+
+			// start pressure
+			this->script_queue.push("M490.1 S%d", i);
+
+			// wait x minutes
+			snprintf(buff, sizeof(buff), "G4 P%d", it->second[i].minutes * 60);
+			this->script_queue.push(buff);
+
+			// finish pressure
+			this->script_queue.push("M490.2 S%d", i);
+
+		}
+	}
+
+	// z move to safe position
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
 	this->script_queue.push(buff);
-
-	// goto margin start position
-	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
-	this->script_queue.push(buff);
-
-	// open probe laser
-	this->script_queue.push("M494.1");
-
-	// goto margin top left corner
-	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos, y_pos_max, this->margin_rate);
-	this->script_queue.push(buff);
-
-	// goto margin top right corner
-	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos_max, y_pos_max, this->margin_rate);
-	this->script_queue.push(buff);
-
-	// goto margin bottom right corner
-	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos_max, y_pos, this->margin_rate);
-	this->script_queue.push(buff);
-
-	// goto margin start position
-	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos, y_pos, this->margin_rate);
-	this->script_queue.push(buff);
-
-	// close probe laser
-	this->script_queue.push("M494.2");
 
 }
 
-void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset) {
-	char buff[100];
+void ATCHandler::fill_step_scripts(int index, int minutes, int pressure) {
+	this->extractor_status = STEP;
 
-	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
-	this->script_queue.push(buff);
-
-	// goto z probe position
-	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos + x_offset, y_pos + y_offset);
-	this->script_queue.push(buff);
-
-	// do probe with fast speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
-	this->script_queue.push(buff);
-
-	// lift a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
-	this->script_queue.push(buff);
-
-	// do calibrate with slow speed
-	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
-	this->script_queue.push(buff);
-
-	// set z working coordinate
-	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", probe_height_mm);
-	this->script_queue.push(buff);
-
-	// retract z a bit
-	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
-	this->script_queue.push(buff);
-}
-
-void ATCHandler::fill_autolevel_scripts(float x_pos, float y_pos,
-		float x_size, float y_size, int x_grids, int y_grids, float height)
-{
-	char buff[100];
-
-	// goto x and y path origin
-	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
-	this->script_queue.push(buff);
-
-	// do auto leveling
-	snprintf(buff, sizeof(buff), "G32R1X0Y0A%.3fB%.3fI%dJ%d", x_size, y_size, x_grids, y_grids);
-	this->script_queue.push(buff);
 }
 
 void ATCHandler::on_module_loaded()
 {
-
+    this->register_for_event(ON_CONSOLE_LINE_RECEIVED);
     this->register_for_event(ON_GCODE_RECEIVED);
-    this->register_for_event(ON_GET_PUBLIC_DATA);
-    this->register_for_event(ON_SET_PUBLIC_DATA);
     this->register_for_event(ON_MAIN_LOOP);
     this->register_for_event(ON_HALT);
+    this->register_for_event(ON_SECOND_TICK);
 
     this->on_config_reload(this);
-
-    THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_endstop);
-    THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_detector);
-
-    // load current tool from eeprom
-    this->active_tool = THEKERNEL->eeprom_data->TOOL;
-
+    // load test config
+    this->load_tests();
 }
 
 void ATCHandler::on_config_reload(void *argument)
 {
-	char buff[10];
+	this->safe_z = THEKERNEL->config->value(extractor_checksum, safe_z_checksum)->by_default(-5)->as_number();
+	this->z_rate_work = THEKERNEL->config->value(extractor_checksum, z_rate_work_checksum)->by_default(200)->as_number();
+	this->x_interval = THEKERNEL->config->value(extractor_checksum, x_interval_checksum)->by_default(13)->as_number();
+	this->z_pos_work = THEKERNEL->config->value(extractor_checksum, z_pos_work_checksum)->by_default(-30)->as_number();
+	this->x_pos_origin = THEKERNEL->config->value(extractor_checksum, x_pos_origin_checksum)->by_default(30)->as_number();
+	this->y_pos_waste = THEKERNEL->config->value(extractor_checksum, y_pos_waste_checksum)->by_default(30)->as_number();
+	this->y_pos_gather = THEKERNEL->config->value(extractor_checksum, y_pos_gather_checksum)->by_default(40)->as_number();
+}
 
-	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("nc" )->as_string())->as_input();
-	atc_home_info.debounce_ms    = THEKERNEL->config->value(atc_checksum, debounce_ms_checksum)->by_default(1  )->as_number();
-	atc_home_info.max_travel    = THEKERNEL->config->value(atc_checksum, max_travel_mm_checksum)->by_default(5  )->as_number();
-	atc_home_info.retract    = THEKERNEL->config->value(atc_checksum, homing_retract_mm_checksum)->by_default(3  )->as_number();
-	atc_home_info.action_dist    = THEKERNEL->config->value(atc_checksum, action_mm_checksum)->by_default(1  )->as_number();
-	atc_home_info.homing_rate    = THEKERNEL->config->value(atc_checksum, homing_rate_mm_s_checksum)->by_default(1  )->as_number();
-	atc_home_info.action_rate    = THEKERNEL->config->value(atc_checksum, action_rate_mm_s_checksum)->by_default(1  )->as_number();
-
-	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("nc" )->as_string())->as_input();
-	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
-	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
-
-	this->safe_z_mm = THEKERNEL->config->value(atc_checksum, safe_z_checksum)->by_default(-10)->as_number();
-	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
-	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
-	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
-	this->margin_rate = THEKERNEL->config->value(atc_checksum, margin_rate_checksum)->by_default(600)->as_number();
-	this->active_tool = THEKERNEL->config->value(atc_checksum, active_tool_checksum)->by_default(0)->as_number();
-	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
-
-	probe_mx_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mx_mm_checksum)->by_default(-10  )->as_number();
-	probe_my_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, my_mm_checksum)->by_default(-10  )->as_number();
-	probe_mz_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mz_mm_checksum)->by_default(-10  )->as_number();
-	probe_fast_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, fast_rate_mm_m_checksum)->by_default(300  )->as_number();
-	probe_slow_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, slow_rate_mm_m_checksum)->by_default(60   )->as_number();
-	probe_retract_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, retract_mm_checksum)->by_default(2   )->as_number();
-	probe_height_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, probe_height_mm_checksum)->by_default(0   )->as_number();
-
-	atc_tools.clear();
-	for (int i = 0; i <=  tool_number; i ++) {
-		struct atc_tool tool;
-		tool.num = i;
-	    // lift z axis to atc start position
-		snprintf(buff, sizeof(buff), "tool%d", i);
-		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mx_mm_checksum)->by_default(-10  )->as_number();
-		tool.my_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), my_mm_checksum)->by_default(-10  )->as_number();
-		tool.mz_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mz_mm_checksum)->by_default(-10  )->as_number();
-		atc_tools.push_back(tool);
+void ATCHandler::load_tests() {
+	FILE* fp = fopen("/sd/test.txt", "r");
+	if (fp == NULL) {
+		THEKERNEL->streams->printf("ERROR: Unable to load test config\r\n");
+		return;
 	}
+
+	char buf[130]; // lines upto 128 characters are allowed, anything longer is discarded
+	bool discard = false;
+	string line = "";
+	string test_name = "";
+	size_t left_bracket;
+	size_t right_bracket;
+    while (fgets(buf, sizeof(buf), fp) != NULL) {
+        int len = strlen(buf);
+        if (len == 0) continue; // empty line? should not be possible
+        if (buf[len - 1] == '\n' || feof(fp)) {
+            if(discard) { // we are discarding a long line
+                discard = false;
+                continue;
+            }
+            if(len == 1) continue; // empty line
+            // parse line
+            line = buf;
+            left_bracket = line.find_first_of("[", 0);
+            right_bracket = line.find_first_of("]", 0);
+            if (left_bracket != string::npos && right_bracket != string::npos) {
+            	test_name = line.substr(left_bracket + 1, right_bracket - 1);
+            	this->tests.insert(pair<string, vector<struct reagent>>(test_name, vector<struct reagent>()));
+            } else {
+            	vector<string> reagent_info = split(buf, ',');
+            	if (reagent_info.size() == 3 && !test_name.empty()) {
+            		struct reagent reagent_;
+            		reagent_.name = reagent_info[0];
+            		reagent_.minutes = atoi(reagent_info[1].c_str());
+            		reagent_.pressure = atoi(reagent_info[2].c_str());
+            		this->tests[test_name].push_back(reagent_);
+            	}
+            }
+        } else {
+            // discard long line
+            discard = true;
+        }
+    }
+
+	fclose(fp);
+	fp = NULL;
 }
 
 void ATCHandler::on_halt(void* argument)
 {
     if (argument == nullptr ) {
-        this->atc_status = NONE;
-        this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
         this->set_inner_playing(false);
+        this->extractor_status = NONE;
 	}
 }
-
-// Called every millisecond in an ISR
-uint32_t ATCHandler::read_endstop(uint32_t dummy)
-{
-
-	if(!atc_homing || atc_home_info.triggered) return 0;
-
-    if(STEPPER[ATC_AXIS]->is_moving()) {
-        // if it is moving then we check the probe, and debounce it
-        if(atc_home_info.pin.get()) {
-            if(debounce < atc_home_info.debounce_ms) {
-                debounce++;
-            } else {
-            	STEPPER[ATC_AXIS]->stop_moving();
-            	atc_home_info.triggered = true;
-                debounce = 0;
-            }
-
-        } else {
-            // The endstop was not hit yet
-            debounce = 0;
-        }
-    }
-
-    return 0;
-}
-
-// Called every millisecond in an ISR
-uint32_t ATCHandler::read_detector(uint32_t dummy)
-{
-
-    if(!detecting || detector_info.triggered) return 0;
-
-    if (detector_info.detect_pin.get()) {
-    	detector_info.triggered = true;
-    }
-
-    return 0;
-}
-
-bool ATCHandler::laser_detect() {
-    // First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
-
-    // switch on detector
-    bool switch_state = true;
-    bool ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
-    if (!ok) {
-        THEKERNEL->streams->printf("ERROR: Failed switch on detector switch.\r\n");
-        return false;
-    }
-
-    // move around and check laser detector
-    detecting = true;
-    detector_info.triggered = false;
-
-	float delta[Y_AXIS + 1];
-	for (size_t i = 0; i <= Y_AXIS; i++) delta[i] = 0;
-	delta[Y_AXIS]= detector_info.detect_travel / 2;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	if(THEKERNEL->is_halted()) return false;
-
-	delta[Y_AXIS]= 0 - detector_info.detect_travel;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	if(THEKERNEL->is_halted()) return false;
-
-	delta[Y_AXIS]= detector_info.detect_travel / 2;
-	THEROBOT->delta_move(delta, detector_info.detect_rate, Y_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	if(THEKERNEL->is_halted()) return false;
-
-
-	detecting = false;
-	// switch off detector
-	switch_state = false;
-    ok = PublicData::set_value(switch_checksum, detector_switch_checksum, state_checksum, &switch_state);
-    if (!ok) {
-        THEKERNEL->streams->printf("ERROR: Failed switch off detector switch.\r\n");
-        return false;
-    }
-
-    // THEROBOT->reset_position_from_current_actuator_position();
-
-    return detector_info.triggered;
-}
-
-void ATCHandler::home_clamp()
-{
-    // First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
-
-    atc_home_info.triggered = false;
-    atc_home_info.clamp_status = UNHOMED;
-    debounce = 0;
-    atc_homing = true;
-
-    // home atc
-	float delta[ATC_AXIS + 1];
-	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[ATC_AXIS]= atc_home_info.max_travel; // we go the max
-	THEROBOT->delta_move(delta, atc_home_info.homing_rate, ATC_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	if(THEKERNEL->is_halted()) return;
-
-	atc_homing = false;
-
-    if (!atc_home_info.triggered) {
-        THEKERNEL->call_event(ON_HALT, nullptr);
-        THEKERNEL->set_halt_reason(ATC_HOME_FAIL);
-        THEKERNEL->streams->printf("ERROR: Homing atc failed - check the atc max travel settings\n");
-        return;
-    }
-
-    if(atc_home_info.triggered) {
-    	THEROBOT->reset_position_from_current_actuator_position();
-    }
-
-    // Move back
-	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[ATC_AXIS] = -atc_home_info.retract; // we go to retract position
-	THEROBOT->delta_move(delta, atc_home_info.homing_rate, ATC_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-
-	atc_home_info.clamp_status = CLAMPED;
-
-}
-
-void ATCHandler::clamp_tool()
-{
-	if (atc_home_info.clamp_status == CLAMPED) {
-		THEKERNEL->streams->printf("Already clamped!\n");
-		return;
-	}
-	if (atc_home_info.clamp_status == UNHOMED) {
-		home_clamp();
-		// change clamp status
-		atc_home_info.clamp_status = CLAMPED;
-		return;
-	}
-
-    // First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
-
-	float delta[ATC_AXIS + 1];
-	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[4] = atc_home_info.action_dist;
-	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	// change clamp status
-	atc_home_info.clamp_status = CLAMPED;
-}
-
-void ATCHandler::loose_tool()
-{
-	if (atc_home_info.clamp_status == LOOSED) {
-		THEKERNEL->streams->printf("Already loosed!\n");
-		return;
-	}
-	if (atc_home_info.clamp_status == UNHOMED) {
-		home_clamp();
-	}
-
-	// First wait for the queue to be empty
-    THECONVEYOR->wait_for_idle();
-
-	float delta[ATC_AXIS + 1];
-	for (size_t i = 0; i <= ATC_AXIS; i++) delta[i] = 0;
-	delta[4] = -atc_home_info.action_dist;
-	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
-	// wait for it
-	THECONVEYOR->wait_for_idle();
-	// change clamp status
-	atc_home_info.clamp_status = LOOSED;
-}
-
-void ATCHandler::set_tool_offset()
-{
-    float px, py, pz;
-    uint8_t ps;
-    std::tie(px, py, pz, ps) = THEROBOT->get_last_probe_position();
-    if (ps == 1) {
-        cur_tool_mz = THEROBOT->from_millimeters(pz);
-        if (ref_tool_mz < 0) {
-        	tool_offset = cur_tool_mz - ref_tool_mz;
-        	const float offset[3] = {0.0, 0.0, tool_offset};
-        	THEROBOT->setToolOffset(offset);
-        }
-    }
-
-}
-
 void ATCHandler::on_gcode_received(void *argument)
 {
     Gcode *gcode = static_cast<Gcode*>(argument);
 
     if (gcode->has_m) {
-    	// gcode->stream->printf("Has m: %d\r\n", gcode->m);
-    	if (gcode->m == 6 && gcode->has_letter('T')) {
-    		// gcode->stream->printf("Has t\r\n");
-    		if (atc_status != NONE) {
-    			gcode->stream->printf("ATC already begun\r\n");
-    			return;
-    		}
-    		// check if spindle is on
-    	    // get spindle state
-    	    struct spindle_status ss;
-    	    if (PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss)) {
-    	    	if (ss.state) {
-			        THEKERNEL->call_event(ON_HALT, nullptr);
-			        THEKERNEL->set_halt_reason(ATC_HOME_FAIL);
-			        THEKERNEL->streams->printf("ALARM: Can not do ATC while spindle is on!\n");
-			        return;
-    	    	}
-    	    }
-
-            int new_tool = gcode->get_value('T');
-            if (new_tool > this->tool_number) {
-            	gcode->stream->printf("T%d invalid tool\r\n", new_tool);
-            } else {
-            	if (new_tool != active_tool) {
-                    // push old state
-                    THEROBOT->push_state();
-                    THEROBOT->get_axis_position(last_pos, 3);
-                    set_inner_playing(true);
-                    this->clear_script_queue();
-                	if (this->active_tool < 0) {
-                		gcode->stream->printf("Start picking new tool: T%d\r\n", new_tool);
-                		// just pick up tool
-                		atc_status = PICK;
-                		this->fill_pick_scripts(new_tool);
-                		this->fill_cali_scripts();
-                	} else if (new_tool < 0) {
-                		gcode->stream->printf("Start dropping current tool: T%d\r\n", this->active_tool);
-                		// just drop tool
-                		atc_status = DROP;
-                		this->fill_drop_scripts(active_tool);
-                	} else {
-                		gcode->stream->printf("Start atc, old tool: T%d, new tool: T%d\r\n", this->active_tool, new_tool);
-                		// full atc progress
-                		atc_status = FULL;
-                	    this->fill_drop_scripts(active_tool);
-                	    this->fill_pick_scripts(new_tool);
-                	    this->fill_cali_scripts();
-                	}
-
-            	}
-            }
-		} else if (gcode->m == 490)  {
+		if (gcode->m == 490)  {
 			if (gcode->subcode == 0) {
-				// home tool change
-				home_clamp();
-				gcode->stream->printf("clamp homed!\r\n");
-
+				// wait for idle
+			    THEKERNEL->conveyor->wait_for_idle();
 			} else if (gcode->subcode == 1) {
-				// clamp tool
-				clamp_tool();
-				gcode->stream->printf("tool clamped!\r\n");
 
 			} else if (gcode->subcode == 2) {
-				// loose tool
-				loose_tool();
-				gcode->stream->printf("tool loosed!\r\n");
-			}
-		} else if (gcode->m == 491) {
-			// do calibrate
-            THEROBOT->push_state();
-            THEROBOT->get_axis_position(last_pos, 3);
-            set_inner_playing(true);
-            this->clear_script_queue();
-            atc_status = CALI;
-    	    this->fill_cali_scripts();
-		} else if (gcode->m == 492) {
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				// check true
-				if (!laser_detect()) {
-			        THEKERNEL->call_event(ON_HALT, nullptr);
-			        THEKERNEL->set_halt_reason(ATC_NO_TOOL);
-			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
-				}
-			} else if (gcode->subcode == 2) {
-				// check false
-				if (laser_detect()) {
-			        THEKERNEL->call_event(ON_HALT, nullptr);
-			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
-			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
-				}
-			}
-		} else if (gcode->m == 493) {
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				// set tooll offset
-				set_tool_offset();
-			} else if (gcode->subcode == 2) {
-				// set new tool
-				if (gcode->has_letter('T')) {
-		    		this->active_tool = gcode->get_value('T');
-		    		// save current tool data to eeprom
-		    		if (THEKERNEL->eeprom_data->TOOL != this->active_tool) {
-		        	    THEKERNEL->eeprom_data->TOOL = this->active_tool;
-		        	    THEKERNEL->write_eeprom_data();
-		    		}
 
-				} else {
-					THEKERNEL->call_event(ON_HALT, nullptr);
-					THEKERNEL->set_halt_reason(ATC_NO_TOOL);
-					THEKERNEL->streams->printf("ERROR: No tool was set!\n");
-
-				}
-			}
-		} else if (gcode->m == 494) {
-			// control probe laser
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				// open probe laser
-			} else {
-				// close probe laser
-			}
-		} else if (gcode->m == 495) {
-			// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
-			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
-				bool margin = false;
-				bool zprobe = false;
-				bool leveling = false;
-
-				float x_path_pos = gcode->get_value('X');
-				float y_path_pos = gcode->get_value('Y');
-
-	    		float x_level_size = 0;
-	    		float y_level_size = 0;
-	    		int x_level_grids = 0;
-	    		int y_level_grids = 0;
-	    		float z_level_height = 5;
-	    		float x_margin_pos_max = 0;
-	    		float y_margin_pos_max = 0;
-	    		float x_zprobe_offset = 0;
-	    		float y_zprobe_offset = 0;
-	    		if (gcode->has_letter('C') && gcode->has_letter('D')) {
-	    			margin = true;
-	    			x_margin_pos_max =  gcode->get_value('C');
-	    			y_margin_pos_max =  gcode->get_value('D');
-	    		}
-	    		if (gcode->has_letter('O') && gcode->has_letter('F')) {
-	    			zprobe = true;
-	    			x_zprobe_offset =  gcode->get_value('O');
-	    			y_zprobe_offset =  gcode->get_value('F');
-	    		}
-	    		if (gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J') && gcode->has_letter('H')) {
-	    			leveling = true;
-	    			x_level_size =  gcode->get_value('A');
-	    			y_level_size =  gcode->get_value('B');
-		    		x_level_grids = gcode->get_value('I');
-		    		y_level_grids = gcode->get_value('J');
-		    		z_level_height = gcode->get_value('H');
-				}
-	    		if (margin || zprobe || leveling) {
-		            THEROBOT->push_state();
-					set_inner_playing(true);
-					atc_status = AUTOMATION;
-		            this->clear_script_queue();
-		            if (active_tool != 0) {
-		            	// need to change to probe tool first
-		        		gcode->stream->printf("Change to probe tool first!\r\n");
-		                // save current position
-		                THEROBOT->get_axis_position(last_pos, 3);
-		        		if (active_tool > 0) {
-		        			// drop current tool
-		            		int old_tool = active_tool;
-		            		// change to probe tool
-		            		this->fill_drop_scripts(old_tool);
-		        		}
-	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts();
-		            }
-		            if (margin) {
-		            	gcode->stream->printf("Auto scan margin\r\n");
-		            	this->fill_margin_scripts(x_path_pos, y_path_pos, x_margin_pos_max, y_margin_pos_max);
-		            }
-		            if (zprobe) {
-		            	gcode->stream->printf("Auto z probe, offset: %1.3f, %1.3f\r\n", x_zprobe_offset, y_zprobe_offset);
-		            	this->fill_zprobe_scripts(x_path_pos, y_path_pos, x_zprobe_offset, y_zprobe_offset);
-		            }
-		            if (leveling) {
-		            	gcode->stream->printf("Auto leveling, grid: %d * %d height: %1.2f\r\n", x_level_grids, y_level_grids, z_level_height);
-	            		this->fill_autolevel_scripts(x_path_pos, y_path_pos, x_level_size, y_level_size, x_level_grids, y_level_grids, z_level_height);
-		            }
-	    		}
-			} else {
-				gcode->stream->printf("ALARM: Miss Automation Parameter: X/Y\r\n");
-			}
-		} else if (gcode->m == 498) {
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
-				THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
-				THEKERNEL->streams->printf("EEPRROM Data: G54: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G54[0], THEKERNEL->eeprom_data->G54[1], THEKERNEL->eeprom_data->G54[2]);
-				THEKERNEL->streams->printf("EEPRROM Data: G28: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G28[0], THEKERNEL->eeprom_data->G28[1], THEKERNEL->eeprom_data->G28[2]);
-			} else if (gcode->subcode == 2) {
-				// Show EEPROM DATA
-				THEKERNEL->erase_eeprom_data();
-			}
-		} else if ( gcode->m == 499) {
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				THEKERNEL->streams->printf("tool:%d ref:%1.3f cur:%1.3f offset:%1.3f\n", active_tool, ref_tool_mz, cur_tool_mz, tool_offset);
-			} else if (gcode->subcode == 2) {
-				THEKERNEL->streams->printf("probe -- mx:%1.1f my:%1.1f mz:%1.1f\n", probe_mx_mm, probe_my_mm, probe_mz_mm);
-				for (int i = 0; i <=  tool_number; i ++) {
-					THEKERNEL->streams->printf("tool%d -- mx:%1.1f my:%1.1f mz:%1.1f\n", atc_tools[i].num, atc_tools[i].mx_mm, atc_tools[i].my_mm, atc_tools[i].mz_mm);
-				}
 			}
 		}
     }
@@ -751,8 +292,8 @@ void ATCHandler::on_gcode_received(void *argument)
 
 void ATCHandler::on_main_loop(void *argument)
 {
-    if (this->atc_status != NONE) {
-        if(THEKERNEL->is_halted()) {
+    if (this->extractor_status != NONE) {
+        if (THEKERNEL->is_halted()) {
             THEKERNEL->streams->printf("Kernel is halted!....\r\n");
             return;
         }
@@ -770,26 +311,10 @@ void ATCHandler::on_main_loop(void *argument)
             return;
         }
 
-		if (this->atc_status != AUTOMATION) {
-	        // return to safe z position
-	        rapid_move(NAN, NAN, this->safe_z_mm);
-
-	        // return to saved x and y position
-	        rapid_move(last_pos[0], last_pos[1], NAN);
-		}
-
-        this->atc_status = NONE;
+        this->extractor_status = NONE;
 
 		set_inner_playing(false);
 
-        // save to config file to persist data
-		// TODO
-
-        // pop old state
-        THEROBOT->pop_state();
-
-		// if we were printing from an M command from pronterface we need to send this back
-		THEKERNEL->streams->printf("Done ATC\r\n");
     }
 }
 
@@ -828,43 +353,6 @@ void ATCHandler::rapid_move(float x, float y, float z)
 
 }
 
-void ATCHandler::on_get_public_data(void* argument)
-{
-    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
-
-    if(!pdr->starts_with(atc_handler_checksum)) return;
-
-    if(pdr->second_element_is(get_tool_status_checksum)) {
-    	if (this->active_tool >= 0) {
-            struct tool_status *t= static_cast<tool_status*>(pdr->get_data_ptr());
-            t->active_tool = this->active_tool;
-            t->ref_tool_mz = this->ref_tool_mz;
-            t->cur_tool_mz = this->cur_tool_mz;
-            t->tool_offset = this->tool_offset;
-            pdr->set_taken();
-    	}
-    } else if (pdr->second_element_is(get_atc_pin_status_checksum)) {
-        char *data = static_cast<char *>(pdr->get_data_ptr());
-        // cover endstop
-        data[0] = (char)this->atc_home_info.pin.get();
-        data[1] = (char)this->detector_info.detect_pin.get();
-        pdr->set_taken();
-    }
-}
-
-void ATCHandler::on_set_public_data(void* argument)
-{
-    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
-
-    if(!pdr->starts_with(atc_handler_checksum)) return;
-
-    if(pdr->second_element_is(set_ref_tool_mz_checksum)) {
-        this->ref_tool_mz = cur_tool_mz;
-        this->tool_offset = 0.0;
-        pdr->set_taken();
-    }
-}
-
 bool ATCHandler::get_inner_playing() const
 {
     void *returned_data;
@@ -880,4 +368,51 @@ bool ATCHandler::get_inner_playing() const
 void ATCHandler::set_inner_playing(bool inner_playing)
 {
 	PublicData::set_value( player_checksum, inner_playing_checksum, &inner_playing );
+}
+
+// When a new line is received, check if it is a command, and if it is, act upon it
+void ATCHandler::on_console_line_received( void *argument )
+{
+    if(THEKERNEL->is_halted()) return; // if in halted state ignore any commands
+
+    SerialMessage new_message = *static_cast<SerialMessage *>(argument);
+
+    string possible_command = new_message.message;
+
+    // ignore anything that is not lowercase or a letter
+    if(possible_command.empty() || !islower(possible_command[0]) || !isalpha(possible_command[0])) {
+        return;
+    }
+
+    string cmd = shift_parameter( possible_command );
+
+    if (cmd == "hmi") {
+    	cmd = shift_parameter( possible_command );
+        if (cmd == "load_tests"){
+            this->hmi_load_tests( possible_command, new_message.stream );
+        } else if (cmd == "load_test_info"){
+            this->hmi_load_test_info( possible_command, new_message.stream );
+        } else if (cmd == "update_test") {
+            this->hmi_update_test( possible_command, new_message.stream );
+        } else if (cmd == "update_step") {
+            this->hmi_update_step( possible_command, new_message.stream );
+        } else if (cmd == "home") {
+            this->hmi_home( possible_command, new_message.stream );
+        } else if (cmd == "test") {
+        	this->hmi_test( possible_command, new_message.stream );
+        } else if (cmd == "step") {
+        	this->hmi_step( possible_command, new_message.stream );
+		} else if (cmd == "pause") {
+			this->hmi_pause( possible_command, new_message.stream );
+		} else if (cmd == "stop") {
+			this->hmi_stop( possible_command, new_message.stream );
+		} else {
+			THEKERNEL->streams->printf("ALARM: Invalid hmi command: %s\r\n", cmd.c_str());
+		}
+    }
+}
+
+void ATCHandler::on_second_tick(void *)
+{
+
 }

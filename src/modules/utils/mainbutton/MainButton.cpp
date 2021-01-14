@@ -49,7 +49,7 @@ void MainButton::on_module_loaded()
     this->poll_frequency = THEKERNEL->config->value( main_button_poll_frequency_checksum )->by_default(20)->as_number();
     this->long_press_time_ms = THEKERNEL->config->value( main_long_press_time_ms_checksum )->by_default(3000)->as_number();
 
-    this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
+    this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(false)->as_bool();
     this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
 
     this->register_for_event(ON_IDLE);

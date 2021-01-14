@@ -299,6 +299,9 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "laser") {
             // these are handled by Laser module
 
+        } else if (cmd.substr(0, 3) == "hmi") {
+            // these are handled by extractor module
+
         } else if (cmd.substr(0, 2) == "ok") {
             // probably an echo so ignore the whole line
             //new_message.stream->printf("ok\n");
@@ -906,10 +909,10 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     str.append("{");
 
     // get spindle state
-    struct spindle_status ss;
-    ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+    struct pad_switch pad;
+    ok = PublicData::get_value(switch_checksum, get_checksum("pump"), 0, &pad);
     if (ok) {
-        n = snprintf(buf, sizeof(buf), "S:%d,%d", (int)ss.state, (int)ss.target_rpm);
+        n = snprintf(buf, sizeof(buf), "S:%d,%d", (int)pad.state, (int)pad.value);
         if(n > sizeof(buf)) n= sizeof(buf);
         str.append(buf, n);
     }
@@ -924,7 +927,6 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     }
 
     // get switchs state
-    struct pad_switch pad;
     ok = PublicData::get_value(switch_checksum, get_checksum("vacuum"), 0, &pad);
     if (ok) {
         n = snprintf(buf, sizeof(buf), "|V:%d,%d", (int)pad.state, (int)pad.value);
