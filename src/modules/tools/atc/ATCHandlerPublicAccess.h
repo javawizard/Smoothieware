@@ -8,6 +8,7 @@
 #define get_tool_status_checksum    CHECKSUM("get_tool_status")
 #define set_ref_tool_mz_checksum	CHECKSUM("set_ref_tool_mz")
 #define get_atc_pin_status_checksum	CHECKSUM("set_ref_tool_mz")
+#define query_hmi_checksum	CHECKSUM("query_hmi")
 
 struct tool_status {
 	int active_tool;

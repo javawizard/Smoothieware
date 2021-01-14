@@ -24,6 +24,7 @@ class Module;
 class Conveyor;
 class SlowTicker;
 class SerialConsole;
+class StreamOutput;
 class StreamOutputPool;
 class GcodeDispatch;
 class Robot;
@@ -116,6 +117,7 @@ class Kernel {
         void erase_eeprom_data();
 
         std::string get_query_string();
+        void query_hmi(StreamOutput *stream);
 
         // These modules are available to all other modules
         SerialConsole*    serial;

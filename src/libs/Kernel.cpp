@@ -210,6 +210,11 @@ uint8_t Kernel::get_state()
     }
 }
 
+void Kernel::query_hmi(StreamOutput *stream) {
+	// query and process hmi
+    PublicData::set_value(atc_handler_checksum, query_hmi_checksum, stream);
+}
+
 // return a GRBL-like query string for serial ?
 std::string Kernel::get_query_string()
 {

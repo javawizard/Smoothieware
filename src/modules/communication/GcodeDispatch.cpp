@@ -63,7 +63,6 @@ void GcodeDispatch::on_console_line_received(void *line)
 
     // just reply ok to empty lines
     if(possible_command.empty()) {
-        new_message.stream->printf("ok\r\n");
         return;
     }
 
@@ -93,7 +92,6 @@ try_again:
             if ( full_line.has_m ) {
                 if ( full_line.m == 110 ) {
                     currentline = ln;
-                    new_message.stream->printf("ok\r\n");
                     return;
                 }
             }
@@ -318,7 +316,6 @@ try_again:
                                 string str= single_command.substr(4) + possible_command;
                                 PublicData::set_value( panel_checksum, panel_display_message_checksum, &str );
                                 delete gcode;
-                                new_message.stream->printf("ok\r\n");
                                 return;
                             }
 
@@ -342,7 +339,6 @@ try_again:
                                     }
                                 }
 
-                                new_message.stream->printf("ok\r\n");
                                 return;
                             }
 
@@ -375,7 +371,6 @@ try_again:
                                     SimpleShell::parse_command((gcode->m == 501) ? "load_command" : "save_command", arg, new_message.stream);
                                 }
                                 delete gcode;
-                                new_message.stream->printf("ok\r\n");
                                 return;
 
                             case 502: // M502 deletes config-override so everything defaults to what is in config
@@ -436,11 +431,12 @@ try_again:
                         } else {
                             if(THEKERNEL->is_ok_per_line() || THEKERNEL->is_grbl_mode()) {
                                 // only send ok once per line if this is a multi g code line send ok on the last one
-                                if(possible_command.empty())
-                                    new_message.stream->printf("ok\r\n");
+                                if(possible_command.empty()) {
+
+                                }
                             } else {
                                 // maybe should do the above for all hosts?
-                                new_message.stream->printf("ok\r\n");
+                                // new_message.stream->printf("ok\r\n");
                             }
                         }
                     }
@@ -475,7 +471,7 @@ try_again:
                         continue;
 
                     } else {
-                         new_message.stream->printf("ok\r\n");
+                         // new_message.stream->printf("ok\r\n");
                         //printf("uploading file write ok\n");
                     }
                 }

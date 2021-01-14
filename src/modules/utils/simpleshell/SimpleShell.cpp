@@ -236,7 +236,7 @@ void SimpleShell::on_console_line_received( void *argument )
             case 'X':
                 if(THEKERNEL->is_halted()) {
                     THEKERNEL->call_event(ON_HALT, (void *)1); // clears on_halt
-                    new_message.stream->printf("[Caution: Unlocked]\nok\n");
+                    // new_message.stream->printf("[Caution: Unlocked]\nok\n");
                 }
                 break;
 

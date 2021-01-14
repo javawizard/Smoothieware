@@ -29,8 +29,9 @@ SerialConsole::SerialConsole( PinName rx_pin, PinName tx_pin, int baud_rate ){
 void SerialConsole::on_module_loaded() {
     // We want to be called every time a new char is received
     this->serial->attach(this, &SerialConsole::on_serial_char_received, mbed::Serial::RxIrq);
-    query_flag= false;
-    halt_flag= false;
+    query_flag = false;
+    halt_flag  = false;
+    hmi_flag   = false;
 
     // We only call the command dispatcher in the main loop, nowhere else
     this->register_for_event(ON_MAIN_LOOP);
@@ -44,13 +45,17 @@ void SerialConsole::on_module_loaded() {
 void SerialConsole::on_serial_char_received(){
     while(this->serial->readable()){
         char received = this->serial->getc();
-        if(received == '?') {
+        if (received == '?') {
             query_flag= true;
             continue;
         }
-        if(received == 'X'-'A'+1) { // ^X
+        if (received == 'X'-'A'+1) { // ^X
             halt_flag= true;
             continue;
+        }
+        if (received == 5) { // ^E query
+        	hmi_flag = true;
+        	continue;
         }
         // convert CR to NL (for host OSs that don't send NL)
         if( received == '\r' ){ received = '\n'; }
@@ -60,18 +65,22 @@ void SerialConsole::on_serial_char_received(){
 
 void SerialConsole::on_idle(void * argument)
 {
-    if(query_flag) {
+    if (query_flag) {
         query_flag= false;
         puts(THEKERNEL->get_query_string().c_str());
     }
-    if(halt_flag) {
+    if (hmi_flag) {
+    	hmi_flag = false;
+    	THEKERNEL->query_hmi(this);
+    }
+    if (halt_flag) {
         halt_flag= false;
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(MANUAL);
         if(THEKERNEL->is_grbl_mode()) {
-            puts("ALARM: Abort during cycle\r\n");
+            // puts("ALARM: Abort during cycle\r\n");
         } else {
-            puts("HALTED, M999 or $X to exit HALT state\r\n");
+            // puts("HALTED, M999 or $X to exit HALT state\r\n");
         }
     }
 }

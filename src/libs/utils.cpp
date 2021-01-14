@@ -283,3 +283,12 @@ void safe_delay_us(uint32_t dus)
         THEKERNEL->call_event(ON_IDLE);
     }
 }
+
+string format_seconds(int seconds) {
+	if (seconds < 0) {
+		seconds = 0;
+	}
+	char buf[100];
+	sprintf(buf, "%02d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60);
+	return string(buf);
+}
