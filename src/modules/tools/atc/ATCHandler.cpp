@@ -61,13 +61,15 @@ ATCHandler::ATCHandler()
     curr_reagent_start_ticket = 0;
 }
 
+void ATCHandler::hmi_do_nothing() {
+	// send empty command for clean
+	THEKERNEL->streams->printf("\xff\xff\xff");
+}
+
 void ATCHandler::hmi_load_tests(string parameters, StreamOutput *stream) {
 	int index = 1;
 	map<string, vector<struct reagent>>::iterator it;
-	// send empty command for clean
-	THEKERNEL->streams->printf("\xff\xff\xff");
-	THEKERNEL->streams->printf("\xff\xff\xff");
-
+	this->hmi_do_nothing();
 	for (it = this->tests.begin(); it != this->tests.end(); it++) {
 		THEKERNEL->streams->printf("bTest%d.txt=\"%s\"\xff\xff\xff", index, it->first.c_str());
 		index ++;
@@ -84,7 +86,7 @@ void ATCHandler::hmi_load_tests(string parameters, StreamOutput *stream) {
 void ATCHandler::hmi_load_test_info(string parameters, StreamOutput *stream) {
     string test_name = shift_parameter( parameters );
     // send empty command for clean
-	THEKERNEL->streams->printf("\xff\xff\xff");
+    this->hmi_do_nothing();
 
     map<string, vector<struct reagent>>::iterator it = this->tests.find(test_name);
 	if (it != this->tests.end()) {
@@ -104,35 +106,47 @@ void ATCHandler::hmi_load_test_info(string parameters, StreamOutput *stream) {
 // send finish status
 void ATCHandler::hmi_send_finish() {
 	// send empty command for clean
-	THEKERNEL->streams->printf("\xff\xff\xff");
+	this->hmi_do_nothing();
 	THEKERNEL->streams->printf("vars.vFinish.val=1\xff\xff\xff");
 }
 
 // update data to HMI screen
 void ATCHandler::hmi_update(StreamOutput *stream) {
 	// send empty command for clean
-	THEKERNEL->streams->printf("\xff\xff\xff");
+	this->hmi_do_nothing();
 
 	if (this->extractor_status == NONE) {
 		THEKERNEL->streams->printf("vStatus.txt=\"NONE\"\xff\xff\xff");
-	} else if (this->extractor_status == TEST || this->extractor_status == STEP) {
-		THEKERNEL->streams->printf("vStatus.txt=\"STEP\"\xff\xff\xff");
-
+	} else if (this->extractor_status == TEST) {
+		THEKERNEL->streams->printf("vStatus.txt=\"TEST\"\xff\xff\xff");
 		uint32_t curr_ticket = us_ticker_read();
-		if (this->extractor_status == TEST && curr_reagent_minutes > 0) {
+		if (curr_reagent_minutes > 0) {
+
 			int percentage = (curr_ticket - curr_reagent_start_ticket) * 100.0 / (curr_reagent_minutes * 60 * 1000000);
 			if (percentage > 100) percentage = 100;
 			for (int i = 0; i < this->curr_reagent_index; i ++) {
 				THEKERNEL->streams->printf("j%d.val=100\xff\xff\xff", i + 1);
 			}
 			THEKERNEL->streams->printf("j%d.val=%d\xff\xff\xff", curr_reagent_index + 1, percentage);
+		}
+		uint32_t run_seconds = (curr_ticket - curr_total_start_ticket) / 1000000;
+		uint32_t left_seconds = curr_total_minutes * 60 - run_seconds;
+		THEKERNEL->streams->printf("tRunTime.txt=\"%s\"\xff\xff\xff", format_seconds(run_seconds).c_str());
+		THEKERNEL->streams->printf("tLeftTime.txt=\"%s\"\xff\xff\xff", format_seconds(left_seconds).c_str());
+	} else if (this->extractor_status == STEP) {
+		THEKERNEL->streams->printf("vStatus.txt=\"STEP\"\xff\xff\xff");
+		uint32_t curr_ticket = us_ticker_read();
+		if ( curr_reagent_minutes > 0) {
+			THEKERNEL->streams->printf("vStatus.txt=\"STEP\"\xff\xff\xff");
+
+			int percentage = (curr_ticket - curr_reagent_start_ticket) * 100.0 / (curr_reagent_minutes * 60 * 1000000);
+			if (percentage > 100) percentage = 100;
+			THEKERNEL->streams->printf("j1.val=%d\xff\xff\xff", percentage);
 			//
-			uint32_t run_seconds = (curr_ticket - curr_total_start_ticket) / 1000000;
-			uint32_t left_seconds = curr_total_minutes * 60 - run_seconds;
+			uint32_t run_seconds = (curr_ticket - curr_reagent_start_ticket) / 1000000;
+			uint32_t left_seconds = curr_reagent_minutes * 60 - run_seconds;
 			THEKERNEL->streams->printf("tRunTime.txt=\"%s\"\xff\xff\xff", format_seconds(run_seconds).c_str());
 			THEKERNEL->streams->printf("tLeftTime.txt=\"%s\"\xff\xff\xff", format_seconds(left_seconds).c_str());
-		} else if (this->extractor_status == STEP) {
-
 		}
 	}
 }
@@ -143,6 +157,7 @@ void ATCHandler::hmi_test(string parameters, StreamOutput *stream) {
 		return;
 	}
 
+	this->curr_reagent_minutes = 0;
     string test_name = shift_parameter( parameters );
     map<string, vector<struct reagent>>::iterator it = this->tests.find(test_name);
 	if (it != this->tests.end()) {
@@ -157,6 +172,7 @@ void ATCHandler::hmi_step(string parameters, StreamOutput *stream) {
 		return;
 	}
 
+	this->curr_reagent_minutes = 0;
     string index = shift_parameter( parameters );
     string minutes = shift_parameter( parameters );
     string pressure = shift_parameter( parameters );
@@ -164,6 +180,18 @@ void ATCHandler::hmi_step(string parameters, StreamOutput *stream) {
     if (!index.empty() && !minutes.empty() && !pressure.empty() && !waste.empty()) {
     	fill_step_scripts(atoi(index.c_str()), atoi(minutes.c_str()), atoi(pressure.c_str()), atoi(waste.c_str()));
     }
+}
+
+void ATCHandler::hmi_lift_z(string parameters, StreamOutput *stream) {
+	THEKERNEL->conveyor->wait_for_idle();
+	// goto safe z
+	rapid_move(NAN, NAN, this->safe_z);
+	// disable motors
+    struct SerialMessage message;
+    message.message = "M84";
+    message.stream = &(StreamOutput::NullStream);
+    message.line = 0;
+    THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
 }
 
 void ATCHandler::clear_script_queue(){
@@ -177,7 +205,7 @@ void ATCHandler::fill_test_scripts() {
 
 	char buff[100];
 	// home first
-	// this->script_queue.push("$H");
+	this->script_queue.push("$H");
 
 	// loop add step info
     map<string, vector<struct reagent>>::iterator it = this->tests.find(this->curr_test_name);
@@ -186,39 +214,43 @@ void ATCHandler::fill_test_scripts() {
 		this->script_queue.push("M490");
 
 		for (unsigned int i = 0; i < it->second.size(); i ++) {
-			// start pressure
-			snprintf(buff, sizeof(buff), "M491 S%d P%d", i, it->second[i].minutes);
-			this->script_queue.push(buff);
-
 			// z move to safe position
 			snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
 			this->script_queue.push(buff);
 
-			// move x to work position
-			snprintf(buff, sizeof(buff), "G53 G0 X%.3f", this->x_pos_origin + this->x_interval * i);
-			this->script_queue.push(buff);
-
-			// move y to position
-			snprintf(buff, sizeof(buff), "G53 G0 Y%.3f", i < it->second.size() - 1 ? this->y_pos_waste : this->y_pos_gather);
+			// move x, y to work position
+			snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%0.3f", this->x_pos_origin - this->x_interval * i,
+					i < it->second.size() - 1 ? this->y_pos_waste : this->y_pos_gather);
 			this->script_queue.push(buff);
 
 			// move z to work position
 			snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", this->z_pos_work, this->z_rate_work);
 			this->script_queue.push(buff);
 
+			// start reagent timing
+			snprintf(buff, sizeof(buff), "M491 S%d P%d", i, it->second[i].minutes);
+			this->script_queue.push(buff);
+
 			// turn on motor
-			snprintf(buff, sizeof(buff), "M3 S%d", it->second[i].pressure);
+			snprintf(buff, sizeof(buff), "M3 S%d", int(it->second[i].pressure * 255.0 / 100));
 			this->script_queue.push(buff);
 
 			// wait x minutes
 			snprintf(buff, sizeof(buff), "G4 P%d", it->second[i].minutes * 60);
 			this->script_queue.push(buff);
+
+			// turn off motor
+			this->script_queue.push("M5");
+
 		}
 	}
 
 	// z move to safe position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
 	this->script_queue.push(buff);
+
+	// turn off all motors
+	this->script_queue.push("M84");
 
 	// send finish flag
 	this->script_queue.push("M493");
@@ -231,38 +263,45 @@ void ATCHandler::fill_step_scripts(int index, int minutes, int pressure, bool wa
 	// home first
 	this->script_queue.push("$H");
 
-	// wait for idle
-	this->script_queue.push("M490");
-
 	// z move to safe position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
 	this->script_queue.push(buff);
 
-	// move x to work position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f", this->x_pos_origin + this->x_interval * index);
-	this->script_queue.push(buff);
-
-	// move y to position
-	snprintf(buff, sizeof(buff), "G53 G0 Y%.3f", waste ? this->y_pos_waste : this->y_pos_gather);
+	// move x and y to work position
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f",
+			this->x_pos_origin - this->x_interval * (index - 1), waste ? this->y_pos_waste : this->y_pos_gather);
 	this->script_queue.push(buff);
 
 	// move z to work position
 	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", this->z_pos_work, this->z_rate_work);
 	this->script_queue.push(buff);
 
-	// turn on motor
-	snprintf(buff, sizeof(buff), "M3 S%d", pressure);
+	// start reagent timing
+	snprintf(buff, sizeof(buff), "M491 S%d P%d", index - 1, minutes);
 	this->script_queue.push(buff);
 
-	// start pressure
-	this->script_queue.push("M492.1");
+	// turn on motor
+	snprintf(buff, sizeof(buff), "M3 S%d", int(pressure * 255.0 / 100));
+	this->script_queue.push(buff);
 
 	// wait x minutes
 	snprintf(buff, sizeof(buff), "G4 P%d", minutes * 60);
 	this->script_queue.push(buff);
 
-	// finish pressure
-	this->script_queue.push("M492.2");
+	// turn off motor
+	this->script_queue.push("M5");
+
+
+	// z move to safe position
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
+	this->script_queue.push(buff);
+
+	// turn off all motors
+	this->script_queue.push("M84");
+
+	// send finish flag
+	this->script_queue.push("M493");
+
 }
 
 void ATCHandler::on_module_loaded()
@@ -344,6 +383,8 @@ void ATCHandler::on_halt(void* argument)
         this->clear_script_queue();
         this->set_inner_playing(false);
         this->extractor_status = NONE;
+        this->curr_reagent_minutes = 0;
+
 	}
 }
 
@@ -373,7 +414,7 @@ void ATCHandler::on_gcode_received(void *argument)
             }
             curr_reagent_start_ticket = us_ticker_read();
 		} else if (gcode->m == 492) {
-
+			// reserve
 		} else if (gcode->m == 493) {
 			this->hmi_send_finish();
 		}
@@ -400,6 +441,7 @@ void ATCHandler::on_main_loop(void *argument)
         }
 
         this->extractor_status = NONE;
+        this->curr_reagent_minutes = 0;
 
 		set_inner_playing(false);
 
@@ -484,6 +526,10 @@ void ATCHandler::on_console_line_received( void *argument )
         	this->hmi_test( possible_command, new_message.stream );
         } else if (cmd == "step") {
         	this->hmi_step( possible_command, new_message.stream );
+        } else if (cmd == "lift_z") {
+        	this->hmi_lift_z( possible_command, new_message.stream );
+		} else {
+            this->hmi_do_nothing();
 		}
     }
 }

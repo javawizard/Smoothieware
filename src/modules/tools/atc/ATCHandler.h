@@ -41,12 +41,14 @@ private:
     // send data to HMI screen
     void hmi_load_tests(string parameters, StreamOutput *stream); //
     void hmi_load_test_info(string parameters, StreamOutput *stream); //
+    void hmi_do_nothing(); //
     // update data to HMI screen
     void hmi_update(StreamOutput *stream);
     void hmi_send_finish();
 	// execute command from HMI screen
 	void hmi_test(string parameters, StreamOutput *stream);
 	void hmi_step(string parameters, StreamOutput *stream);
+	void hmi_lift_z(string parameters, StreamOutput *stream);
 
     void fill_test_scripts();
     void fill_step_scripts(int index, int minutes, int pressure, bool waste);
