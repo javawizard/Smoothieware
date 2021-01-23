@@ -44,28 +44,28 @@ z_axis_max_speed							500				# Maximum speed in mm/min
 alpha_step_pin                               2.0              # Pin for alpha stepper step signal
 alpha_dir_pin                                0.5              # Pin for alpha stepper direction, add '!' to reverse direction
 alpha_en_pin                                 0.4              # Pin for alpha enable pin
-alpha_current                                0.75              # X stepper motor current
+alpha_current                                0.9              # X stepper motor current
 alpha_max_rate                               2000          # Maximum rate in mm/min
 
 beta_step_pin                                2.1              # Pin for beta stepper step signal
 beta_dir_pin                                 0.11!             # Pin for beta stepper direction, add '!' to reverse direction
 beta_en_pin                                  0.10             # Pin for beta enable
-beta_current                                 0.75             # Y stepper motor current
+beta_current                                 0.9             # Y stepper motor current
 beta_max_rate                                2000          # Maxmimum rate in mm/min
 
 gamma_step_pin                               2.2              # Pin for gamma stepper step signal
 gamma_dir_pin                                0.20!             # Pin for gamma stepper direction, add '!' to reverse direction
 gamma_en_pin                                 0.19             # Pin for gamma enable
-gamma_current                                0.75             # Z stepper motor current
+gamma_current                                1.3             # Z stepper motor current
 gamma_max_rate                               500            # Maximum rate in mm/min
 
 # extractor
-extractor.safe_z							-5.0				#
+extractor.safe_z							-1.5				#
 extractor.z_rate_work						300					#
 extractor.x_interval						13.0				#
 
 extractor.z_pos_work						-36.5			#
-extractor.x_pos_origin						81.8				#
+extractor.x_pos_origin						80				#
 extractor.y_pos_waste						33.2				    #
 extractor.y_pos_gather						6.2					#
 

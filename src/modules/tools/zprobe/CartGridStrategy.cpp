@@ -736,7 +736,7 @@ void CartGridStrategy::doCompensation(float *target, bool inverse)
     // change to set offset = 0 if a point is beyond the bounds of the grid
     float x_target = target[X_AXIS];
     float y_target = target[Y_AXIS];
-    if (x_target < min_x || x_target > max_x || y_target < min_y || y_target > max_y) {
+    if (x_target < min_x - 0.001 || x_target > max_x + 0.001 || y_target < min_y - 0.001 || y_target > max_y + 0.001) {
     	return;
     }
 
