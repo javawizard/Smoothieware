@@ -396,7 +396,7 @@ void Robot::print_position(uint8_t subcode, std::string& res, bool ignore_extrud
         get_current_machine_position(mpos);
 
         // current_position/mpos includes the compensation transform so we need to get the inverse to get actual position
-        if(compensationTransform) compensationTransform(mpos, true); // get inverse compensation transform
+        if(compensationTransform) compensationTransform(mpos, true, false); // get inverse compensation transform
 
         if(subcode == 1) { // M114.1 print realtime WCS
             wcs_t pos= mcs2wcs(mpos);
@@ -1142,7 +1142,7 @@ void Robot::reset_axis_position(float x, float y, float z)
 
     if(compensationTransform) {
         // apply inverse transform to get machine_position
-        compensationTransform(machine_position, true);
+        compensationTransform(machine_position, true, false);
     }
 
     // now set the actuator positions based on the supplied compensated position
@@ -1195,7 +1195,7 @@ void Robot::reset_position_from_current_actuator_position()
     memcpy(machine_position, compensated_machine_position, sizeof machine_position);
 
     // compensated_machine_position includes the compensation transform so we need to get the inverse to get actual machine_position
-    if(compensationTransform) compensationTransform(machine_position, true); // get inverse compensation transform
+    if(compensationTransform) compensationTransform(machine_position, true, false); // get inverse compensation transform
 
     // now reset actuator::machine_position, NOTE this may lose a little precision as FK is not always entirely accurate.
     // NOTE This is required to sync the machine position with the actuator position, we do a somewhat redundant cartesian_to_actuator() call
@@ -1232,7 +1232,7 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     // check function pointer and call if set to transform the target to compensate for bed
     if(compensationTransform) {
         // some compensation strategies can transform XYZ, some just change Z
-        compensationTransform(transformed_target, false);
+        compensationTransform(transformed_target, false, false);
     }
 
     // check soft endstops only for homed axis that are enabled

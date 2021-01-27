@@ -1235,6 +1235,13 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
         // also ? on serial and usb
         stream->printf("%s\n", THEKERNEL->get_query_string().c_str());
 
+    } else if (what == "compensation") {
+    	float mpos[3];
+    	THEROBOT->get_current_machine_position(mpos);
+    	float old_z = mpos[Z_AXIS];
+		// current_position/mpos includes the compensation transform so we need to get the inverse to get actual position
+		if(THEROBOT->compensationTransform) THEROBOT->compensationTransform(mpos, true, true); // get inverse compensation transform
+		stream->printf("Current z: %1.4f, compensation z: %1.4f\n", old_z, mpos[Z_AXIS]);
     } else {
         stream->printf("error:unknown option %s\n", what.c_str());
     }

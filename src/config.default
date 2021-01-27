@@ -183,7 +183,6 @@ switch.spindlefan.max_pwm					100				#
 switch.spindlefan.startup_value				20				#
 switch.spindlefan.default_on_value			90				#
 
-
 switch.light.enable							true			# Enable this module
 switch.light.output_pin						0.22			# Pin this module controls
 switch.light.output_type					digital			# Digital means this is just an on or off pin

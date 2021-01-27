@@ -68,7 +68,7 @@ class Robot : public Module {
         std::vector<StepperMotor*> actuators;
 
         // set by a leveling strategy to transform the target of a move according to the current plan
-        std::function<void(float*, bool)> compensationTransform;
+        std::function<void(float*, bool, bool)> compensationTransform;
         // set by an active extruder, returns the amount to scale the E parameter by (to convert mm³ to mm)
         std::function<float(void)> get_e_scale_fnc;
 
