@@ -43,11 +43,13 @@
 #define extractor_checksum          CHECKSUM("extractor")
 #define safe_z_checksum      		CHECKSUM("safe_z")
 #define z_rate_work_checksum      	CHECKSUM("z_rate_work")
-#define x_interval_checksum    		CHECKSUM("x_interval")
 #define z_pos_work_checksum  		CHECKSUM("z_pos_work")
-#define x_pos_origin_checksum   	CHECKSUM("x_pos_origin")
 #define y_pos_waste_checksum      	CHECKSUM("y_pos_waste")
 #define y_pos_gather_checksum   	CHECKSUM("y_pos_gather")
+#define y_pos_clear_checksum   		CHECKSUM("y_pos_clear")
+#define pump_start_power_checksum   CHECKSUM("pump_start_power")
+#define pump_start_seconds_checksum CHECKSUM("pump_start_seconds")
+#define pump_acc_seconds_checksum	CHECKSUM("pump_acc_seconds")
 
 
 ATCHandler::ATCHandler()
@@ -219,7 +221,7 @@ void ATCHandler::fill_test_scripts() {
 			this->script_queue.push(buff);
 
 			// move x, y to work position
-			snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%0.3f", this->x_pos_origin - this->x_interval * i,
+			snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%0.3f", this->x_pos[i],
 					i < it->second.size() - 1 ? this->y_pos_waste : this->y_pos_gather);
 			this->script_queue.push(buff);
 
@@ -231,12 +233,31 @@ void ATCHandler::fill_test_scripts() {
 			snprintf(buff, sizeof(buff), "M491 S%d P%d", i, it->second[i].minutes);
 			this->script_queue.push(buff);
 
-			// turn on motor
+			// turn on motor on start power
+			snprintf(buff, sizeof(buff), "M3 S%d", int(this->pump_start_power * 255.0 / 100));
+			this->script_queue.push(buff);
+
+			// wait start second
+			snprintf(buff, sizeof(buff), "G4 P%d", int(this->pump_start_seconds));
+			this->script_queue.push(buff);
+
+			// loop to change motor power
+			float power_interval = (it->second[i].pressure - this->pump_start_power) / this->pump_acc_seconds;
+			for (int i = 0; i < this->pump_acc_seconds; i ++) {
+				// turn on motor and change power
+				snprintf(buff, sizeof(buff), "M3 S%d", int((this->pump_start_power + power_interval * i) * 255.0 / 100));
+				this->script_queue.push(buff);
+
+				// wait for 1 seconds
+				this->script_queue.push("G4 P1");
+			}
+
+			// turn on motor on normal power
 			snprintf(buff, sizeof(buff), "M3 S%d", int(it->second[i].pressure * 255.0 / 100));
 			this->script_queue.push(buff);
 
-			// wait x minutes
-			snprintf(buff, sizeof(buff), "G4 P%d", it->second[i].minutes * 60);
+			// wait x minutes - slow second
+			snprintf(buff, sizeof(buff), "G4 P%d", it->second[i].minutes * 60 - int(this->pump_start_seconds + this->pump_acc_seconds));
 			this->script_queue.push(buff);
 
 			// turn off motor
@@ -247,6 +268,10 @@ void ATCHandler::fill_test_scripts() {
 
 	// z move to safe position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z);
+	this->script_queue.push(buff);
+
+	// y move to clear position
+	snprintf(buff, sizeof(buff), "G53 G0 Y%.3f", this->y_pos_clear);
 	this->script_queue.push(buff);
 
 	// turn off all motors
@@ -269,7 +294,7 @@ void ATCHandler::fill_step_scripts(int index, int minutes, int pressure, bool wa
 
 	// move x and y to work position
 	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f",
-			this->x_pos_origin - this->x_interval * (index - 1), waste ? this->y_pos_waste : this->y_pos_gather);
+			this->x_pos[index - 1], waste ? this->y_pos_waste : this->y_pos_gather);
 	this->script_queue.push(buff);
 
 	// move z to work position
@@ -280,13 +305,34 @@ void ATCHandler::fill_step_scripts(int index, int minutes, int pressure, bool wa
 	snprintf(buff, sizeof(buff), "M491 S%d P%d", index - 1, minutes);
 	this->script_queue.push(buff);
 
-	// turn on motor
+	// turn on motor on start power
+	snprintf(buff, sizeof(buff), "M3 S%d", int(this->pump_start_power * 255.0 / 100));
+	this->script_queue.push(buff);
+
+	// wait start second
+	snprintf(buff, sizeof(buff), "G4 P%d", int(this->pump_start_seconds));
+	this->script_queue.push(buff);
+
+
+	// loop to change motor power
+	float power_interval = (pressure - this->pump_start_power) / this->pump_acc_seconds;
+	for (int i = 0; i < this->pump_acc_seconds; i ++) {
+		// turn on motor and change power
+		snprintf(buff, sizeof(buff), "M3 S%d", int((this->pump_start_power + power_interval * i) * 255.0 / 100));
+		this->script_queue.push(buff);
+
+		// wait for 1 seconds
+		this->script_queue.push("G4 P1");
+	}
+
+	// turn on motor on normal power
 	snprintf(buff, sizeof(buff), "M3 S%d", int(pressure * 255.0 / 100));
 	this->script_queue.push(buff);
 
-	// wait x minutes
-	snprintf(buff, sizeof(buff), "G4 P%d", minutes * 60);
+	// wait x minutes - slow second
+	snprintf(buff, sizeof(buff), "G4 P%d", minutes * 60 - int(this->pump_start_seconds + this->pump_acc_seconds));
 	this->script_queue.push(buff);
+
 
 	// turn off motor
 	this->script_queue.push("M5");
@@ -319,13 +365,24 @@ void ATCHandler::on_module_loaded()
 
 void ATCHandler::on_config_reload(void *argument)
 {
+	char buff[10];
+
 	this->safe_z = THEKERNEL->config->value(extractor_checksum, safe_z_checksum)->by_default(-5)->as_number();
 	this->z_rate_work = THEKERNEL->config->value(extractor_checksum, z_rate_work_checksum)->by_default(200)->as_number();
-	this->x_interval = THEKERNEL->config->value(extractor_checksum, x_interval_checksum)->by_default(13)->as_number();
 	this->z_pos_work = THEKERNEL->config->value(extractor_checksum, z_pos_work_checksum)->by_default(-30)->as_number();
-	this->x_pos_origin = THEKERNEL->config->value(extractor_checksum, x_pos_origin_checksum)->by_default(30)->as_number();
+
+	for (int i = 0; i < 5; i ++) {
+		snprintf(buff, sizeof(buff), "x_pos%d", i + 1);
+		this->x_pos[i] = THEKERNEL->config->value(extractor_checksum, get_checksum(buff))->by_default(80)->as_number();
+	}
+
 	this->y_pos_waste = THEKERNEL->config->value(extractor_checksum, y_pos_waste_checksum)->by_default(30)->as_number();
 	this->y_pos_gather = THEKERNEL->config->value(extractor_checksum, y_pos_gather_checksum)->by_default(40)->as_number();
+	this->y_pos_clear = THEKERNEL->config->value(extractor_checksum, y_pos_clear_checksum)->by_default(40)->as_number();
+
+	this->pump_start_power = THEKERNEL->config->value(extractor_checksum, pump_start_power_checksum)->by_default(10)->as_number();
+	this->pump_start_seconds = THEKERNEL->config->value(extractor_checksum, pump_start_seconds_checksum)->by_default(20)->as_number();
+	this->pump_acc_seconds = THEKERNEL->config->value(extractor_checksum, pump_acc_seconds_checksum)->by_default(30)->as_number();
 }
 
 void ATCHandler::load_tests() {

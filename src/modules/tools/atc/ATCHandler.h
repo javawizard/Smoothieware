@@ -61,12 +61,16 @@ private:
 
     float safe_z;
     float z_rate_work;
-    float x_interval;
 
     float z_pos_work;
-    float x_pos_origin;
+    float x_pos[6];
     float y_pos_waste;
     float y_pos_gather;
+    float y_pos_clear;
+
+    float pump_start_power;
+    float pump_start_seconds;
+    float pump_acc_seconds;
 
     string curr_test_name;
     int curr_total_minutes;
