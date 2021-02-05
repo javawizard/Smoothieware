@@ -22,8 +22,14 @@
 #include "Pin.h"
 #include "Gcode.h"
 #include "PwmOut.h" // mbed.h lib
+#include "Conveyor.h"
+
+#include "libs/PublicData.h"
 #include "PublicDataRequest.h"
 #include "LaserPublicAccess.h"
+#include "SwitchPublicAccess.h"
+
+
 
 #include <algorithm>
 
@@ -37,7 +43,6 @@
 #define laser_module_minimum_power_checksum     CHECKSUM("laser_module_minimum_power")
 #define laser_module_max_power_checksum         CHECKSUM("laser_module_max_power")
 #define laser_module_maximum_s_value_checksum   CHECKSUM("laser_module_maximum_s_value")
-
 
 Laser::Laser()
 {
@@ -114,6 +119,7 @@ void Laser::on_module_loaded()
     // no point in updating the power more than the PWM frequency, but not faster than 1KHz
     ms_per_tick = 1000 / std::min(1000UL, 1000000 / period);
     THEKERNEL->slow_ticker->attach(std::min(1000UL, 1000000 / period), this, &Laser::set_proportional_power);
+    // THEKERNEL->slow_ticker->attach(1, this, &Laser::set_proportional_power);
 }
 
 void Laser::on_console_line_received( void *argument )
@@ -134,23 +140,23 @@ void Laser::on_console_line_received( void *argument )
     if (cmd == "laser") {
         string laser_cmd = shift_parameter(possible_command);
         if (laser_cmd.empty()) {
-            msgp->stream->printf("Usage: laser on|off|status|test|testoff\n");
+        	THEKERNEL->streams->printf("Usage: laser on|off|status|test|testoff\n");
             return;
         }
         if (laser_cmd == "on") {
         	THEKERNEL->set_laser_mode(true);
         	// turn on laser pin
         	this->laser_pin->set(true);
-        	msgp->stream->printf("turning laser mode on\n");
+        	THEKERNEL->streams->printf("turning laser mode on\n");
         } else if (laser_cmd == "off") {
         	THEKERNEL->set_laser_mode(false);
         	this->laser_pin->set(false);
         	this->testing = false;
         	this->set_laser_power(0);
         	// turn off laser pin
-        	msgp->stream->printf("turning laser mode off and return to CNC mode\n");
+        	THEKERNEL->streams->printf("turning laser mode off and return to CNC mode\n");
         } else if (laser_cmd == "status") {
-            msgp->stream->printf("laser mode state: %s\n", THEKERNEL->get_laser_mode() ? "on" : "off");
+        	THEKERNEL->streams->printf("laser mode state: %s\n", THEKERNEL->get_laser_mode() ? "on" : "off");
         } else if (laser_cmd == "test" && THEKERNEL->get_laser_mode()) {
         	this->testing = true;
         }
@@ -185,35 +191,71 @@ void Laser::on_gcode_received(void *argument)
     if (gcode->has_m) {
     	if (gcode->m == 3 && THEKERNEL->get_laser_mode())
 		{
+    		THECONVEYOR->wait_for_idle();
+            // open vacuum if set
+        	if (THEKERNEL->get_vacuum_mode()) {
+        		// open vacuum
+        		bool b = true;
+                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+        	}
+            // M3 with S value provided: set speed
+            if (gcode->has_letter('S'))
+            {
+            	THEROBOT->set_s_value(gcode->get_value('S'));
+            }
     		this->laser_on = true;
     		this->testing = false;
 		} else if (gcode->m == 5) {
+    		THECONVEYOR->wait_for_idle();
+            // close vacuum if set
+        	if (THEKERNEL->get_vacuum_mode()) {
+        		// close vacuum
+        		bool b = false;
+                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+        	}
 			this->laser_on = false;
 			this->testing = false;
 		} else if (gcode->m == 321) { // change to laser mode
+			THECONVEYOR->wait_for_idle();
         	THEKERNEL->set_laser_mode(true);
         	// turn on laser pin
         	this->laser_pin->set(true);
-        	gcode->stream->printf("turning laser mode on\n");
+        	// change g92 offset
+            char buf[32];
+            int n = snprintf(buf, sizeof(buf), "G92.5 X0");
+            string g(buf, n);
+            Gcode gc(g, &(StreamOutput::NullStream));
+            THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc);
+
+        	THEKERNEL->streams->printf("turning laser mode on and change offset\n");
         } else if (gcode->m == 322) { // change to CNC mode
+        	THECONVEYOR->wait_for_idle();
         	THEKERNEL->set_laser_mode(false);
         	this->laser_pin->set(false);
         	this->testing = false;
+        	// change g92 offset
+            char buf[32];
+            int n = snprintf(buf, sizeof(buf), "G92.1");
+            string g(buf, n);
+            Gcode gc(g, &(StreamOutput::NullStream));
+            THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc);
+
+
         	// turn off laser pin
-        	gcode->stream->printf("turning laser mode off and return to CNC mode\n");
+        	THEKERNEL->streams->printf("turning laser mode off and restore offset\n");
         } else if (gcode->m == 323) {
         	this->testing = true;
 			// turn on test mode
-			gcode->stream->printf("turning laser test mode on\n");
+        	THEKERNEL->streams->printf("turning laser test mode on\n");
         } else if (gcode->m == 324) {
         	this->testing = false;
 			// turn off test mode
-			gcode->stream->printf("turning laser test mode off\n");
+        	THEKERNEL->streams->printf("turning laser test mode off\n");
         } else if (gcode->m == 325) { // M223 S100 change laser power by percentage S
             if(gcode->has_letter('S')) {
                 this->scale = gcode->get_value('S') / 100.0F;
             } else {
-                gcode->stream->printf("Laser power scale at %6.2f %%\n", this->scale * 100.0F);
+            	THEKERNEL->streams->printf("Laser power scale at %6.2f %%\n", this->scale * 100.0F);
             }
         }
     }
@@ -247,8 +289,8 @@ bool Laser::get_laser_power(float& power) const
 
     // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
     // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
-    if(block != nullptr && block->is_ready && block->is_g123) {
-        float requested_power = ((float)block->s_value / (1 << 11)) / this->laser_maximum_s_value; // s_value is 1.11 Fixed point
+    if (block != nullptr && block->is_ready && block->is_g123) {
+        float requested_power = (float)block->s_value / this->laser_maximum_s_value; // s_value is 1.11 Fixed point
         float ratio = current_speed_ratio(block);
         power = requested_power * ratio * scale;
 
@@ -302,6 +344,6 @@ void Laser::on_halt(void *argument)
     if(argument == nullptr) {
         set_laser_power(0);
         this->testing = false;
-        laser_on = false;
+        this->laser_on = false;
     }
 }

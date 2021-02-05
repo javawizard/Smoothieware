@@ -148,7 +148,12 @@ try_again:
             	first_char = possible_command[0];
             	if (first_char == 'G') {
             		// find next G/M/S/T
-            		cmd_pos = possible_command.find_first_of("GMST", 2);
+            		if (possible_command.find_first_of("S", 2) != string::npos
+            				&& possible_command.find_first_of("M", 2) != string::npos) {
+                		cmd_pos = possible_command.find_first_of("GMST", 2);
+            		} else {
+                		cmd_pos = possible_command.find_first_of("GMT", 2);
+            		}
             	} else if (first_char == 'M') {
             		// find next G/M
             		cmd_pos = possible_command.find_first_of("GM", 2);

@@ -66,7 +66,9 @@ typedef struct {
 	float TLO;
 	int TOOL;
 	float G54[3];
-	float G28[3];
+	float REFMZ;
+	float TOOLMZ;
+	float reserve;
 } EEPROM_data;
 
 class Kernel {

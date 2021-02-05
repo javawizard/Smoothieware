@@ -43,11 +43,6 @@ void SpindleControl::on_gcode_received(void *argument)
         }
         else if (gcode->m == 3)
         {
-        	if (THEKERNEL->get_vacuum_mode()) {
-        		// open vacuum
-        		bool b = true;
-                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}
         	if (!THEKERNEL->get_laser_mode()) {
                 // current tool number and tool offset
                 struct tool_status tool;
@@ -64,6 +59,13 @@ void SpindleControl::on_gcode_received(void *argument)
             	}
 
                 THECONVEYOR->wait_for_idle();
+                // open vacuum if set
+            	if (THEKERNEL->get_vacuum_mode()) {
+            		// open vacuum
+            		bool b = true;
+                    PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+            	}
+
                 // M3 with S value provided: set speed
                 if (gcode->has_letter('S'))
                 {
@@ -77,13 +79,16 @@ void SpindleControl::on_gcode_received(void *argument)
         }
         else if (gcode->m == 5)
         {
-        	if (THEKERNEL->get_vacuum_mode()) {
-        		// close vacuum
-        		bool b = false;
-                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}
         	if (!THEKERNEL->get_laser_mode()) {
                 THECONVEYOR->wait_for_idle();
+
+                // close vacuum if set
+            	if (THEKERNEL->get_vacuum_mode()) {
+            		// close vacuum
+            		bool b = false;
+                    PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+            	}
+
                 // M5: spindle off
                 if (spindle_on) {
                     turn_off();

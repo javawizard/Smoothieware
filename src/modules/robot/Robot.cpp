@@ -88,6 +88,12 @@
 #define  gamma_checksum                      CHECKSUM("gamma")
 
 #define laser_module_default_power_checksum     CHECKSUM("laser_module_default_power")
+#define laser_module_maximum_s_value_checksum   CHECKSUM("laser_module_maximum_s_value")
+
+#define laser_module_offset_x_checksum   CHECKSUM("laser_module_offset_x")
+#define laser_module_offset_y_checksum   CHECKSUM("laser_module_offset_y")
+#define laser_module_offset_z_checksum   CHECKSUM("laser_module_offset_z")
+
 
 #define enable_checksum                    CHECKSUM("enable")
 #define halt_checksum                      CHECKSUM("halt")
@@ -117,7 +123,6 @@ Robot::Robot()
     memset(this->compensated_machine_position, 0, sizeof compensated_machine_position);
     this->arm_solution = NULL;
     seconds_per_minute = 60.0F;
-    this->clearToolOffset();
     this->compensationTransform = nullptr;
     this->get_e_scale_fnc= nullptr;
     this->wcs_offsets.fill(wcs_t(0.0F, 0.0F, 0.0F));
@@ -138,7 +143,7 @@ void Robot::on_module_loaded()
 
     // load tlo data from eeprom
     float tlo[3] = {0, 0, THEKERNEL->eeprom_data->TLO};
-    this->setToolOffset(tlo);
+    this->loadToolOffset(tlo);
 
     // load wcs data from eeprom
 	float x = THEKERNEL->eeprom_data->G54[0];
@@ -217,7 +222,13 @@ void Robot::load_config()
     }
 
     // default s value for laser
-    this->s_value             = THEKERNEL->config->value(laser_module_default_power_checksum)->by_default(0.8F)->as_number();
+    this->s_value = THEKERNEL->config->value(laser_module_default_power_checksum)->by_default(0.8F)->as_number()
+    					* THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(100)->as_number();
+
+	this->laser_module_offset_x = THEKERNEL->config->value(laser_module_offset_x_checksum)->by_default(-38.0f)->as_number() ;
+	this->laser_module_offset_y = THEKERNEL->config->value(laser_module_offset_y_checksum)->by_default(5.0f)->as_number() ;
+	this->laser_module_offset_z = THEKERNEL->config->value(laser_module_offset_z_checksum)->by_default(-40.0f)->as_number() ;
+
 
      // Make our Primary XYZ StepperMotors, and potentially A B C
     uint16_t const motor_checksums[][6] = {
@@ -596,14 +607,14 @@ void Robot::on_gcode_received(void *argument)
                     // reset G92 offsets to 0
                     g92_offset = wcs_t(0, 0, 0);
 
-                } else if(gcode->subcode == 4) {
+                } else if (gcode->subcode == 4) {
                     // G92.4 is a smoothie special it sets manual homing for X,Y,Z
                     // do a manual homing based on given coordinates, no endstops required
                     if(gcode->has_letter('X')){ THEROBOT->reset_axis_position(gcode->get_value('X'), X_AXIS); }
                     if(gcode->has_letter('Y')){ THEROBOT->reset_axis_position(gcode->get_value('Y'), Y_AXIS); }
                     if(gcode->has_letter('Z')){ THEROBOT->reset_axis_position(gcode->get_value('Z'), Z_AXIS); }
 
-                } else if(gcode->subcode == 3) {
+                } else if (gcode->subcode == 3) {
                     // initialize G92 to the specified values, only used for saving it with M500
                     float x= 0, y= 0, z= 0;
                     if(gcode->has_letter('X')) x= gcode->get_value('X');
@@ -611,6 +622,9 @@ void Robot::on_gcode_received(void *argument)
                     if(gcode->has_letter('Z')) z= gcode->get_value('Z');
                     g92_offset = wcs_t(x, y, z);
 
+                } else if (gcode->subcode == 5) {
+                    // initialize G92 to the specified values, only used for saving it with M500
+                	setLaserOffset();
                 } else {
                     // standard setting of the g92 offsets, making current WCS position whatever the coordinate arguments are
                     float x, y, z;
@@ -1095,7 +1109,9 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
     }
 
     // S is modal When specified on a G0/1/2/3 command
-    if(gcode->has_letter('S')) s_value= gcode->get_value('S');
+    if(gcode->has_letter('S')) {
+    	s_value = gcode->get_value('S');
+    }
 
     bool moved= false;
 
@@ -1755,15 +1771,27 @@ void Robot::clearToolOffset()
 
 }
 
-void Robot::setToolOffset(const float offset[3])
-{
-    this->tool_offset= wcs_t(offset[0], offset[1], offset[2]);
-
-    // save tlo data to eeprom
-    THEKERNEL->eeprom_data->TLO = offset[2];
-    THEKERNEL->write_eeprom_data();
-
+void Robot::loadToolOffset(const float offset[N_PRIMARY_AXIS]) {
+	this->tool_offset = wcs_t(offset[0], offset[1], offset[2]);
+    // update laser offset
+    setLaserOffset();
 }
+
+void Robot::saveToolOffset(const float offset[N_PRIMARY_AXIS], const float cur_tool_mz) {
+	this->loadToolOffset(offset);
+    // save data to eeprom
+    THEKERNEL->eeprom_data->TLO = offset[2];
+    THEKERNEL->eeprom_data->TOOLMZ = cur_tool_mz;
+    THEKERNEL->write_eeprom_data();
+}
+
+void Robot::setLaserOffset()
+{
+	if (THEKERNEL->get_laser_mode()) {
+		g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z + std::get<Z_AXIS>(tool_offset));
+	}
+}
+
 
 float Robot::get_feed_rate() const
 {

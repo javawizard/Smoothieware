@@ -108,8 +108,8 @@ atc.fast_z_rate_mm_m						1000
 atc.slow_z_rate_mm_m						200
 atc.margin_rate_mm_m						600
 
-atc.probe.mx_mm								-4.6
-atc.probe.my_mm								-51.5
+atc.probe.mx_mm								-3.7
+atc.probe.my_mm								-53.4
 atc.probe.mz_mm								-150.0
 
 atc.probe.fast_rate_mm_m					500
@@ -152,13 +152,17 @@ laser_module_pin							0.10			#
 laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
 
 #laser_module_ttl_pin						1.30			# This pin turns on when the laser turns on, and off when the laser turns off.
-laser_module_test_power						0.1             # This is the maximum duty cycle that will be applied to the laser
+laser_module_test_power						0.01            # This is the maximum duty cycle that will be applied to the laser
 laser_module_maximum_power					1.0				# This is the maximum duty cycle that will be applied to the laser
-laser_module_minimum_power					0.2				# This is a value just below the minimum duty cycle that keeps the laser active without actually burning.
-#laser_module_default_powe					0.8             # This is the default laser power that will be used for cuts if a power has not been specified.  
+laser_module_minimum_power					0.05			# This is a value just below the minimum duty cycle that keeps the laser active without actually burning.
+laser_module_default_power					0.8             # This is the default laser power that will be used for cuts if a power has not been specified.  
 															#The value is a scale between
 															# the maximum and minimum power levels specified above
 #laser_module_pwm_period					20				# This sets the pwm frequency as the period in microseconds
+
+laser_module_offset_x						-37.3			# laser model x offset
+laser_module_offset_y						4.8				# laser model y offset
+laser_module_offset_z						-40.0			# laser model z offset
 
 ## Switch modules
 switch.vacuum.enable 						true			# Enable this module

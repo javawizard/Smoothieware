@@ -272,8 +272,11 @@ void ATCHandler::on_module_loaded()
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_endstop);
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_detector);
 
-    // load current tool from eeprom
+    // load data from eeprom
     this->active_tool = THEKERNEL->eeprom_data->TOOL;
+    this->ref_tool_mz = THEKERNEL->eeprom_data->REFMZ;
+    this->cur_tool_mz = THEKERNEL->eeprom_data->TOOLMZ;
+    this->tool_offset = THEKERNEL->eeprom_data->TLO;
 
 }
 
@@ -524,7 +527,7 @@ void ATCHandler::set_tool_offset()
         if (ref_tool_mz < 0) {
         	tool_offset = cur_tool_mz - ref_tool_mz;
         	const float offset[3] = {0.0, 0.0, tool_offset};
-        	THEROBOT->setToolOffset(offset);
+        	THEROBOT->saveToolOffset(offset, cur_tool_mz);
         }
     }
 
@@ -730,8 +733,9 @@ void ATCHandler::on_gcode_received(void *argument)
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
 				THEKERNEL->streams->printf("EEPRROM Data: TLO:%1.3f\n", THEKERNEL->eeprom_data->TLO);
+				THEKERNEL->streams->printf("EEPRROM Data: TOOLMZ:%1.3f\n", THEKERNEL->eeprom_data->TOOLMZ);
+				THEKERNEL->streams->printf("EEPRROM Data: REFMZ:%1.3f\n", THEKERNEL->eeprom_data->REFMZ);
 				THEKERNEL->streams->printf("EEPRROM Data: G54: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G54[0], THEKERNEL->eeprom_data->G54[1], THEKERNEL->eeprom_data->G54[2]);
-				THEKERNEL->streams->printf("EEPRROM Data: G28: %1.3f, %1.3f, %1.3f\n", THEKERNEL->eeprom_data->G28[0], THEKERNEL->eeprom_data->G28[1], THEKERNEL->eeprom_data->G28[2]);
 			} else if (gcode->subcode == 2) {
 				// Show EEPROM DATA
 				THEKERNEL->erase_eeprom_data();
@@ -860,6 +864,11 @@ void ATCHandler::on_set_public_data(void* argument)
 
     if(pdr->second_element_is(set_ref_tool_mz_checksum)) {
         this->ref_tool_mz = cur_tool_mz;
+        // update eeprom data if needed
+        if (this->ref_tool_mz != THEKERNEL->eeprom_data->REFMZ) {
+        	THEKERNEL->eeprom_data->REFMZ = this->ref_tool_mz;
+		    THEKERNEL->write_eeprom_data();
+        }
         this->tool_offset = 0.0;
         pdr->set_taken();
     }
