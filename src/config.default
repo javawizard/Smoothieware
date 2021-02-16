@@ -154,7 +154,7 @@ laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
 #laser_module_ttl_pin						1.30			# This pin turns on when the laser turns on, and off when the laser turns off.
 laser_module_test_power						0.01            # This is the maximum duty cycle that will be applied to the laser
 laser_module_maximum_power					1.0				# This is the maximum duty cycle that will be applied to the laser
-laser_module_minimum_power					0.05			# This is a value just below the minimum duty cycle that keeps the laser active without actually burning.
+laser_module_minimum_power					0.0				# This is a value just below the minimum duty cycle that keeps the laser active without actually burning.
 laser_module_default_power					0.8             # This is the default laser power that will be used for cuts if a power has not been specified.  
 															#The value is a scale between
 															# the maximum and minimum power levels specified above

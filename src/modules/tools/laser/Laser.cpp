@@ -312,11 +312,12 @@ uint32_t Laser::set_proportional_power(uint32_t dummy)
     }
 
     float power;
-    if (laser_on && get_laser_power(power)) {
+    if(get_laser_power(power)) {
         // adjust power to maximum power and actual velocity
         float proportional_power = ( (this->laser_maximum_power - this->laser_minimum_power) * power ) + this->laser_minimum_power;
         set_laser_power(proportional_power);
-    } else if (!laser_on) {
+
+    } else if (laser_on) {
         // turn laser off
         set_laser_power(0);
     }
