@@ -451,9 +451,7 @@ void ATCHandler::home_clamp()
         THEKERNEL->set_halt_reason(ATC_HOME_FAIL);
         THEKERNEL->streams->printf("ERROR: Homing atc failed - check the atc max travel settings\n");
         return;
-    }
-
-    if(atc_home_info.triggered) {
+    } else {
     	THEROBOT->reset_position_from_current_actuator_position();
     }
 
@@ -476,8 +474,6 @@ void ATCHandler::clamp_tool()
 	}
 	if (atc_home_info.clamp_status == UNHOMED) {
 		home_clamp();
-		// change clamp status
-		atc_home_info.clamp_status = CLAMPED;
 		return;
 	}
 
