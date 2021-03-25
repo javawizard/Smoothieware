@@ -1060,7 +1060,8 @@ void Endstops::on_gcode_received(void *argument)
         switch(gcode->subcode) {
             case 0: // G28 in grbl mode will do a rapid to the predefined position otherwise it is home command
                 if(THEKERNEL->is_grbl_mode()){
-                    handle_park_g28();
+                	gcode->stream->printf("G28 is currently not supported, ignore...\n");
+                    // handle_park_g28();
                 }else{
                     process_home_command(gcode);
                 }

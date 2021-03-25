@@ -91,9 +91,9 @@ atc.enable									true
 atc.homing_endstop_pin						1.9!^
 atc.homing_debounce_ms						1
 atc.homing_max_travel_mm					8
-atc.homing_retract_mm						2
+atc.homing_retract_mm						1.5
 atc.homing_rate_mm_s						1.5
-atc.action_mm								2.1
+atc.action_mm								2.6
 atc.action_rate_mm_s						1.5
 
 atc.detector.detect_pin						0.20^
