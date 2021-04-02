@@ -147,7 +147,7 @@ void WifiProvider::receive_wifi_data() {
 	        }
 	        this->buffer.push_back(char(RecvData[i]));
 		}
-		if(received < WIFI_RECV_DATA_MAX_SIZE) {
+		if (received < WIFI_RECV_DATA_MAX_SIZE) {
 			return;
 		}
 	}
@@ -190,7 +190,7 @@ void WifiProvider::on_second_tick(void *)
 	u8 client_num = 0;
 	ClientInfo RemoteClients[15];
 
-	if (!wifi_init_ok) return;
+	if (!wifi_init_ok || THEKERNEL->is_uploading()) return;
 
 	M8266WIFI_SPI_List_Clients_On_A_TCP_Server(tcp_link_no, &client_num, RemoteClients, &status);
 
@@ -269,35 +269,25 @@ int WifiProvider::puts(const char* s)
 	size_t total_length = strlen(s);
     size_t sent_index = 0;
 	u16 status = 0;
-	u16 sent = 0;
-	u16 to_send = 0;
-	u8 error_times = 0;
-    while (sent_index < total_length && error_times <= 3) {
+	u32 sent = 0;
+	u32 to_send = 0;
+    while (sent_index < total_length) {
     	to_send = total_length - sent_index > WIFI_SEND_DATA_MAX_SIZE ? WIFI_SEND_DATA_MAX_SIZE : total_length - sent_index;
     	strncpy((char *)SendData, s + sent_index, to_send);
-    	sent = M8266WIFI_SPI_Send_Data(SendData, to_send, tcp_link_no, &status);
-    	if (sent == 0) {
-    		// sent error
-    		// 0x10: Timeout when wait Module spi rxd Buffer ready
-    		// 0x11: Timeout when wait wifi to send data
-    		// 0x12: Module sending buffer full
-    		// 0x13: Wrong link no used
-    		// 0x14: Connection by link no not present
-    		// 0x15: Connection by link no closed
-    		// 0x18: No clients connecting to this TCP Server
-    		// 0x1F: Other errors
-    		if ((status & 0xff) == 0x10 || (status & 0xff) == 0x11 || (status & 0xff) == 0x12) {
-        		error_times ++;
-        		// wait 1 ms
-        		M8266WIFI_Module_delay_ms(1);
-        		continue;
-    		} else {
-    			return sent_index;
-    		}
-    	} else {
-    		sent_index += sent;
-    		error_times = 0;
-    	}
+		// errcode:
+		// 	0x13: Wrong link_no used
+		// 	0x14: connection by link_no not present
+		// 	0x15: connection by link_no closed
+		// 	0x18: No clients connecting to this TCP server
+		// 	0x1E: too many errors ecountered during sending can not fixed
+		// 	0x1F: Other errors
+    	sent = M8266WIFI_SPI_Send_BlockData(SendData, to_send, 5000, tcp_link_no, NULL, 0, &status);
+    	sent_index += sent;
+		if ((sent == to_send)) {
+			continue;
+		} else {
+    		break;
+		}
     }
     return sent_index;
 }
@@ -316,10 +306,8 @@ int WifiProvider::_putc(int c)
 int WifiProvider::_getc()
 {
 	u16 status;
-	u8 to_recv, link_no;
-	if (M8266WIFI_SPI_RecvData(&to_recv, 128, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status) == 0) {
-		return 26;
-	}
+	u8 to_recv = 0, link_no;
+	M8266WIFI_SPI_RecvData(&to_recv, 1, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
 	return to_recv;
 }
 
@@ -329,7 +317,11 @@ int WifiProvider::gets(char** buf)
 	u8 link_no;
 	u16 received = M8266WIFI_SPI_RecvData(RecvData, WIFI_RECV_DATA_MAX_SIZE, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
 	if (link_no == udp_link_no) {
+		// THEKERNEL->streams->printf("gets, data from udp");
 		return 0;
+	}
+	if (int(status & 0xff) == 32 || int(status & 0xff) == 34 || int(status & 0xff) == 47) {
+		THEKERNEL->streams->printf("gets, received: %d, status:%d, high: %d, low: %d!\n", received, status, int(status >> 8), int(status & 0xff));
 	}
 	*buf = (char *)&RecvData;
 	return received;
@@ -693,7 +685,7 @@ void WifiProvider::M8266WIFI_Module_Hardware_Reset(void) // total 800ms  (Chines
 	#endif
 
 	M8266HostIf_SPI_SetSpeed(SPI_BaudRatePrescaler_8);					// Setup SPI Clock. Here 96/4 = 24MHz for LPC17XX, upto 40MHz
-	spi_clk = 15000000;//24000000;
+	spi_clk = 12000000;//24000000;
 
 	// wait clock stable (Chinese: 设置SPI时钟后，延时等待时钟稳定)
 	M8266WIFI_Module_delay_ms(1);

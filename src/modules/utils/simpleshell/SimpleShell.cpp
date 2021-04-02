@@ -350,7 +350,7 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
         }
         closedir(d);
         if(opts.find("-e", 0, 2) != string::npos) {
-            stream->puts("\004"); // ^D terminates the upload
+            stream->puts("\004\004\004"); // ^D terminates the upload
         }
     } else {
         stream->printf("Could not open directory %s\r\n", path.c_str());
@@ -379,7 +379,7 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
     int s = remove(fn);
     if (s != 0) {
         if(send_eof) {
-            stream->puts("\032"); // ^Z terminates error
+            stream->puts("\032\032\032"); // ^Z terminates error
         }
     	stream->printf("Could not delete %s \r\n", fn);
     } else {
@@ -387,12 +387,12 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
     	s = remove(fn_md5);
 		if (s != 0) {
 			if(send_eof) {
-				stream->puts("\032"); // ^Z terminates error
+				stream->puts("\032\032\032"); // ^Z terminates error
 			}
 			stream->printf("Could not delete %s \r\n", fn_md5);
 		} else {
 	        if(send_eof) {
-	            stream->puts("\004"); // ^D terminates the upload
+	            stream->puts("\004\004\004"); // ^D terminates the upload
 	        }
 		}
     }
@@ -412,20 +412,20 @@ void SimpleShell::mv_command( string parameters, StreamOutput *stream )
     int s = rename(from.c_str(), to.c_str());
     if (s != 0)  {
     	if (send_eof) {
-    		stream->puts("\032"); // ^Z terminates error
+    		stream->puts("\032\032\032"); // ^Z terminates error
     	}
     	stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
     } else  {
     	s = rename(md5_from.c_str(), md5_to.c_str());
         if (s != 0)  {
         	if (send_eof) {
-        		stream->puts("\032"); // ^Z terminates error
+        		stream->puts("\032\032\032"); // ^Z terminates error
         	}
         	stream->printf("Could not rename %s to %s\r\n", md5_from.c_str(), md5_to.c_str());
         }
         else {
 			if (send_eof) {
-				stream->puts("\004"); // ^D terminates the upload
+				stream->puts("\004\004\004"); // ^D terminates the upload
 			}
 			stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
         }
@@ -445,19 +445,19 @@ void SimpleShell::mkdir_command( string parameters, StreamOutput *stream )
     if (result != 0) {
     	stream->printf("could not create directory %s\r\n", path.c_str());
     	if (send_eof) {
-    		stream->puts("\032"); // ^Z terminates error
+    		stream->puts("\032\032\032"); // ^Z terminates error
     	}
     } else {
     	result = mkdir(md5_path.c_str(), 0);
         if (result != 0) {
         	stream->printf("could not create md5 directory %s\r\n", md5_path.c_str());
         	if (send_eof) {
-        		stream->puts("\032"); // ^Z terminates error
+        		stream->puts("\032\032\032"); // ^Z terminates error
         	}
         } else {
         	stream->printf("created directory %s\r\n", path.c_str());
         	if (send_eof) {
-            	stream->puts("\004"); // ^D terminates the upload
+            	stream->puts("\004\004\004"); // ^D terminates the upload
         	}
         }
     }
@@ -515,7 +515,7 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
 
 
     // we have been asked to delay before cat, probably to allow time to issue upload command
-    if(delay > 0) {
+    if (delay > 0) {
         safe_delay_ms(delay * 1000);
     }
 
@@ -523,33 +523,60 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     FILE *lp = fopen(filename.c_str(), "r");
     if (lp == NULL) {
         if(send_eof) {
-            stream->puts("\032"); // ^Z terminates the cat
+            stream->puts("\032\032\032"); // 3 ^Z terminates the cat
         } else {
             stream->printf("File not found: %s\r\n", filename.c_str());
         }
         return;
     }
-    string buffer;
+    // string buffer;
+    char buffer[192];
+    memset(buffer, 0, sizeof(buffer));
     int c;
     int newlines = 0;
-    int linecnt = 0;
-    // Print each line of the file
+    int charcnt = 0;
+    int sentcnt = 0;
+    int cancelcnt = 0;
+
+    THEKERNEL->set_uploading(true);
     while ((c = fgetc (lp)) != EOF) {
-        buffer.append((char *)&c, 1);
-        if ( c == '\n' || ++linecnt > 80) {
+    	buffer[charcnt] = c;
+        if (c == '\n') newlines ++;
+        // buffer.append((char *)&c, 1);
+        charcnt ++;
+        if (charcnt > 190) {
         	// check if cancel cmd received
-            if(send_eof && stream->ready()) {
-                c = stream->_getc();
-                if (c == 26) {
-                	fclose(lp);
-                	stream->puts("\032");
-                	return;
-                }
+            if (send_eof) {
+            	while (stream->ready()) {
+            		c = stream->_getc();
+                    if (c == 26) {
+                    	cancelcnt ++;
+                    	if (cancelcnt > 2) {
+                        	fclose(lp);
+                        	stream->puts("\032\032\032");
+                        	THEKERNEL->set_uploading(false);
+                        	return;
+                    	}
+                    } else {
+                    	cancelcnt = 0;
+                    	if (c == 0) {
+                    		break;
+                    	}
+                    }
+            	}
             }
-            if(c == '\n') newlines++;
-            stream->puts(buffer.c_str());
-            buffer.clear();
-            if(linecnt > 80) linecnt = 0;
+            sentcnt = stream->puts(buffer);
+            // if (sentcnt < strlen()(int)buffer.size()) {
+            if (sentcnt < (int)strlen(buffer)) {
+            	fclose(lp);
+            	stream->puts("\032\032\032");
+            	stream->printf("Caching error, line: %d, size: %d, sent: %d", newlines, strlen(buffer), sentcnt);
+            	THEKERNEL->set_uploading(false);
+            	return;
+            }
+            // buffer.clear();
+            memset(buffer, 0, sizeof(buffer));
+            charcnt = 0;
             // we need to kick things or they die
             THEKERNEL->call_event(ON_IDLE);
         }
@@ -557,18 +584,24 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
             break;
         }
     };
+    fclose(lp);
+    lp = NULL;
+
     // send last line
-    if (buffer.size() > 0) {
-    	stream->puts(buffer.c_str());
+    // if (buffer.size() > 0) {
+    if (strlen(buffer) > 0) {
+    	// stream->puts(buffer.c_str());
+    	stream->puts(buffer);
     	if (!send_eof) {
     		stream->printf("\n");
     	}
     }
-    fclose(lp);
 
-    if(send_eof) {
-        stream->puts("\004"); // ^Z terminates the cat
+    if (send_eof) {
+        stream->puts("\004\004\004"); // ^Z terminates the cat
     }
+
+    THEKERNEL->set_uploading(false);
 }
 
 // echo commands
@@ -583,12 +616,12 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     // this needs to be a hack. it needs to read direct from serial and not allow on_main_loop run until done
     // NOTE this will block all operation until the upload is complete, so do not do while printing
     if(!THECONVEYOR->is_idle()) {
-        stream->printf("upload not allowed while printing or busy\n");
+        stream->printf("Error: upload not allowed while running\n");
         return;
     }
 
-    // open file to upload to
-    string upload_filename = absolute_from_relative( parameters );
+    // open file
+    string upload_filename = absolute_from_relative(parameters);
     string md5_filename = change_to_md5_path(upload_filename);
 
     FILE *fd = fopen(upload_filename.c_str(), "w");
@@ -607,54 +640,21 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     int cnt = 0;
+    int cancnt = 0;
+    int endcnt = 0;
     int recv_count;
+    uint32_t tick_us = us_ticker_read();
     char* recv_buff;
     bool file_finished = false;
     MD5 md5;
     string calculated_md5;
     char uploaded_md5[32];
     THEKERNEL->set_uploading(true);
-    while (THEKERNEL->is_uploading()) {
+    while (true) {
         if (!stream->ready()) {
             // we need to kick things or they die
-            THEKERNEL->call_event(ON_IDLE);
-            continue;
-        }
-
-        recv_count = stream->gets(&recv_buff);
-        for (int i = 0; i < recv_count; i ++) {
-			if (recv_buff[i] == 4) {
-				if (!file_finished) {
-					file_finished = true;
-					// close file
-					fclose(fd);
-					fd = NULL;
-					// Append MD5
-					if (i > 0) {
-						md5.update(recv_buff, i);
-					}
-					calculated_md5 = md5.finalize().hexdigest();
-					stream->printf("Upload finished, %d bytes transferred\n", cnt);
-					cnt = 0;
-				} else {
-					// compare and save md5
-					if (strncmp(uploaded_md5, calculated_md5.c_str(), 32) != 0) {
-						fclose(fd_md5);
-						fd_md5 = NULL;
-						remove(md5_filename.c_str());
-						remove(upload_filename.c_str());
-						stream->printf("Error: check MD5 error!\n");
-					} else {
-						fwrite(uploaded_md5 , sizeof(char), sizeof(uploaded_md5), fd_md5);
-						fclose(fd_md5);
-						fd_md5 = NULL;
-						stream->printf("MD5: %s\n", calculated_md5.c_str());
-					}
-                    THEKERNEL->set_uploading(false);
-					return;
-				}
-			} else if (recv_buff[i] == 26) {
-				// close file
+        	if (us_ticker_read() - tick_us > 3000000) {
+        		// Quit uploading if no data for more than 3 seconds
 				fclose(fd);
 				fd = NULL;
 				remove(upload_filename.c_str());
@@ -662,8 +662,63 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 				fd_md5 = NULL;
 				remove(md5_filename.c_str());
 				THEKERNEL->set_uploading(false);
-				stream->printf("Upload cancelled, %d bytes transferred\n", cnt);
+				stream->printf("Freeze for over 3 seconds, quit uploading, %d bytes transferred\n", cnt);
 				return;
+        	}
+            THEKERNEL->call_event(ON_IDLE);
+            continue;
+        }
+
+        tick_us = us_ticker_read();
+        recv_count = stream->gets(&recv_buff);
+        for (int i = 0; i < recv_count; i ++) {
+        	endcnt = recv_buff[i] == 4  ? endcnt + 1 : 0;
+        	cancnt = recv_buff[i] == 26 ? cancnt + 1 : 0;
+			if (recv_buff[i] == 4) {
+				if (endcnt > 2) {
+					if (!file_finished) {
+						file_finished = true;
+						// close file
+						fclose(fd);
+						fd = NULL;
+						// Append MD5
+						if (i > 2) {
+							md5.update(recv_buff, i - 2);
+						}
+						calculated_md5 = md5.finalize().hexdigest();
+						stream->printf("Upload finished, %d bytes transferred\n", cnt);
+						cnt = 0;
+					} else {
+						// compare and save md5
+						if (strncmp(uploaded_md5, calculated_md5.c_str(), 32) != 0) {
+							fclose(fd_md5);
+							fd_md5 = NULL;
+							remove(md5_filename.c_str());
+							// remove(upload_filename.c_str());
+							stream->printf("Error: check MD5 error!\n");
+						} else {
+							fwrite(uploaded_md5 , sizeof(char), sizeof(uploaded_md5), fd_md5);
+							fclose(fd_md5);
+							fd_md5 = NULL;
+							stream->printf("MD5: %s\n", calculated_md5.c_str());
+						}
+	                    THEKERNEL->set_uploading(false);
+						return;
+					}
+				}
+			} else if (recv_buff[i] == 26) {
+				if (cancnt > 2) {
+					// close file
+					fclose(fd);
+					fd = NULL;
+					remove(upload_filename.c_str());
+					fclose(fd_md5);
+					fd_md5 = NULL;
+					remove(md5_filename.c_str());
+					THEKERNEL->set_uploading(false);
+					stream->printf("Upload cancelled, %d bytes transferred\n", cnt);
+					return;
+				}
             } else {
                 cnt ++;
             	if (file_finished) {
@@ -693,10 +748,65 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             }
         }
 
-        // upload MD5
-        if(recv_count > 0) md5.update(recv_buff, recv_count);
+        // update MD5
+        if (!file_finished && recv_count > 0) md5.update(recv_buff, recv_count - endcnt - cancnt);
     }
 }
+
+/*
+void SimpleShell::upload_command( string parameters, StreamOutput *stream )
+{
+    // this needs to be a hack. it needs to read direct from serial and not allow on_main_loop run until done
+    // NOTE this will block all operation until the upload is complete, so do not do while printing
+    if(!THECONVEYOR->is_idle()) {
+        stream->printf("upload not allowed while printing or busy\n");
+        return;
+    }
+
+    int cnt = 0;
+    int recv_count;
+    char* recv_buff;
+    bool file_finished = false;
+    THEKERNEL->set_uploading(true);
+    while (THEKERNEL->is_uploading()) {
+        if (!stream->ready()) {
+            // we need to kick things or they die
+            THEKERNEL->call_event(ON_IDLE);
+            continue;
+        }
+
+        recv_count = stream->gets(&recv_buff);
+        for (int i = 0; i < recv_count; i ++) {
+			if (recv_buff[i] == 4) {
+				if (!file_finished) {
+					file_finished = true;
+					stream->printf("Upload finished, %d bytes transferred\n", cnt);
+					cnt = 0;
+				} else {
+                    THEKERNEL->set_uploading(false);
+					return;
+				}
+			} else if (recv_buff[i] == 26) {
+				THEKERNEL->set_uploading(false);
+				stream->printf("Upload cancelled, %d bytes transferred\n", cnt);
+				return;
+            } else {
+                cnt ++;
+            	if (file_finished) {
+            		if (cnt < 33) {
+            			//
+            		}
+            	} else {
+					if ((cnt % 1000) == 0) {
+						// we need to kick things or they die
+						THEKERNEL->call_event(ON_IDLE);
+					}
+            	}
+            }
+        }
+    }
+}
+*/
 
 // loads the specified config-override file
 void SimpleShell::load_command( string parameters, StreamOutput *stream )
@@ -849,12 +959,12 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
             stream->printf("%s", str);
             free(str);
         	if (send_eof) {
-            	stream->puts("\004"); // ^D terminates the upload
+            	stream->puts("\004\004\004"); // ^D terminates the upload
         	}
 
         } else {
         	if (send_eof) {
-        		stream->puts("\032"); // ^Z terminates error
+        		stream->puts("\032\032\032"); // ^Z terminates error
         	} else {
                 stream->printf("No wlan detected\n");
         	}
@@ -878,7 +988,7 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
         	if (t.has_error) {
                 stream->printf("Error: %s\n", t.error_info);
             	if (send_eof) {
-            		stream->puts("\032"); // ^Z terminates error
+            		stream->puts("\032\032\032"); // ^Z terminates error
             	}
         	} else {
         		if (t.disconnect) {
@@ -887,13 +997,13 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
             		stream->printf("Wifi connected, ip: %s\n", t.ip_address);
         		}
             	if (send_eof) {
-                	stream->puts("\004"); // ^D terminates the complete
+                	stream->puts("\004\004\004"); // ^D terminates the complete
             	}
         	}
         } else {
             stream->printf("%s\n", "Parameter error when setting wlan!");
         	if (send_eof) {
-        		stream->puts("\032"); // ^Z terminates error
+        		stream->puts("\032\032\032"); // ^Z terminates error
         	}
         }
     }
@@ -1378,7 +1488,7 @@ void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
     	fread(local_md5, 1, 32, fd_md5);
         if(send_eof) {
         	stream->puts(local_md5);
-            stream->puts("\004"); // ^D terminates the upload
+            stream->puts("\004\004\004"); // ^D terminates the upload
         } else {
             stream->printf("%s %s\n", local_md5, filename.c_str());
         }
@@ -1405,7 +1515,7 @@ void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
 
     if(send_eof) {
     	stream->printf("%s", md5.finalize().hexdigest().c_str());
-        stream->puts("\004"); // ^D terminates the upload
+        stream->puts("\004\004\004"); // ^D terminates the upload
     } else {
         stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
     }
@@ -1752,7 +1862,7 @@ void SimpleShell::config_get_all_command( string parameters, StreamOutput *strea
     fclose(lp);
 
     if(send_eof) {
-        stream->puts("\004"); // ^Z terminates the cat
+        stream->puts("\004\004\004"); // ^Z terminates the cat
     }
 }
 
