@@ -653,8 +653,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     while (true) {
         if (!stream->ready()) {
             // we need to kick things or they die
-        	if (us_ticker_read() - tick_us > 3000000) {
-        		// Quit uploading if no data for more than 3 seconds
+        	if (us_ticker_read() - tick_us > 10000000) {
+        		// Quit uploading if no data for more than 10 seconds
 				fclose(fd);
 				fd = NULL;
 				remove(upload_filename.c_str());
@@ -662,7 +662,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 				fd_md5 = NULL;
 				remove(md5_filename.c_str());
 				THEKERNEL->set_uploading(false);
-				stream->printf("Freeze for over 3 seconds, quit uploading, %d bytes transferred\n", cnt);
+				stream->printf("Freeze for over 10 seconds, quit uploading, %d bytes transferred\n", cnt);
 				return;
         	}
             THEKERNEL->call_event(ON_IDLE);
@@ -694,7 +694,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 							fclose(fd_md5);
 							fd_md5 = NULL;
 							remove(md5_filename.c_str());
-							// remove(upload_filename.c_str());
+							remove(upload_filename.c_str());
 							stream->printf("Error: check MD5 error!\n");
 						} else {
 							fwrite(uploaded_md5 , sizeof(char), sizeof(uploaded_md5), fd_md5);

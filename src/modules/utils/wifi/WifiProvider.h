@@ -20,7 +20,7 @@ using namespace std;
 #include "libs/RingBuffer.h"
 
 #define WIFI_SEND_DATA_MAX_SIZE 192
-#define WIFI_RECV_DATA_MAX_SIZE 192
+#define WIFI_RECV_DATA_MAX_SIZE 1500
 #define WIFI_RECV_DATA_TIMEOUT_MS 10
 #define MAX_WLAN_SIGNALS 8
 

@@ -10,7 +10,8 @@
 
 new_status_format							true
 
-dfu_enable									false
+msd_disable									false			# Disable the MSD (USB SDCARD)
+dfu_enable									false			# For linux developers, set to true to enable DFU
 
 home_on_boot								true			# If do home when bootup
 
@@ -326,8 +327,6 @@ main_button_LED_B_pin						1.15			# Main button blue LED pin
 main_button_poll_frequency					20				# Main button pool frequency
 main_button_long_press_time					3000			# Long press time
 
-#msd_disable								false			# Disable the MSD (USB SDCARD)
-#dfu_enable									false			# For linux developers, set to true to enable DFU
 
 # 
 currentcontrol_module_enable				false			# Control stepper motor current via the configuration file
