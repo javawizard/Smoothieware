@@ -1101,6 +1101,11 @@ void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
 {
 	THEKERNEL->set_sleeping(true);
 	THEKERNEL->call_event(ON_HALT, nullptr);
+	// turn off 12V/24V power supply
+	bool b = false;
+	PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
+	PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
+
 }
 
 

@@ -116,7 +116,7 @@ Endstops::Endstops()
 void Endstops::on_module_loaded()
 {
     // Do not do anything if not enabled or if no pins are defined
-    if (THEKERNEL->config->value( endstops_module_enable_checksum )->by_default(false)->as_bool()) {
+    if (THEKERNEL->config->value( endstops_module_enable_checksum )->by_default(true)->as_bool()) {
         if(!load_old_config()) {
             delete this;
             return;
@@ -411,13 +411,13 @@ void Endstops::get_global_configs()
     this->is_rdelta= THEKERNEL->config->value(rdelta_homing_checksum)->by_default(false)->as_bool();
     this->is_scara=  THEKERNEL->config->value(scara_homing_checksum)->by_default(false)->as_bool();
 
-    this->home_z_first= THEKERNEL->config->value(home_z_first_checksum)->by_default(false)->as_bool();
+    this->home_z_first= THEKERNEL->config->value(home_z_first_checksum)->by_default(true)->as_bool();
 
     this->trim_mm[0] = THEKERNEL->config->value(alpha_trim_checksum)->by_default(0)->as_number();
     this->trim_mm[1] = THEKERNEL->config->value(beta_trim_checksum)->by_default(0)->as_number();
     this->trim_mm[2] = THEKERNEL->config->value(gamma_trim_checksum)->by_default(0)->as_number();
 
-	this->cover_endstop_pin.from_string( THEKERNEL->config->value(cover_endstop_checksum)->by_default("nc" )->as_string())->as_input();
+	this->cover_endstop_pin.from_string( THEKERNEL->config->value(cover_endstop_checksum)->by_default("1.10" )->as_string())->as_input();
 
     // see if an order has been specified, must be three or more characters, XYZABC or ABYXZ etc
     string order = THEKERNEL->config->value(homing_order_checksum)->by_default("")->as_string();
@@ -1284,6 +1284,10 @@ void Endstops::on_get_public_data(void* argument)
         }
         // cover endstop
         data[5] = (char)this->cover_endstop_pin.get();
+        pdr->set_taken();
+    } else if (pdr->second_element_is(get_cover_endstop_state_checksum)) {
+        bool *cover_state = static_cast<bool *>(pdr->get_data_ptr());
+        *cover_state = this->cover_endstop_pin.get();
         pdr->set_taken();
     }
 }

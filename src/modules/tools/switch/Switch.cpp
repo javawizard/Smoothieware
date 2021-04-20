@@ -122,7 +122,7 @@ void Switch::on_config_reload(void *argument)
 
 
     if(!is_input) {
-        string type = THEKERNEL->config->value(switch_checksum, this->name_checksum, output_type_checksum )->by_default("pwm")->as_string();
+        string type = THEKERNEL->config->value(switch_checksum, this->name_checksum, output_type_checksum )->by_default("digital")->as_string();
         this->failsafe= THEKERNEL->config->value(switch_checksum, this->name_checksum, failsafe_checksum )->by_default(0)->as_number();
         this->ignore_on_halt= THEKERNEL->config->value(switch_checksum, this->name_checksum, ignore_onhalt_checksum )->by_default(false)->as_bool();
 
@@ -247,11 +247,12 @@ void Switch::on_config_reload(void *argument)
 
             // default is 0% duty cycle
             this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
-            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(0)->as_number();
+            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(50)->as_number();
             if(this->switch_state) {
-                this->pwm_pin->write(this->default_on_value/100.0F);
+                this->pwm_pin->write(this->default_on_value / 100.0F);
+                this->switch_value = this->default_on_value;
             } else {
-                this->pwm_pin->write(this->switch_value/100.0F);
+                this->pwm_pin->write(this->switch_value / 100.0F);
             }
 
         } else if(this->output_type == SWPWM) {
@@ -261,11 +262,12 @@ void Switch::on_config_reload(void *argument)
 
             // default is 0% duty cycle
             this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
-            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(0)->as_number();
+            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(50)->as_number();
             if(this->switch_state) {
-                this->swpwm_pin->write(this->default_on_value/100.0F);
+                this->swpwm_pin->write(this->default_on_value / 100.0F);
+                this->switch_value = this->default_on_value;
             } else {
-                this->swpwm_pin->write(this->switch_value/100.0F);
+                this->swpwm_pin->write(this->switch_value / 100.0F);
             }
 
         } else if (this->output_type == DIGITAL){
@@ -279,9 +281,10 @@ void Switch::on_config_reload(void *argument)
             this->pwm_pin->period_us(p);
             // default is 0% duty cycle
             this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
-            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(0)->as_number();
+            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(50)->as_number();
             if(this->switch_state) {
                 this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
+                this->switch_value = this->default_on_value;
             } else {
             	this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
             }
@@ -412,10 +415,10 @@ void Switch::on_gcode_received(void *argument)
             this->switch_state = true;
             if(gcode->has_letter('S')) {
                 this->switch_value = gcode->get_value('S');
-                this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
             } else {
-                this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
+            	this->switch_value = this->default_on_value;
             }
+            this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
         }
 
     } else if(match_input_off_gcode(gcode)) {
@@ -499,6 +502,8 @@ void Switch::on_main_loop(void *argument)
                 this->digital_pin->set(true);
             } else if (this->output_type == DIGITALPWM) {
             	this->digital_pin->set(true);
+            	this->switch_value = this->default_on_value;
+                this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
             }
 
         } else {

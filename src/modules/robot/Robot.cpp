@@ -200,13 +200,13 @@ void Robot::load_config()
     this->mm_per_line_segment = THEKERNEL->config->value(mm_per_line_segment_checksum )->by_default(    0.0F)->as_number();
     this->delta_segments_per_second = THEKERNEL->config->value(delta_segments_per_second_checksum )->by_default(0.0f   )->as_number();
     this->mm_per_arc_segment  = THEKERNEL->config->value(mm_per_arc_segment_checksum  )->by_default(    0.0f)->as_number();
-    this->mm_max_arc_error    = THEKERNEL->config->value(mm_max_arc_error_checksum    )->by_default(   0.01f)->as_number();
+    this->mm_max_arc_error    = THEKERNEL->config->value(mm_max_arc_error_checksum    )->by_default(   0.002f)->as_number();
     this->arc_correction      = THEKERNEL->config->value(arc_correction_checksum      )->by_default(    5   )->as_number();
 
     // in mm/sec but specified in config as mm/min
-    this->max_speeds[X_AXIS]  = THEKERNEL->config->value(x_axis_max_speed_checksum    )->by_default(60000.0F)->as_number() / 60.0F;
-    this->max_speeds[Y_AXIS]  = THEKERNEL->config->value(y_axis_max_speed_checksum    )->by_default(60000.0F)->as_number() / 60.0F;
-    this->max_speeds[Z_AXIS]  = THEKERNEL->config->value(z_axis_max_speed_checksum    )->by_default(  300.0F)->as_number() / 60.0F;
+    this->max_speeds[X_AXIS]  = THEKERNEL->config->value(x_axis_max_speed_checksum    )->by_default(4000.0F)->as_number() / 60.0F;
+    this->max_speeds[Y_AXIS]  = THEKERNEL->config->value(y_axis_max_speed_checksum    )->by_default(4000.0F)->as_number() / 60.0F;
+    this->max_speeds[Z_AXIS]  = THEKERNEL->config->value(z_axis_max_speed_checksum    )->by_default(3000.0F)->as_number() / 60.0F;
     this->max_speed           = THEKERNEL->config->value(max_speed_checksum           )->by_default(  -60.0F)->as_number() / 60.0F;
 
     this->segment_z_moves     = THEKERNEL->config->value(segment_z_moves_checksum     )->by_default(true)->as_bool();

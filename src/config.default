@@ -10,20 +10,19 @@
 
 new_status_format							true
 
+#dfu_enable									false
 msd_disable									false			# Disable the MSD (USB SDCARD)
-dfu_enable									false			# For linux developers, set to true to enable DFU
 
-home_on_boot								true			# If do home when bootup
+#home_on_boot								true			# If do home when bootup
 
 # Basic motion configuration
 default_feed_rate							1000			# Default speed (mm/minute) for G1/G2/G3 moves
 default_seek_rate							3000			# Default speed (mm/minute) for G0 moves
-mm_per_arc_segment							0.0				# Fixed length for line segments that divide arcs, 0 to disable
+#mm_per_arc_segment							0.0				# Fixed length for line segments that divide arcs, 0 to disable
 mm_per_line_segment							5				# Cut lines into segments this size
 mm_max_arc_error							0.002			# The maximum error for line segments that divide arcs 0 to disable
 															# note it is invalid for both the above be 0
 															# if both are used, will use largest segment length based on radius
-
 # Arm solution configuration : Cartesian robot. Translates mm positions into stepper positions
 alpha_steps_per_mm							200				# Steps per mm for alpha ( X ) stepper
 beta_steps_per_mm							200				# Steps per mm for beta ( Y ) stepper
@@ -36,9 +35,9 @@ junction_deviation							0.01			#
 #z_junction_deviation						0.0				# For Z only moves, -1 uses junction_deviation, zero disables junction_deviation on z moves DO NOT SET ON A DELTA
 
 # Cartesian axis speed limits
-x_axis_max_speed							3000			# Maximum speed in mm/min
-y_axis_max_speed							3000			# Maximum speed in mm/min
-z_axis_max_speed							2000			# Maximum speed in mm/min
+#x_axis_max_speed							4000			# Maximum speed in mm/min
+#y_axis_max_speed							4000			# Maximum speed in mm/min
+#z_axis_max_speed							3000			# Maximum speed in mm/min
 
 # Stepper module configuration
 # Pins are defined as  ports, and pin numbers, appending "!" to the number will invert a pin
@@ -79,30 +78,30 @@ epsilon_max_rate							100.0			# mm/min
 epsilon_acceleration						10.0			# mm/secÂ²
 
 # WIFI
-wifi.enable									true
-wifi.interrupt_pin							2.6
-wifi.tcp_port								2222
-wifi.udp_send_port							3333
-wifi.udp_recv_port							4444
-wifi.tcp_timeout_s							10
-
+#wifi.enable								true
+#wifi.interrupt_pin							2.6
+#wifi.tcp_port								2222
+#wifi.udp_send_port							3333
+#wifi.udp_recv_port							4444
+#wifi.tcp_timeout_s							10
+wifi.machine_name							CARVERA
 
 # ATC
-atc.enable									true
-atc.homing_endstop_pin						1.9!^
-atc.homing_debounce_ms						1
-atc.homing_max_travel_mm					8
+#atc.enable									true
+#atc.homing_endstop_pin						1.9!^
+#atc.homing_debounce_ms						1
+#atc.homing_max_travel_mm					8
 atc.homing_retract_mm						1.5
 atc.homing_rate_mm_s						1.5
 atc.action_mm								2.6
 atc.action_rate_mm_s						1.5
 
-atc.detector.detect_pin						0.20^
+#atc.detector.detect_pin						0.20^
 atc.detector.detect_rate_mm_s				5
 atc.detector.detect_travel_mm				2	
 
-atc.tool_number								6		
-atc.active_tool								0
+# atc.tool_number								6		
+# atc.active_tool								0
 atc.safe_z_mm								-20.0
 atc.safe_z_offset_mm						15.0
 atc.fast_z_rate_mm_m						1000				
@@ -130,11 +129,11 @@ atc.tool2.mx_mm								-4.1
 atc.tool2.my_mm								-113.1
 atc.tool2.mz_mm								-105
 
-atc.tool3.mx_mm								-4.1, 
+atc.tool3.mx_mm								-4.1
 atc.tool3.my_mm								-143.1
 atc.tool3.mz_mm								-105
 
-atc.tool4.mx_mm								-4.1, 
+atc.tool4.mx_mm								-4.1
 atc.tool4.my_mm								-173.1 
 atc.tool4.mz_mm								-105
 
@@ -148,9 +147,9 @@ atc.tool6.mz_mm								-105
 
 
 # Laser module configuration
-laser_module_enable							true			# Whether to activate the laser module at all
-laser_module_pin							0.10			# 
-laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
+#laser_module_enable							true			# Whether to activate the laser module at all
+#laser_module_pin							0.10			# 
+#laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
 
 #laser_module_ttl_pin						1.30			# This pin turns on when the laser turns on, and off when the laser turns off.
 laser_module_test_power						0.01            # This is the maximum duty cycle that will be applied to the laser
@@ -174,8 +173,7 @@ switch.vacuum.output_type					digitalpwm		# Digital means this is just an on or 
 switch.vacuum.pwm_pin						2.3				#
 switch.vacuum.min_pwm						0				#
 switch.vacuum.max_pwm						100				#
-switch.vacuum.startup_value					20				#
-switch.vacuum.default_on_value				50				#
+switch.vacuum.default_on_value				70				#
 
 switch.spindlefan.enable					true			# Enable this module
 switch.spindlefan.input_on_command			M811			# Command that will turn this switch on
@@ -185,14 +183,14 @@ switch.spindlefan.output_type				digitalpwm		# Digital means this is just an on 
 switch.spindlefan.pwm_pin					2.1				#
 switch.spindlefan.min_pwm					0				#
 switch.spindlefan.max_pwm					100				#
-switch.spindlefan.startup_value				20				#
 switch.spindlefan.default_on_value			90				#
 
 switch.light.enable							true			# Enable this module
+switch.light.startup_state					true			# Startup light by default
 switch.light.output_pin						0.22			# Pin this module controls
-switch.light.output_type					digital			# Digital means this is just an on or off pin
 switch.light.input_on_command				M821			# Command that will turn this switch on
 switch.light.input_off_command				M822			# Command that will turn this switch off
+switch.light.ignore_on_halt					true			# ignore on halt
 
 switch.toolsensor.enable					true			# Enable this module
 switch.toolsensor.output_pin				2.12			# Pin this module controls
@@ -206,6 +204,19 @@ switch.powerext.output_type					digital			# Digital means this is just an on or 
 switch.powerext.input_on_command			M841			# Command that will turn this switch on
 switch.powerext.input_off_command			M842			# Command that will turn this switch off
 
+switch.ps12.enable							true			# Enable this module
+switch.ps12.startup_state					true			# Startup by default
+switch.ps12.output_pin						0.11			# Pin this module controls
+switch.ps12.output_type						digital			# Digital means this is just an on or off pin
+switch.ps12.failsafe_set_to					1				# failsafe
+switch.ps12.ignore_on_halt					true			# ignore on halt
+
+switch.ps24.enable							true			# Enable this module
+switch.ps24.startup_state					true			# Startup by default
+switch.ps24.output_pin						1.29			# Pin this module controls
+switch.ps24.output_type						digital			# Digital means this is just an on or off pin
+switch.ps24.failsafe_set_to					1				# failsafe
+switch.ps24.ignore_on_halt					true			# ignore on halt
 
 ## Temperature control configuration
 # spindle temperature configuration
@@ -229,8 +240,8 @@ temperatureswitch.spindle.cooldown_poll		60				# poll cooldown at 60 sec interva
 
 
 ## Endstops
-endstops_enable								true			# The endstop module is enabled by default and can be disabled here
-cover_endstop								1.10		      
+#endstops_enable								true			# The endstop module is enabled by default and can be disabled here
+#cover_endstop								1.10		      
 
 alpha_min_endstop							1.8^			# Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
 alpha_max_endstop							1.4^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
@@ -275,10 +286,10 @@ gamma_motor_alarm_pin						3.25!^			# servo motor alarm for Z axis
 #move_to_origin_after_home					false			# Move XY to 0,0 after homing
 #endstop_debounce_count						100				# Uncomment if you get noise on your endstops, default is 100
 #endstop_debounce_ms						5				# Uncomment if you get noise on your endstops, default is 1 millisecond debounce
-home_z_first								true			# Uncomment and set to true to home the Z first, otherwise Z homes after XY
+#home_z_first								true			# Uncomment and set to true to home the Z first, otherwise Z homes after XY
 
 ## Z-probe
-zprobe.enable								true			# Set to true to enable a zprobe
+#zprobe.enable								true			# Set to true to enable a zprobe
 zprobe.probe_pin							2.8^			# Pin probe is attached to, if NC remove the !
 zprobe.slow_feedrate						1.5				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
@@ -286,7 +297,7 @@ zprobe.fast_feedrate						5				# Move feedrate mm/sec
 zprobe.return_feedrate						20				# Return feedrate mm/sec
 zprobe.probe_height							5				# How much above bed to start probe
 zprobe.max_z								100				# max z
-zprobe.calibrate_pin						0.21^			# calibrate_pin
+#zprobe.calibrate_pin						0.21^			# calibrate_pin
 
 # Leveling strategy
 leveling-strategy.rectangular-grid.enable					true
@@ -298,16 +309,16 @@ leveling-strategy.rectangular-grid.only_by_two_corners		true
 
 
 ## Network settings
-network.enable								false			# Enable the ethernet network services
-network.webserver.enable					true			# Enable the webserver
-network.telnet.enable						true			# Enable the telnet server
+#network.enable								false			# Enable the ethernet network services
+#network.webserver.enable					true			# Enable the webserver
+#network.telnet.enable						true			# Enable the telnet server
 #network.ip_address							auto			# Use dhcp to get ip address
 # Uncomment the 3 below to manually setup ip address
-network.ip_address							192.168.201.110	# The IP address
-network.ip_mask								255.255.255.0	# The ip mask
-network.ip_gateway							192.168.201.1	# The gateway address
+#network.ip_address							192.168.201.110	# The IP address
+#network.ip_mask								255.255.255.0	# The ip mask
+#network.ip_gateway							192.168.201.1	# The gateway address
 #network.mac_override						18-BB-26-85-E7-4A	# Override the mac address, only do this if you have a conflict
-network.hostname							Makeraboard
+#network.hostname							Makeraboard
 
 ## System configuration
 # Serial communications configuration ( baud rate defaults to 9600 if undefined )
@@ -316,24 +327,23 @@ uart0.baud_rate								115200			# Baud rate for the default hardware ( UART ) se
 
 second_usb_serial_enable					false			# This enables a second USB serial port
 #leds_disable								true			# Disable using leds after config loaded
-play_led_disable							true			# Disable the play led
+#play_led_disable							true			# Disable the play led
 
 # Main button
-main_button_enable							true			# Set to true to enable main button
-main_button_pin								2.7!^			# Main button pin
-main_button_LED_R_pin						1.14			# Main button red LED pin
-main_button_LED_G_pin						1.16			# Main button green LED pin
-main_button_LED_B_pin						1.15			# Main button blue LED pin
+#main_button_enable							true			# Set to true to enable main button
+#main_button_pin								2.7!^			# Main button pin
+#main_button_LED_R_pin						1.14			# Main button red LED pin
+#main_button_LED_G_pin						1.16			# Main button green LED pin
+#main_button_LED_B_pin						1.15			# Main button blue LED pin
 main_button_poll_frequency					20				# Main button pool frequency
 main_button_long_press_time					3000			# Long press time
 
-
 # 
-currentcontrol_module_enable				false			# Control stepper motor current via the configuration file
+#currentcontrol_module_enable				false			# Control stepper motor current via the configuration file
 
 # Spindle configuration
-spindle.enable								true			# set this to false to disable the spindle module
-spindle.type								pwm				# sets the spindle module to PWM mode
+#spindle.enable								true			# set this to false to disable the spindle module
+#spindle.type								pwm				# sets the spindle module to PWM mode
 spindle.pwm_pin								2.4				# Big Mosfet Q7. Pin must be hardware PWM capable.
 spindle.pwm_period							1000			# default 1000, sets the PWM frequency
 spindle.feedback_pin						0.23			# Pin must be interrupt capable. 
@@ -350,3 +360,30 @@ spindle.stall_s								1.0				# how many seconds before report stall status
 spindle.stall_count_rpm						1000			# don't calculate stall when lower than this RPM
 spindle.stall_alarm_rpm						300				# consider as stall alarm if lower than this RPM
 
+# Light
+light.turn_off_min							0
+
+# Safety
+stop_on_cover_open 							false
+
+# Power management
+power.auto_sleep 							false
+power.auto_sleep_min						30
+
+# default coordinates
+coordinate.edge_x							-374.0
+coordinate.edge_y							-244.0
+coordinate.anchor1_x						-359.2
+coordinate.anchor1_y						-234.1
+coordinate.anchor2_x						-173.3
+coordinate.anchor2_y						-196.2
+coordinate.anchor_width						15.0
+coordinate.anchor_length					100.0
+coordinate.rotation_x						-200.0
+coordinate.rotation_y						-200.0
+coordinate.rotation_z_offset				30.0
+coordinate.worksize_x						340.0
+coordinate.worksize_y						240.0
+coordinate.clearance_x						-3.0
+coordinate.clearance_y						-3.0
+coordinate.clearance_z						-3.0

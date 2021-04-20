@@ -6,6 +6,9 @@
 #define fan_checksum                 CHECKSUM("fan")
 #define vacuum_checksum                 CHECKSUM("vacuum")
 #define state_checksum               CHECKSUM("state")
+#define light_checksum               CHECKSUM("light")
+#define ps12_checksum               CHECKSUM("ps12")
+#define ps24_checksum               CHECKSUM("ps24")
 
 struct pad_switch {
     int name;

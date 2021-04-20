@@ -60,7 +60,7 @@ WifiProvider::WifiProvider()
 
 void WifiProvider::on_module_loaded()
 {
-    if( !THEKERNEL->config->value( wifi_checksum,  wifi_enable)->by_default(false)->as_bool() ) {
+    if( !THEKERNEL->config->value( wifi_checksum,  wifi_enable)->by_default(true)->as_bool() ) {
         // as not needed free up resource
         delete this;
         return;
@@ -70,14 +70,14 @@ void WifiProvider::on_module_loaded()
 	this->udp_send_port = THEKERNEL->config->value(wifi_checksum, udp_send_port_checksum)->by_default(3333)->as_int();
 	this->udp_recv_port = THEKERNEL->config->value(wifi_checksum, udp_recv_port_checksum)->by_default(4444)->as_int();
 	this->tcp_timeout_s = THEKERNEL->config->value(wifi_checksum, tcp_timeout_s_checksum)->by_default(10)->as_int();
-	this->machine_name = THEKERNEL->config->value(wifi_checksum, machine_name_checksum)->by_default("MAKERA")->as_string();
+	this->machine_name = THEKERNEL->config->value(wifi_checksum, machine_name_checksum)->by_default("CARVERA")->as_string();
 
     // Init Wifi Module
     this->init_wifi_module(false);
 
     // Add interrupt for WIFI data receving
     Pin *smoothie_pin = new Pin();
-    smoothie_pin->from_string(THEKERNEL->config->value(wifi_checksum, wifi_interrupt_pin_checksum)->by_default("nc")->as_string());
+    smoothie_pin->from_string(THEKERNEL->config->value(wifi_checksum, wifi_interrupt_pin_checksum)->by_default("2.6")->as_string());
     smoothie_pin->as_input();
     if (smoothie_pin->port_number == 0 || smoothie_pin->port_number == 2) {
         PinName pinname = port_pin((PortName)smoothie_pin->port_number, smoothie_pin->pin);

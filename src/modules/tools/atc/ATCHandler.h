@@ -111,6 +111,7 @@ private:
     detector_info_t detector_info;
 
     float safe_z_mm;
+    //float safe_z_empty_mm;
     float safe_z_offset_mm;
     float fast_z_rate;
     float slow_z_rate;
@@ -124,6 +125,17 @@ private:
     float probe_height_mm;
 
     float last_pos[3];
+
+    //float anchor1_x;
+    //float anchor1_y;
+    //float anchor2_x;
+    //float anchor2_y;
+    //float rotation_x;
+    //float rotation_y;
+    //float rotation_z_offset;
+    //float clearance_x;
+    //float clearance_y;
+    //float clearance_z;
 
     struct atc_tool {
     	int num;

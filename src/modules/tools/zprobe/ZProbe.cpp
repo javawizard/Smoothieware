@@ -62,7 +62,7 @@
 void ZProbe::on_module_loaded()
 {
     // if the module is disabled -> do nothing
-    if(!THEKERNEL->config->value( zprobe_checksum, enable_checksum )->by_default(false)->as_bool()) {
+    if(!THEKERNEL->config->value( zprobe_checksum, enable_checksum )->by_default(true)->as_bool()) {
         // as this module is not needed free up the resource
         delete this;
         return;
@@ -82,8 +82,8 @@ void ZProbe::on_module_loaded()
 
 void ZProbe::config_load()
 {
-    this->pin.from_string( THEKERNEL->config->value(zprobe_checksum, probe_pin_checksum)->by_default("nc" )->as_string())->as_input();
-    this->calibrate_pin.from_string( THEKERNEL->config->value(zprobe_checksum, calibrate_pin_checksum)->by_default("nc" )->as_string())->as_input();
+    this->pin.from_string( THEKERNEL->config->value(zprobe_checksum, probe_pin_checksum)->by_default("2.8^" )->as_string())->as_input();
+    this->calibrate_pin.from_string( THEKERNEL->config->value(zprobe_checksum, calibrate_pin_checksum)->by_default("0.21^" )->as_string())->as_input();
     this->debounce_ms    = THEKERNEL->config->value(zprobe_checksum, debounce_ms_checksum)->by_default(0  )->as_number();
 
     // get strategies to load

@@ -54,12 +54,13 @@ enum HALT_REASON {
 	ATC_HAS_TOOL			= 7,
 	SPINDLE_OVERHEATED 		= 8,
 	SOFT_LIMIT				= 9,
+	COVER_OPEN				= 10,
 	// Need to reset when triggered
-	HARD_LIMIT				= 11,
-	MOTOR_ERROR_X			= 12,
-	MOTOR_ERROR_Y			= 13,
-	MOTOR_ERROR_Z			= 14,
-	SPINDLE_ERROR			= 15
+	HARD_LIMIT				= 21,
+	MOTOR_ERROR_X			= 22,
+	MOTOR_ERROR_Y			= 23,
+	MOTOR_ERROR_Z			= 24,
+	SPINDLE_ERROR			= 25
 };
 
 typedef struct {

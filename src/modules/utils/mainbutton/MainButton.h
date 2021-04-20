@@ -31,9 +31,15 @@ class MainButton : public Module {
         uint8_t auto_sleep_min;
         uint32_t sleep_countdown_us;
 
+        bool enable_light;
+        uint8_t turn_off_light_min;
+        uint32_t light_countdown_us;
+
         bool button_pressed;
         volatile BUTTON_STATE button_state;
         
+        bool stop_on_cover_open;
+
         uint32_t poll_frequency;
 };
 

@@ -26,7 +26,7 @@
 void SpindleMaker::load_spindle(){
 
     // If the spindle module is disabled load no Spindle 
-    if( !THEKERNEL->config->value( spindle_checksum, enable_checksum  )->by_default(false)->as_bool() ) {
+    if( !THEKERNEL->config->value( spindle_checksum, enable_checksum  )->by_default(true)->as_bool() ) {
         THEKERNEL->streams->printf("NOTE: Spindle Module is disabled\n");
         return;    
     }

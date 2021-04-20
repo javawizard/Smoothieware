@@ -212,7 +212,9 @@ void init() {
         kernel->add_module( msc );
     }
 #else
-    kernel->add_module( &msc );
+    if (!kernel->config->value( disable_msd_checksum )->by_default(false)->as_bool()) {
+        kernel->add_module( &msc );
+    }
 #endif
 
     kernel->add_module( &usbserial );

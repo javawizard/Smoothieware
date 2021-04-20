@@ -41,7 +41,7 @@
 #define STEPS_PER_MM(a) (STEPPER[a]->get_steps_per_mm())
 
 #define atc_checksum            	CHECKSUM("atc")
-#define enable_checksum          	CHECKSUM("enable")
+// #define enable_checksum          	CHECKSUM("enable")
 #define endstop_pin_checksum      	CHECKSUM("homing_endstop_pin")
 #define debounce_ms_checksum      	CHECKSUM("homing_debounce_ms")
 #define max_travel_mm_checksum    	CHECKSUM("homing_max_travel_mm")
@@ -63,6 +63,7 @@
 #define my_mm_checksum     			CHECKSUM("my_mm")
 #define mz_mm_checksum     			CHECKSUM("mz_mm")
 #define safe_z_checksum				CHECKSUM("safe_z_mm")
+//#define safe_z_empty_checksum		CHECKSUM("safe_z_empty_mm")
 #define safe_z_offset_checksum		CHECKSUM("safe_z_offset_mm")
 #define fast_z_rate_checksum		CHECKSUM("fast_z_rate_mm_m")
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
@@ -73,6 +74,21 @@
 #define slow_rate_mm_m_checksum		CHECKSUM("slow_rate_mm_m")
 #define retract_mm_checksum			CHECKSUM("retract_mm")
 #define probe_height_mm_checksum	CHECKSUM("probe_height_mm")
+
+#define coordinate_checksum			CHECKSUM("coordinate")
+/*
+#define anchor1_x_checksum			CHECKSUM("anchor1_x")
+#define anchor1_x_checksum			CHECKSUM("anchor1_x")
+#define anchor1_y_checksum			CHECKSUM("anchor1_y")
+#define anchor2_x_checksum			CHECKSUM("anchor2_x")
+#define anchor2_y_checksum			CHECKSUM("anchor2_y")
+#define rotation_x_checksum			CHECKSUM("rotation_x")
+#define rotation_y_checksum			CHECKSUM("rotation_y")
+#define rotation_z_offset_checksum	CHECKSUM("rotation_z_offset")
+#define clearance_x_checksum		CHECKSUM("clearance_x")
+#define clearance_y_checksum		CHECKSUM("clearance_y")
+*/
+//#define clearance_z_checksum		CHECKSUM("clearance_z")
 
 ATCHandler::ATCHandler()
 {
@@ -114,6 +130,7 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	// loose tool
 	this->script_queue.push("M490.2");
 	// lift z to safe position with fast speed
+	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool is dropped, halt if not
@@ -126,6 +143,7 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// lift z to safe position with fast speed
+	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move x and y to new tool position
@@ -181,6 +199,7 @@ void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, 
 	char buff[100];
 
 	// lift z to safe position with fast speed
+	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 
@@ -216,6 +235,7 @@ void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, f
 	char buff[100];
 
 	// lift z to safe position with fast speed
+	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 
@@ -284,19 +304,20 @@ void ATCHandler::on_config_reload(void *argument)
 {
 	char buff[10];
 
-	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("nc" )->as_string())->as_input();
+	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("1.9!^" )->as_string())->as_input();
 	atc_home_info.debounce_ms    = THEKERNEL->config->value(atc_checksum, debounce_ms_checksum)->by_default(1  )->as_number();
-	atc_home_info.max_travel    = THEKERNEL->config->value(atc_checksum, max_travel_mm_checksum)->by_default(5  )->as_number();
+	atc_home_info.max_travel    = THEKERNEL->config->value(atc_checksum, max_travel_mm_checksum)->by_default(8  )->as_number();
 	atc_home_info.retract    = THEKERNEL->config->value(atc_checksum, homing_retract_mm_checksum)->by_default(3  )->as_number();
 	atc_home_info.action_dist    = THEKERNEL->config->value(atc_checksum, action_mm_checksum)->by_default(1  )->as_number();
 	atc_home_info.homing_rate    = THEKERNEL->config->value(atc_checksum, homing_rate_mm_s_checksum)->by_default(1  )->as_number();
 	atc_home_info.action_rate    = THEKERNEL->config->value(atc_checksum, action_rate_mm_s_checksum)->by_default(1  )->as_number();
 
-	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("nc" )->as_string())->as_input();
+	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("0.20^" )->as_string())->as_input();
 	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
 	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
 
 	this->safe_z_mm = THEKERNEL->config->value(atc_checksum, safe_z_checksum)->by_default(-10)->as_number();
+	// this->safe_z_empty_mm = THEKERNEL->config->value(atc_checksum, safe_z_empty_checksum)->by_default(-10)->as_number();
 	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
 	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
 	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
@@ -323,6 +344,18 @@ void ATCHandler::on_config_reload(void *argument)
 		tool.mz_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mz_mm_checksum)->by_default(-10  )->as_number();
 		atc_tools.push_back(tool);
 	}
+
+	//this->anchor1_x = THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359  )->as_number();
+	//this->anchor1_y = THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234  )->as_number();
+	//this->anchor2_x = THEKERNEL->config->value(coordinate_checksum, anchor2_x_checksum)->by_default(-173  )->as_number();
+	//this->anchor2_y = THEKERNEL->config->value(coordinate_checksum, anchor2_y_checksum)->by_default(-196  )->as_number();
+
+	//this->rotation_x = THEKERNEL->config->value(coordinate_checksum, rotation_x_checksum)->by_default(-200  )->as_number();
+	//this->rotation_y = THEKERNEL->config->value(coordinate_checksum, rotation_y_checksum)->by_default(-200  )->as_number();
+	//this->rotation_z_offset = THEKERNEL->config->value(coordinate_checksum, rotation_z_offset_checksum)->by_default(30  )->as_number();
+	//this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-3)->as_number();
+	//this->clearance_y = THEKERNEL->config->value(coordinate_checksum, clearance_y_checksum)->by_default(-3  )->as_number();
+	// this->clearance_z = THEKERNEL->config->value(coordinate_checksum, clearance_z_checksum)->by_default(-3  )->as_number();
 }
 
 void ATCHandler::on_halt(void* argument)
@@ -771,8 +804,9 @@ void ATCHandler::on_main_loop(void *argument)
         }
 
 		if (this->atc_status != AUTOMATION) {
-	        // return to safe z position
-	        rapid_move(NAN, NAN, this->safe_z_mm);
+	        // return to z clearance position
+	        // rapid_move(NAN, NAN, this->clearance_z);
+			rapid_move(NAN, NAN, this->safe_z_mm);
 
 	        // return to saved x and y position
 	        rapid_move(last_pos[0], last_pos[1], NAN);

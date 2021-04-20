@@ -10,6 +10,10 @@
 #include "ConfigValue.h"
 #include "StreamOutputPool.h"
 #include "us_ticker_api.h"
+#include "EndstopsPublicAccess.h"
+#include "PlayerPublicAccess.h"
+#include "SwitchPublicAccess.h"
+#include "libs/PublicData.h"
 
 using namespace std;
 
@@ -24,6 +28,9 @@ using namespace std;
 #define power_checksum								CHECKSUM("power")
 #define auto_sleep_checksum							CHECKSUM("auto_sleep")
 #define auto_sleep_min_checksum						CHECKSUM("auto_sleep_min")
+#define light_checksum								CHECKSUM("light")
+#define turn_off_min_checksum						CHECKSUM("turn_off_min")
+#define stop_on_cover_open_checksum					CHECKSUM("stop_on_cover_open")
 
 MainButton::MainButton()
 {
@@ -31,7 +38,9 @@ MainButton::MainButton()
 	this->hold_toggle = 0;
     this->button_state = NONE;
     this->button_pressed = false;
+    this->stop_on_cover_open = false;
     this->sleep_countdown_us = us_ticker_read();
+    this->light_countdown_us = us_ticker_read();
 }
 
 void MainButton::on_module_loaded()
@@ -42,15 +51,21 @@ void MainButton::on_module_loaded()
         return;
     }
 
-    this->main_button.from_string( THEKERNEL->config->value( main_button_pin_checksum )->by_default("nc")->as_string())->as_input();
-    this->main_button_LED_R.from_string( THEKERNEL->config->value( main_button_LED_R_pin_checksum )->by_default("nc")->as_string())->as_output();
-    this->main_button_LED_G.from_string( THEKERNEL->config->value( main_button_LED_G_pin_checksum )->by_default("nc")->as_string())->as_output();
-    this->main_button_LED_B.from_string( THEKERNEL->config->value( main_button_LED_B_pin_checksum )->by_default("nc")->as_string())->as_output();
+    this->main_button.from_string( THEKERNEL->config->value( main_button_pin_checksum )->by_default("2.7!^")->as_string())->as_input();
+    this->main_button_LED_R.from_string( THEKERNEL->config->value( main_button_LED_R_pin_checksum )->by_default("1.14")->as_string())->as_output();
+    this->main_button_LED_G.from_string( THEKERNEL->config->value( main_button_LED_G_pin_checksum )->by_default("1.16")->as_string())->as_output();
+    this->main_button_LED_B.from_string( THEKERNEL->config->value( main_button_LED_B_pin_checksum )->by_default("1.15")->as_string())->as_output();
     this->poll_frequency = THEKERNEL->config->value( main_button_poll_frequency_checksum )->by_default(20)->as_number();
     this->long_press_time_ms = THEKERNEL->config->value( main_long_press_time_ms_checksum )->by_default(3000)->as_number();
 
     this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
     this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
+
+
+    this->enable_light = THEKERNEL->config->value(get_checksum("switch"), get_checksum("light"), get_checksum("startup_state"))->by_default(false)->as_bool();
+    this->turn_off_light_min = THEKERNEL->config->value(light_checksum, turn_off_min_checksum )->by_default(10)->as_number();
+
+    this->stop_on_cover_open = THEKERNEL->config->value( stop_on_cover_open_checksum )->by_default(false)->as_bool(); // @deprecated
 
     this->register_for_event(ON_IDLE);
 
@@ -66,16 +81,35 @@ void MainButton::on_idle(void *argument)
     if (button_state ==  BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
     	// get current status
     	uint8_t state = THEKERNEL->get_state();
-    	if (this->auto_sleep) {
+    	if (this->auto_sleep && auto_sleep_min > 0) {
         	if (state == IDLE) {
-        		// reset sleep timer counte
+        		// reset sleep timer
         		if (us_ticker_read() - sleep_countdown_us > (uint32_t)auto_sleep_min * 60 * 1000000) {
         			// go to sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
+    				// turn off 12V/24V power supply
+					bool b = false;
+					PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
+					PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
         		}
         	} else {
         		sleep_countdown_us = us_ticker_read();
+        	}
+    	}
+    	if (this->enable_light && turn_off_light_min > 0) {
+        	if (state == IDLE) {
+        		// turn off light timer
+        		if (us_ticker_read() - light_countdown_us > (uint32_t)turn_off_light_min * 60 * 1000000) {
+        			// turn off light
+					bool b = false;
+					PublicData::set_value( switch_checksum, light_checksum, state_checksum, &b );
+        		}
+        	} else {
+        		light_countdown_us = us_ticker_read();
+        		// turn on the light
+				bool b = true;
+				PublicData::set_value( switch_checksum, light_checksum, state_checksum, &b );
         	}
     	}
     	uint8_t halt_reason;
@@ -101,11 +135,15 @@ void MainButton::on_idle(void *argument)
     				break;
     		}
     	} else if (button_state == BUTTON_LONG_PRESSED) {
+    		bool b = false;
     		switch (state) {
     			case IDLE:
     				// sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
+    				// turn off 12V/24V power supply
+					PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
+					PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
     				break;
     			case RUN:
     			case HOME:
@@ -119,7 +157,7 @@ void MainButton::on_idle(void *argument)
     				break;
     			case ALARM:
     				halt_reason = THEKERNEL->get_halt_reason();
-    				if (halt_reason > 10) {
+    				if (halt_reason > 20) {
     					// reset
         				system_reset(false);
     				} else {
@@ -167,6 +205,23 @@ void MainButton::on_idle(void *argument)
     			    this->main_button_LED_G.set(1);
     			    this->main_button_LED_B.set(1);
     				break;
+    		}
+    		if (this->stop_on_cover_open) {
+                void *return_value;
+				bool cover_endstop_state;
+                bool ok = PublicData::get_value( player_checksum, is_playing_checksum, &return_value );
+                if (ok) {
+                    bool playing = *static_cast<bool *>(return_value);
+                    if (playing) {
+                    	ok = PublicData::get_value(endstops_checksum, get_cover_endstop_state_checksum, 0, &cover_endstop_state);
+						if (ok) {
+							if (!cover_endstop_state) {
+								THEKERNEL->call_event(ON_HALT, nullptr);
+								THEKERNEL->set_halt_reason(COVER_OPEN);
+							}
+						}
+                    }
+                }
     		}
     	}
     	button_state = NONE;
