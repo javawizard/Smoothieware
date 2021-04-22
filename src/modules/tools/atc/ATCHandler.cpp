@@ -63,7 +63,7 @@
 #define my_mm_checksum     			CHECKSUM("my_mm")
 #define mz_mm_checksum     			CHECKSUM("mz_mm")
 #define safe_z_checksum				CHECKSUM("safe_z_mm")
-//#define safe_z_empty_checksum		CHECKSUM("safe_z_empty_mm")
+#define safe_z_empty_checksum		CHECKSUM("safe_z_empty_mm")
 #define safe_z_offset_checksum		CHECKSUM("safe_z_offset_mm")
 #define fast_z_rate_checksum		CHECKSUM("fast_z_rate_mm_m")
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
@@ -76,8 +76,6 @@
 #define probe_height_mm_checksum	CHECKSUM("probe_height_mm")
 
 #define coordinate_checksum			CHECKSUM("coordinate")
-/*
-#define anchor1_x_checksum			CHECKSUM("anchor1_x")
 #define anchor1_x_checksum			CHECKSUM("anchor1_x")
 #define anchor1_y_checksum			CHECKSUM("anchor1_y")
 #define anchor2_x_checksum			CHECKSUM("anchor2_x")
@@ -87,8 +85,7 @@
 #define rotation_z_offset_checksum	CHECKSUM("rotation_z_offset")
 #define clearance_x_checksum		CHECKSUM("clearance_x")
 #define clearance_y_checksum		CHECKSUM("clearance_y")
-*/
-//#define clearance_z_checksum		CHECKSUM("clearance_z")
+#define clearance_z_checksum		CHECKSUM("clearance_z")
 
 ATCHandler::ATCHandler()
 {
@@ -130,8 +127,7 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	// loose tool
 	this->script_queue.push("M490.2");
 	// lift z to safe position with fast speed
-	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	this->script_queue.push(buff);
 	// move around to see if tool is dropped, halt if not
 	this->script_queue.push("M492.1");
@@ -143,8 +139,7 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// lift z to safe position with fast speed
-	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	this->script_queue.push(buff);
 	// move x and y to new tool position
 	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
@@ -195,12 +190,12 @@ void ATCHandler::fill_cali_scripts() {
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
 }
+
 void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max) {
 	char buff[100];
 
 	// lift z to safe position with fast speed
-	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	this->script_queue.push(buff);
 
 	// goto margin start position
@@ -231,12 +226,24 @@ void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, 
 
 }
 
+void ATCHandler::fill_goto_origin_scripts(float x_pos, float y_pos) {
+	char buff[100];
+
+	// lift z to clearance position with fast speed
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
+	this->script_queue.push(buff);
+
+	// goto start position
+	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
+	this->script_queue.push(buff);
+
+}
+
 void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset) {
 	char buff[100];
 
 	// lift z to safe position with fast speed
-	// snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	this->script_queue.push(buff);
 
 	// goto z probe position
@@ -317,7 +324,7 @@ void ATCHandler::on_config_reload(void *argument)
 	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
 
 	this->safe_z_mm = THEKERNEL->config->value(atc_checksum, safe_z_checksum)->by_default(-10)->as_number();
-	// this->safe_z_empty_mm = THEKERNEL->config->value(atc_checksum, safe_z_empty_checksum)->by_default(-10)->as_number();
+	this->safe_z_empty_mm = THEKERNEL->config->value(atc_checksum, safe_z_empty_checksum)->by_default(-20)->as_number();
 	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
 	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
 	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
@@ -345,17 +352,17 @@ void ATCHandler::on_config_reload(void *argument)
 		atc_tools.push_back(tool);
 	}
 
-	//this->anchor1_x = THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359  )->as_number();
-	//this->anchor1_y = THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234  )->as_number();
-	//this->anchor2_x = THEKERNEL->config->value(coordinate_checksum, anchor2_x_checksum)->by_default(-173  )->as_number();
-	//this->anchor2_y = THEKERNEL->config->value(coordinate_checksum, anchor2_y_checksum)->by_default(-196  )->as_number();
+	this->anchor1_x = THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359  )->as_number();
+	this->anchor1_y = THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234  )->as_number();
+	this->anchor2_x = THEKERNEL->config->value(coordinate_checksum, anchor2_x_checksum)->by_default(-173  )->as_number();
+	this->anchor2_y = THEKERNEL->config->value(coordinate_checksum, anchor2_y_checksum)->by_default(-196  )->as_number();
 
-	//this->rotation_x = THEKERNEL->config->value(coordinate_checksum, rotation_x_checksum)->by_default(-200  )->as_number();
-	//this->rotation_y = THEKERNEL->config->value(coordinate_checksum, rotation_y_checksum)->by_default(-200  )->as_number();
-	//this->rotation_z_offset = THEKERNEL->config->value(coordinate_checksum, rotation_z_offset_checksum)->by_default(30  )->as_number();
-	//this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-3)->as_number();
-	//this->clearance_y = THEKERNEL->config->value(coordinate_checksum, clearance_y_checksum)->by_default(-3  )->as_number();
-	// this->clearance_z = THEKERNEL->config->value(coordinate_checksum, clearance_z_checksum)->by_default(-3  )->as_number();
+	this->rotation_x = THEKERNEL->config->value(coordinate_checksum, rotation_x_checksum)->by_default(-200  )->as_number();
+	this->rotation_y = THEKERNEL->config->value(coordinate_checksum, rotation_y_checksum)->by_default(-200  )->as_number();
+	this->rotation_z_offset = THEKERNEL->config->value(coordinate_checksum, rotation_z_offset_checksum)->by_default(30  )->as_number();
+	this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-3  )->as_number();
+	this->clearance_y = THEKERNEL->config->value(coordinate_checksum, clearance_y_checksum)->by_default(-3  )->as_number();
+	this->clearance_z = THEKERNEL->config->value(coordinate_checksum, clearance_z_checksum)->by_default(-3  )->as_number();
 }
 
 void ATCHandler::on_halt(void* argument)
@@ -754,9 +761,43 @@ void ATCHandler::on_gcode_received(void *argument)
 		            	gcode->stream->printf("Auto leveling, grid: %d * %d height: %1.2f\r\n", x_level_grids, y_level_grids, z_level_height);
 	            		this->fill_autolevel_scripts(x_path_pos, y_path_pos, x_level_size, y_level_size, x_level_grids, y_level_grids, z_level_height);
 		            }
+	    		} else {
+	    			if (gcode->has_letter('P')) {
+						set_inner_playing(true);
+						atc_status = AUTOMATION;
+			            this->clear_script_queue();
+	    				// goto path origin first
+		            	gcode->stream->printf("Goto path origin first\r\n");
+		            	this->fill_goto_origin_scripts(x_path_pos, y_path_pos);
+	    			}
 	    		}
 			} else {
 				gcode->stream->printf("ALARM: Miss Automation Parameter: X/Y\r\n");
+			}
+		} else if (gcode->m == 496) {
+	        rapid_move(true, NAN, NAN, this->clearance_z);
+			if (gcode->subcode == 0 || gcode->subcode == 1) {
+				// goto clearance
+		        rapid_move(true, this->clearance_x, this->clearance_y, NAN);
+			} else if (gcode->subcode == 2) {
+				// goto work origin
+				rapid_move(false, 0, 0, NAN);
+			} else if (gcode->subcode == 3) {
+				// goto anchor 1
+				rapid_move(true, this->anchor1_x, this->anchor1_y, NAN);
+			} else if (gcode->subcode == 4) {
+				// goto anchor 2
+				rapid_move(true, this->anchor2_x, this->anchor2_y, NAN);
+			} else if (gcode->subcode == 5) {
+				// goto designative work position
+				if (gcode->has_letter('X') && gcode->has_letter('Y')) {
+					rapid_move(false, gcode->get_value('X'), gcode->get_value('Y'), NAN);
+				}
+			} else if (gcode->subcode == 6) {
+				// goto designative machine position
+				if (gcode->has_letter('X') && gcode->has_letter('Y')) {
+					rapid_move(true, gcode->get_value('X'), gcode->get_value('Y'), NAN);
+				}
 			}
 		} else if (gcode->m == 498) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
@@ -805,11 +846,10 @@ void ATCHandler::on_main_loop(void *argument)
 
 		if (this->atc_status != AUTOMATION) {
 	        // return to z clearance position
-	        // rapid_move(NAN, NAN, this->clearance_z);
-			rapid_move(NAN, NAN, this->safe_z_mm);
+	        rapid_move(true, NAN, NAN, this->clearance_z);
 
 	        // return to saved x and y position
-	        rapid_move(last_pos[0], last_pos[1], NAN);
+	        rapid_move(true, last_pos[0], last_pos[1], NAN);
 		}
 
         this->atc_status = NONE;
@@ -830,12 +870,15 @@ void ATCHandler::on_main_loop(void *argument)
 // issue a coordinated move directly to robot, and return when done
 // Only move the coordinates that are passed in as not nan
 // NOTE must use G53 to force move in machine coordinates and ignore any WCS offsets
-void ATCHandler::rapid_move(float x, float y, float z)
+void ATCHandler::rapid_move(bool mc, float x, float y, float z)
 {
     #define CMDLEN 128
     char *cmd= new char[CMDLEN]; // use heap here to reduce stack usage
 
-    strcpy(cmd, "G53 G0 "); // G53 forces movement in machine coordinate system
+    if (mc)
+    	strcpy(cmd, "G53 G0 "); // G53 forces movement in machine coordinate system
+    else
+    	strcpy(cmd, "G90 G0 "); // G90 forces movement in machine coordinate system
 
     if(!isnan(x)) {
         size_t n= strlen(cmd);

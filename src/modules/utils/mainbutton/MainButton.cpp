@@ -78,9 +78,26 @@ void MainButton::on_module_loaded()
 
 void MainButton::on_idle(void *argument)
 {
+	bool cover_open_stop = false;
     if (button_state ==  BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
     	// get current status
     	uint8_t state = THEKERNEL->get_state();
+		if (this->stop_on_cover_open && !THEKERNEL->is_halted()) {
+            void *return_value;
+			bool cover_endstop_state;
+            bool ok = PublicData::get_value( player_checksum, is_playing_checksum, &return_value );
+            if (ok) {
+                bool playing = *static_cast<bool *>(return_value);
+                if (playing) {
+                	ok = PublicData::get_value(endstops_checksum, get_cover_endstop_state_checksum, 0, &cover_endstop_state);
+					if (ok) {
+						if (!cover_endstop_state) {
+							cover_open_stop = true;
+						}
+					}
+                }
+            }
+		}
     	if (this->auto_sleep && auto_sleep_min > 0) {
         	if (state == IDLE) {
         		// reset sleep timer
@@ -206,22 +223,9 @@ void MainButton::on_idle(void *argument)
     			    this->main_button_LED_B.set(1);
     				break;
     		}
-    		if (this->stop_on_cover_open) {
-                void *return_value;
-				bool cover_endstop_state;
-                bool ok = PublicData::get_value( player_checksum, is_playing_checksum, &return_value );
-                if (ok) {
-                    bool playing = *static_cast<bool *>(return_value);
-                    if (playing) {
-                    	ok = PublicData::get_value(endstops_checksum, get_cover_endstop_state_checksum, 0, &cover_endstop_state);
-						if (ok) {
-							if (!cover_endstop_state) {
-								THEKERNEL->call_event(ON_HALT, nullptr);
-								THEKERNEL->set_halt_reason(COVER_OPEN);
-							}
-						}
-                    }
-                }
+    		if (cover_open_stop) {
+		        THEKERNEL->call_event(ON_HALT, nullptr);
+		        THEKERNEL->set_halt_reason(COVER_OPEN);
     		}
     	}
     	button_state = NONE;

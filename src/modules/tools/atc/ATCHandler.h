@@ -75,10 +75,11 @@ private:
     void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
     void fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset);
     void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids, float height);
+    void fill_goto_origin_scripts(float x_pos, float y_pos);
 
     void clear_script_queue();
 
-    void rapid_move(float x, float y, float z);
+    void rapid_move(bool mc, float x, float y, float z);
 
     std::queue<string> script_queue;
 
@@ -111,7 +112,7 @@ private:
     detector_info_t detector_info;
 
     float safe_z_mm;
-    //float safe_z_empty_mm;
+    float safe_z_empty_mm;
     float safe_z_offset_mm;
     float fast_z_rate;
     float slow_z_rate;
@@ -126,16 +127,16 @@ private:
 
     float last_pos[3];
 
-    //float anchor1_x;
-    //float anchor1_y;
-    //float anchor2_x;
-    //float anchor2_y;
-    //float rotation_x;
-    //float rotation_y;
-    //float rotation_z_offset;
-    //float clearance_x;
-    //float clearance_y;
-    //float clearance_z;
+    float anchor1_x;
+    float anchor1_y;
+    float anchor2_x;
+    float anchor2_y;
+    float rotation_x;
+    float rotation_y;
+    float rotation_z_offset;
+    float clearance_x;
+    float clearance_y;
+    float clearance_z;
 
     struct atc_tool {
     	int num;
