@@ -111,7 +111,7 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[old_tool];
     // lift z axis to atc start position
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	this->script_queue.push(buff);
     // move x and y to active tool position
 	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);

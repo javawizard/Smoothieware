@@ -194,9 +194,32 @@ void SimpleShell::on_gcode_received(void *argument)
                 rm_command("/sd/" + args, gcode->stream);
         } else if (gcode->m == 331) { // change to vacuum mode
 			THEKERNEL->set_vacuum_mode(true);
+		    // get spindle state
+		    struct spindle_status ss;
+		    bool ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+		    if (ok) {
+		    	if (ss.state) {
+	        		// open vacuum
+	        		bool b = true;
+	                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+
+		    	}
+        	}
+		    // turn on vacuum mode
 			gcode->stream->printf("turning vacuum mode on\r\n");
 		} else if (gcode->m == 332) { // change to CNC mode
 			THEKERNEL->set_vacuum_mode(false);
+		    // get spindle state
+		    struct spindle_status ss;
+		    bool ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+		    if (ok) {
+		    	if (ss.state) {
+	        		// close vacuum
+	        		bool b = false;
+	                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
+
+		    	}
+        	}
 			// turn off vacuum mode
 			gcode->stream->printf("turning vacuum mode off\r\n");
 		}
