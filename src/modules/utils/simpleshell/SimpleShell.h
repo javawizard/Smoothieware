@@ -72,6 +72,8 @@ private:
 
     static void config_restore_command(string parameters, StreamOutput *stream );
 
+    static void config_default_command(string parameters, StreamOutput *stream );
+
     typedef void (*PFUNC)(string parameters, StreamOutput *stream);
     typedef struct {
         const char *command;

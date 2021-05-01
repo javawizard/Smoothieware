@@ -27,6 +27,7 @@
 #include "LevelingStrategy.h"
 #include "StepTicker.h"
 #include "utils.h"
+#include "us_ticker_api.h"
 
 // strategies we know about
 #include "DeltaCalibrationStrategy.h"
@@ -78,6 +79,7 @@ void ZProbe::on_module_loaded()
     probing = false;
     THEKERNEL->slow_ticker->attach(1000, this, &ZProbe::read_probe);
     THEKERNEL->slow_ticker->attach(1000, this, &ZProbe::read_calibrate);
+    this->probe_trigger_time = 0;
 }
 
 void ZProbe::config_load()
@@ -186,6 +188,9 @@ uint32_t ZProbe::read_calibrate(uint32_t dummy)
 
     // we check all axis as it maybe a G38.2 X10 for instance, not just a probe in Z
     if(STEPPER[Z_AXIS]->is_moving()) {
+    	if (this->pin.get()) {
+    		probe_detected = true;
+    	}
         // if it is moving then we check the probe, and debounce it
         if (this->calibrate_pin.get()) {
             if(debounce < debounce_ms) {
@@ -525,6 +530,7 @@ void ZProbe::calibrate_Z(Gcode *gcode)
 
     // enable the probe checking in the timer
     calibrating = true;
+    probe_detected = false;
     calibrate_detected = false;
     debounce = 0;
 
@@ -561,6 +567,11 @@ void ZProbe::calibrate_Z(Gcode *gcode)
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(CALIBRATE_FAIL);
     }
+
+    if (probe_detected) {
+    	this->probe_trigger_time = us_ticker_read();
+    }
+
 }
 
 // issue a coordinated move directly to robot, and return when done
@@ -626,5 +637,9 @@ void ZProbe::on_get_public_data(void* argument)
         data[0] = (char)this->pin.get();
         data[1] = (char)this->calibrate_pin.get();
         pdr->set_taken();
+    } else if (pdr->second_element_is(get_zprobe_time_checksum)) {
+    	uint32_t *probe_time = static_cast<uint32_t *>(pdr->get_data_ptr());
+    	*probe_time = this->probe_trigger_time;
+    	pdr->set_taken();
     }
 }

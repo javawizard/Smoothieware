@@ -51,6 +51,9 @@ private:
 
     uint32_t read_endstop(uint32_t dummy);
     uint32_t read_detector(uint32_t dummy);
+    uint32_t countdown_probe_laser(uint32_t dummy);
+
+    void switch_prober_laser(bool turn_on);
 
     // clamp actions
     void clamp_tool();
@@ -59,6 +62,9 @@ private:
 
     // laser detect
     bool laser_detect();
+
+    // probe check
+    bool probe_detect();
 
     void set_inner_playing(bool inner_playing);
     bool get_inner_playing() const;
@@ -69,7 +75,7 @@ private:
     //
     void fill_drop_scripts(int old_tool);
     void fill_pick_scripts(int new_tool);
-    void fill_cali_scripts();
+    void fill_cali_scripts(bool is_probe);
 
     //
     void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
@@ -86,6 +92,8 @@ private:
     uint16_t debounce;
     bool atc_homing;
     bool detecting;
+
+    uint16_t probe_laser_last;
 
     using atc_homing_info_t = struct {
         Pin pin;

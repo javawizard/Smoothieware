@@ -65,6 +65,8 @@ private:
     std::vector<LevelingStrategy*> strategies;
     uint16_t debounce_ms, debounce;
 
+    uint32_t probe_trigger_time;
+
     volatile struct {
         bool is_delta:1;
         bool is_rdelta:1;

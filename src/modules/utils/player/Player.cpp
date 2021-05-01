@@ -55,8 +55,6 @@ Player::Player()
     this->booted = false;
     this->elapsed_secs = 0;
     this->reply_stream = nullptr;
-    this->suspended= false;
-    this->suspend_loops= 0;
     this->inner_playing = false;
 }
 
@@ -90,14 +88,12 @@ void Player::on_halt(void* argument)
         abort_command("1", &(StreamOutput::NullStream));
 	}
 
-	if(argument == nullptr && this->suspended) {
+	if(argument == nullptr && (THEKERNEL->is_suspending() || THEKERNEL->is_waiting())) {
 		// clean up from suspend
-		this->suspended= false;
+		THEKERNEL->set_waiting(false);
+		THEKERNEL->set_suspending(false);
 		THEROBOT->pop_state();
-		this->saved_temperatures.clear();
-		this->was_playing_file= false;
-		this->suspend_loops= 0;
-		THEKERNEL->streams->printf("// Suspend cleared\n");
+		THEKERNEL->streams->printf("Suspend cleared\n");
 	}
 }
 
@@ -242,13 +238,10 @@ void Player::on_gcode_received(void *argument)
 
     }else if(gcode->has_g) {
         if(gcode->g == 28) { // homing cancels suspend
-            if(this->suspended) {
+            if (THEKERNEL->is_suspending()) {
                 // clean up
-                this->suspended= false;
+            	THEKERNEL->set_suspending(false);
                 THEROBOT->pop_state();
-                this->saved_temperatures.clear();
-                this->was_playing_file= false;
-                this->suspend_loops= 0;
             }
         }
     }
@@ -317,7 +310,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
     // Get filename which is the entire parameter line upto any options found or entire line
     this->filename = absolute_from_relative(parameters);
 
-    if(this->playing_file || this->suspended) {
+    if(this->playing_file || THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
         stream->printf("Currently printing, abort print first\r\n");
         return;
     }
@@ -414,25 +407,50 @@ void Player::abort_command( string parameters, StreamOutput *stream )
         stream->printf("Not currently playing\r\n");
         return;
     }
-    suspended= false;
-    playing_file = false;
-    played_cnt = 0;
-    played_lines = 0;
-    playing_lines = 0;
-    file_size = 0;
+
+    this->playing_file = false;
+    this->played_cnt = 0;
+    this->played_lines = 0;
+    this->playing_lines = 0;
+    this->file_size = 0;
     this->clear_buffered_queue();
     this->filename = "";
     this->current_stream = NULL;
+
     fclose(current_file_handler);
     current_file_handler = NULL;
-    if(parameters.empty()) {
+
+    THEKERNEL->set_suspending(false);
+    THEKERNEL->set_waiting(true);
+
+    // wait for queue to empty
+    THEKERNEL->conveyor->wait_for_idle();
+
+    if(THEKERNEL->is_halted()) {
+        THEKERNEL->streams->printf("Aborted by halt\n");
+        THEKERNEL->set_waiting(false);
+        return;
+    }
+
+    THEKERNEL->set_waiting(false);
+
+    // turn off spindle
+    {
+		struct SerialMessage message;
+		message.message = "M5";
+		message.stream = THEKERNEL->streams;
+		message.line = 0;
+		THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+    }
+
+    if (parameters.empty()) {
         // clear out the block queue, will wait until queue is empty
         // MUST be called in on_main_loop to make sure there are no blocked main loops waiting to put something on the queue
         THEKERNEL->conveyor->flush_queue();
 
         // now the position will think it is at the last received pos, so we need to do FK to get the actuator position and reset the current position
         THEROBOT->reset_position_from_current_actuator_position();
-        stream->printf("Aborted playing or paused file. Please turn any heaters off manually\r\n");
+        stream->printf("Aborted playing or paused file. \r\n");
     }
 }
 
@@ -444,14 +462,6 @@ void Player::clear_buffered_queue(){
 
 void Player::on_main_loop(void *argument)
 {
-    if(suspended && suspend_loops > 0) {
-        // if we are suspended we need to allow main loop to cycle a few times then finish off the suspend processing
-        if(--suspend_loops == 0) {
-            suspend_part2();
-            return;
-        }
-    }
-
     if( !this->booted ) {
         this->booted = true;
         if (this->home_on_boot) {
@@ -469,7 +479,7 @@ void Player::on_main_loop(void *argument)
     }
 
     if ( this->playing_file ) {
-        if(THEKERNEL->is_halted() || this->inner_playing) {
+        if(THEKERNEL->is_halted() || THEKERNEL->is_suspending() || THEKERNEL->is_waiting() || this->inner_playing) {
             return;
         }
 
@@ -548,23 +558,29 @@ void Player::on_get_public_data(void *argument)
 
     if(pdr->second_element_is(is_playing_checksum) || pdr->second_element_is(is_suspended_checksum)) {
         static bool bool_data;
-        bool_data = pdr->second_element_is(is_playing_checksum) ? this->playing_file : this->suspended;
+        bool_data = pdr->second_element_is(is_playing_checksum) ? this->playing_file : THEKERNEL->is_suspending();
         pdr->set_data_ptr(&bool_data);
         pdr->set_taken();
 
     } else if(pdr->second_element_is(get_progress_checksum)) {
         static struct pad_progress p;
         if(file_size > 0 && playing_file) {
-            const Block *block = StepTicker::getInstance()->get_current_block();
-            // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
-            // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
-            if (block != nullptr && block->is_ready && block->is_g123) {
-            	this->playing_lines = block->line;
-            }
+        	if (!this->inner_playing) {
+                const Block *block = StepTicker::getInstance()->get_current_block();
+                // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
+                // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
+                if (block != nullptr && block->is_ready && block->is_g123) {
+                	this->playing_lines = block->line;
+                	p.played_lines = this->playing_lines;
+                } else {
+                	p.played_lines = this->played_lines;
+                }
+        	} else {
+        		p.played_lines = this->played_lines;
+        	}
             p.elapsed_secs = this->elapsed_secs;
             float pcnt = (((float)file_size - (file_size - played_cnt)) * 100.0F) / file_size;
             p.percent_complete = roundf(pcnt);
-            p.played_lines = this->playing_lines;
             p.filename = this->filename;
             pdr->set_data_ptr(&p);
             pdr->set_taken();
@@ -607,46 +623,31 @@ User may jog or remove and insert filament at this point, extruding or retractin
 */
 void Player::suspend_command(string parameters, StreamOutput *stream )
 {
-    if(suspended) {
-        stream->printf("Already suspended\n");
+    if (THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
+        stream->printf("Already suspended!\n");
         return;
     }
 
-    stream->printf("// Suspending print, waiting for queue to empty...\n");
-
-    // override the leave_heaters_on setting
-    this->override_leave_heaters_on= (parameters == "h");
-
-    suspended= true;
-    if( this->playing_file ) {
-        // pause an sd print
-        this->playing_file = false;
-        this->was_playing_file= true;
-    }else{
-        // send pause to upstream host, we send it on all ports as we don't know which it is on
-        THEKERNEL->streams->printf("// action:pause\r\n");
-        this->was_playing_file= false;
+    if(!this->playing_file) {
+        stream->printf("Can not suspend when not playing file!\n");
+        return;
     }
 
-    // we need to allow main loop to cycle a few times to clear any buffered commands in the serial streams etc
-    suspend_loops= 10;
-}
+    stream->printf("Suspending , waiting for queue to empty...\n");
 
-// this completes the suspend
-void Player::suspend_part2()
-{
-    //  need to use streams here as the original stream may have changed
-    THEKERNEL->streams->printf("// Waiting for queue to empty (Host must stop sending)...\n");
+    THEKERNEL->set_waiting(true);
+
     // wait for queue to empty
     THEKERNEL->conveyor->wait_for_idle();
 
     if(THEKERNEL->is_halted()) {
-        THEKERNEL->streams->printf("Suspend aborted by kill\n");
-        suspended= false;
+        THEKERNEL->streams->printf("Suspend aborted by halt\n");
+        THEKERNEL->set_waiting(false);
         return;
     }
 
-    // THEKERNEL->streams->printf("// Saving current state...\n");
+    THEKERNEL->set_waiting(false);
+    THEKERNEL->set_suspending(true);
 
     // save current XYZ position in WCS
     Robot::wcs_t mpos= THEROBOT->get_axis_position();
@@ -655,35 +656,8 @@ void Player::suspend_part2()
     saved_position[1]= std::get<Y_AXIS>(wpos);
     saved_position[2]= std::get<Z_AXIS>(wpos);
 
-    // save current extruder state
-    PublicData::set_value( extruder_checksum, save_state_checksum, nullptr );
-
-    // save state use M120
+    // save current state
     THEROBOT->push_state();
-
-    // TODO retract by optional amount...
-
-    this->saved_temperatures.clear();
-    if(!this->leave_heaters_on && !this->override_leave_heaters_on) {
-        // save current temperatures, get a vector of all the controllers data
-        std::vector<struct pad_temperature> controllers;
-        bool ok = PublicData::get_value(temperature_control_checksum, poll_controls_checksum, &controllers);
-        if (ok) {
-            // query each heater and save the target temperature if on
-            for (auto &c : controllers) {
-                // TODO see if in exclude list
-                if(c.target_temperature > 0) {
-                    this->saved_temperatures[c.id]= c.target_temperature;
-                }
-            }
-        }
-
-        // turn off heaters that were on
-        for(auto& h : this->saved_temperatures) {
-            float t= 0;
-            PublicData::set_value( temperature_control_checksum, h.first, &t );
-        }
-    }
 
     // execute optional gcode if defined
     if(!after_suspend_gcode.empty()) {
@@ -694,7 +668,7 @@ void Player::suspend_part2()
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
-    THEKERNEL->streams->printf("// Print Suspended, enter resume to continue printing\n");
+    THEKERNEL->streams->printf("Suspended, resume to continue playing\n");
 }
 
 /**
@@ -706,69 +680,23 @@ resume the suspended print
 */
 void Player::resume_command(string parameters, StreamOutput *stream )
 {
-    if(!suspended) {
+    if(!THEKERNEL->is_suspending()) {
         stream->printf("Not suspended\n");
         return;
     }
 
-    stream->printf("// resuming print...\n");
-
-    // wait for them to reach temp
-    if(!this->saved_temperatures.empty()) {
-        // set heaters to saved temps
-        for(auto& h : this->saved_temperatures) {
-            float t= h.second;
-            PublicData::set_value( temperature_control_checksum, h.first, &t );
-        }
-        stream->printf("// Waiting for heaters...\n");
-        bool wait= true;
-        uint32_t tus= us_ticker_read(); // mbed call
-        while(wait) {
-            wait= false;
-
-            bool timeup= false;
-            if((us_ticker_read() - tus) >= 1000000) { // print every 1 second
-                timeup= true;
-                tus= us_ticker_read(); // mbed call
-            }
-
-            for(auto& h : this->saved_temperatures) {
-                struct pad_temperature temp;
-                if(PublicData::get_value( temperature_control_checksum, current_temperature_checksum, h.first, &temp )) {
-                    if(timeup)
-                        stream->printf("%s:%3.1f /%3.1f @%d ", temp.designator.c_str(), temp.current_temperature, ((temp.target_temperature == -1) ? 0.0 : temp.target_temperature), temp.pwm);
-                    wait= wait || (temp.current_temperature < h.second);
-                }
-            }
-            if(timeup) stream->printf("\n");
-
-            if(wait)
-                THEKERNEL->call_event(ON_IDLE, this);
-
-            if(THEKERNEL->is_halted()) {
-                // abort temp wait and rest of resume
-                THEKERNEL->streams->printf("Resume aborted by kill\n");
-                THEROBOT->pop_state();
-                this->saved_temperatures.clear();
-                suspended= false;
-                return;
-            }
-        }
-    }
-
-    // clean up
-    this->saved_temperatures.clear();
+    stream->printf("Resuming playing...\n");
 
     if(THEKERNEL->is_halted()) {
         THEKERNEL->streams->printf("Resume aborted by kill\n");
         THEROBOT->pop_state();
-        suspended= false;
+        THEKERNEL->set_suspending(false);
         return;
     }
 
     // execute optional gcode if defined
     if(!before_resume_gcode.empty()) {
-        stream->printf("// Executing before resume gcode...\n");
+        stream->printf("Executing before resume gcode...\n");
         struct SerialMessage message;
         message.message = before_resume_gcode;
         message.stream = &(StreamOutput::NullStream);
@@ -777,11 +705,11 @@ void Player::resume_command(string parameters, StreamOutput *stream )
     }
 
     // Restore position
-    stream->printf("// Restoring saved XYZ positions and state...\n");
+    stream->printf("Restoring saved XYZ positions and state...\n");
     THEROBOT->pop_state();
-    bool abs_mode= THEROBOT->absolute_mode; // what mode we were in
+    bool abs_mode = THEROBOT->absolute_mode; // what mode we were in
     // force absolute mode for restoring position, then set to the saved relative/absolute mode
-    THEROBOT->absolute_mode= true;
+    THEROBOT->absolute_mode = true;
     {
         // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
         char buf[128];
@@ -792,26 +720,15 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         message.line = 0;
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
-    THEROBOT->absolute_mode= abs_mode;
+    THEROBOT->absolute_mode = abs_mode;
 
-    // restore extruder state
-    PublicData::set_value( extruder_checksum, restore_state_checksum, nullptr );
-
-   if(THEKERNEL->is_halted()) {
+    if(THEKERNEL->is_halted()) {
         THEKERNEL->streams->printf("Resume aborted by kill\n");
-        suspended= false;
+        THEKERNEL->set_suspending(false);
         return;
     }
 
-    stream->printf("// Resuming print\n");
+	THEKERNEL->set_suspending(false);
 
-    if(this->was_playing_file) {
-        this->playing_file = true;
-        this->was_playing_file= false;
-    }else{
-        // Send resume to host
-        THEKERNEL->streams->printf("// action:resume\r\n");
-    }
-
-   suspended= false;
+	stream->printf("Playing file resumed\n");
 }

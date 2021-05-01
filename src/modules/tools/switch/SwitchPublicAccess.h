@@ -7,6 +7,7 @@
 #define vacuum_checksum                 CHECKSUM("vacuum")
 #define state_checksum               CHECKSUM("state")
 #define light_checksum               CHECKSUM("light")
+#define probelaser_checksum			CHECKSUM("probelaser")
 #define ps12_checksum               CHECKSUM("ps12")
 #define ps24_checksum               CHECKSUM("ps24")
 

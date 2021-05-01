@@ -69,7 +69,10 @@ Kernel::Kernel()
     laser_mode = false;
     vacuum_mode = false;
     sleeping = false;
+    waiting = false;
+    suspending = false;
     halt_reason = MANUAL;
+    atc_state = 0;
 
     instance = this; // setup the Singleton instance of the kernel
 
@@ -198,6 +201,10 @@ uint8_t Kernel::get_state()
     if(!ok) homing = false;
     if (sleeping) {
     	return SLEEP;
+    } else if (suspending) {
+    	return SUSPEND;
+    } else if (waiting) {
+    	return WAIT;
     } else if(halted) {
     	return ALARM;
     } else if (homing) {
@@ -224,6 +231,10 @@ std::string Kernel::get_query_string()
     str.append("<");
     if (state == SLEEP) {
     	str.append("Sleep");
+    } else if (state == SUSPEND) {
+    	str.append("Pause");
+    } else if (state == WAIT) {
+        str.append("Wait");
     } else if (state == ALARM) {
         str.append("Alarm");
     } else if (state == HOME) {
@@ -362,6 +373,13 @@ std::string Kernel::get_query_string()
                 str.append(buf, n);
             }
         }
+    }
+
+    // if doing atc
+    if (atc_state != ATC_NONE) {
+        n = snprintf(buf, sizeof(buf), "|A:%d", atc_state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
     }
 
     // if halted

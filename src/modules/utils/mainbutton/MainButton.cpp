@@ -222,6 +222,18 @@ void MainButton::on_idle(void *argument)
     			    this->main_button_LED_G.set(1);
     			    this->main_button_LED_B.set(1);
     				break;
+    			case SUSPEND:
+    				this->hold_toggle ++;
+    			    this->main_button_LED_R.set(0);
+    			    this->main_button_LED_G.set(0);
+    			    this->main_button_LED_B.set(this->hold_toggle % 4  < 2 ? 1 : 0);
+    				break;
+    			case WAIT:
+    				this->hold_toggle ++;
+    			    this->main_button_LED_R.set(this->hold_toggle % 4  < 2 ? 1 : 0);
+    			    this->main_button_LED_G.set(this->hold_toggle % 4  < 2 ? 1 : 0);
+    			    this->main_button_LED_B.set(0);
+    				break;
     		}
     		if (cover_open_stop) {
 		        THEKERNEL->call_event(ON_HALT, nullptr);

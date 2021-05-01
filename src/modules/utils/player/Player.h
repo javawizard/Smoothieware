@@ -40,7 +40,6 @@ class Player : public Module {
         void resume_command( string parameters, StreamOutput* stream );
         void buffer_command( string parameters, StreamOutput* stream );
         string extract_options(string& args);
-        void suspend_part2();
 
         string filename;
         string after_suspend_gcode;
@@ -65,11 +64,8 @@ class Player : public Module {
             bool booted:1;
             bool home_on_boot:1;
             bool playing_file:1;
-            bool suspended:1;
-            bool was_playing_file:1;
             bool leave_heaters_on:1;
             bool override_leave_heaters_on:1;
             bool inner_playing:1;
-            uint8_t suspend_loops:4;
         };
 };

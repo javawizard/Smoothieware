@@ -31,7 +31,10 @@
 #include "libs/StreamOutput.h"
 #include "modules/utils/player/PlayerPublicAccess.h"
 #include "ATCHandlerPublicAccess.h"
+#include "ZProbePublicAccess.h"
 #include "SpindlePublicAccess.h"
+
+#include "us_ticker_api.h"
 
 #include "FileStream.h"
 #include <math.h>
@@ -99,6 +102,7 @@ ATCHandler::ATCHandler()
     last_pos[0] = 0.0;
     last_pos[1] = 0.0;
     last_pos[2] = 0.0;
+    probe_laser_last = 0;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -110,6 +114,8 @@ void ATCHandler::clear_script_queue(){
 void ATCHandler::fill_drop_scripts(int old_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[old_tool];
+	// set atc status
+	this->script_queue.push("M497.1");
     // lift z axis to atc start position
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	this->script_queue.push(buff);
@@ -138,6 +144,8 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 void ATCHandler::fill_pick_scripts(int new_tool) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
+	// set atc status
+	this->script_queue.push("M497.2");
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	this->script_queue.push(buff);
@@ -167,8 +175,10 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 
 }
 
-void ATCHandler::fill_cali_scripts() {
+void ATCHandler::fill_cali_scripts(bool is_probe) {
 	char buff[100];
+	// set atc status
+	this->script_queue.push("M497.3");
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -189,10 +199,21 @@ void ATCHandler::fill_cali_scripts() {
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
+
+	// check if wireless probe is will be triggered
+	if (is_probe) {
+		this->script_queue.push("M492.3");
+	}
 }
 
 void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max) {
 	char buff[100];
+
+	// set atc status
+	this->script_queue.push("M497.4");
+
+	// open probe laser
+	this->script_queue.push("M494.1");
 
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
@@ -201,9 +222,6 @@ void ATCHandler::fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, 
 	// goto margin start position
 	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
 	this->script_queue.push(buff);
-
-	// open probe laser
-	this->script_queue.push("M494.1");
 
 	// goto margin top left corner
 	snprintf(buff, sizeof(buff), "G90 G1 X%.3f Y%.3f F%.3f", x_pos, y_pos_max, this->margin_rate);
@@ -242,6 +260,9 @@ void ATCHandler::fill_goto_origin_scripts(float x_pos, float y_pos) {
 void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset) {
 	char buff[100];
 
+	// set atc status
+	this->script_queue.push("M497.5");
+
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
 	this->script_queue.push(buff);
@@ -276,12 +297,15 @@ void ATCHandler::fill_autolevel_scripts(float x_pos, float y_pos,
 {
 	char buff[100];
 
+	// set atc status
+	this->script_queue.push("M497.6");
+
 	// goto x and y path origin
 	snprintf(buff, sizeof(buff), "G90 G0 X%.3f Y%.3f", x_pos, y_pos);
 	this->script_queue.push(buff);
 
 	// do auto leveling
-	snprintf(buff, sizeof(buff), "G32R1X0Y0A%.3fB%.3fI%dJ%d", x_size, y_size, x_grids, y_grids);
+	snprintf(buff, sizeof(buff), "G32R1X0Y0A%.3fB%.3fI%dJ%dH%.3f", x_size, y_size, x_grids, y_grids, height);
 	this->script_queue.push(buff);
 }
 
@@ -298,6 +322,8 @@ void ATCHandler::on_module_loaded()
 
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_endstop);
     THEKERNEL->slow_ticker->attach(1000, this, &ATCHandler::read_detector);
+
+    THEKERNEL->slow_ticker->attach(1, this, &ATCHandler::countdown_probe_laser);
 
     // load data from eeprom
     this->active_tool = THEKERNEL->eeprom_data->TOOL;
@@ -372,6 +398,7 @@ void ATCHandler::on_halt(void* argument)
         this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
         this->set_inner_playing(false);
+        THEKERNEL->set_atc_state(ATC_NONE);
 	}
 }
 
@@ -412,6 +439,40 @@ uint32_t ATCHandler::read_detector(uint32_t dummy)
     }
 
     return 0;
+}
+
+// Called every second in an ISR
+uint32_t ATCHandler::countdown_probe_laser(uint32_t dummy)
+{
+    // get switchs state
+    struct pad_switch pad;
+    bool ok = PublicData::get_value(switch_checksum, probelaser_checksum, 0, &pad);
+    if (ok) {
+        if (pad.state) {
+        	probe_laser_last ++;
+        	if (probe_laser_last > 60) {
+        		// turn off probelaser switch
+        	    bool switch_state = false;
+        	    ok = PublicData::set_value(switch_checksum, probelaser_checksum, state_checksum, &switch_state);
+        	    if (!ok) {
+        	        THEKERNEL->streams->printf("ERROR: Failed switch off probelaser switch.\r\n");
+        	    }
+        	}
+        } else {
+        	probe_laser_last = 0;
+        }
+    } else {
+        THEKERNEL->streams->printf("ERROR: Failed to get probe laser switch state.\r\n");
+    }
+    return 0;
+}
+
+void ATCHandler::switch_prober_laser(bool turn_on) {
+    bool switch_state = turn_on;
+    bool ok = PublicData::set_value(switch_checksum, probelaser_checksum, state_checksum, &switch_state);
+    if (!ok) {
+        THEKERNEL->streams->printf("ERROR: Failed switch on/off probelaser switch.\r\n");
+    }
 }
 
 bool ATCHandler::laser_detect() {
@@ -463,6 +524,22 @@ bool ATCHandler::laser_detect() {
     // THEROBOT->reset_position_from_current_actuator_position();
 
     return detector_info.triggered;
+}
+
+bool ATCHandler::probe_detect() {
+    // First wait for the queue to be empty
+    THECONVEYOR->wait_for_idle();
+
+    // get probe and calibrate states
+    uint32_t probe_time;
+    bool ok = PublicData::get_value(zprobe_checksum, get_zprobe_time_checksum, 0, &probe_time);
+    if (ok) {
+    	if (us_ticker_read() - probe_time < 5 * 1000 * 1000) {
+    		return true;
+    	}
+    }
+
+    return false;
 }
 
 void ATCHandler::home_clamp()
@@ -608,7 +685,7 @@ void ATCHandler::on_gcode_received(void *argument)
                 		// just pick up tool
                 		atc_status = PICK;
                 		this->fill_pick_scripts(new_tool);
-                		this->fill_cali_scripts();
+                		this->fill_cali_scripts(new_tool == 0);
                 	} else if (new_tool < 0) {
                 		gcode->stream->printf("Start dropping current tool: T%d\r\n", this->active_tool);
                 		// just drop tool
@@ -620,7 +697,7 @@ void ATCHandler::on_gcode_received(void *argument)
                 		atc_status = FULL;
                 	    this->fill_drop_scripts(active_tool);
                 	    this->fill_pick_scripts(new_tool);
-                	    this->fill_cali_scripts();
+                	    this->fill_cali_scripts(new_tool == 0);
                 	}
 
             	}
@@ -648,7 +725,7 @@ void ATCHandler::on_gcode_received(void *argument)
             set_inner_playing(true);
             this->clear_script_queue();
             atc_status = CALI;
-    	    this->fill_cali_scripts();
+    	    this->fill_cali_scripts(active_tool == 0);
 		} else if (gcode->m == 492) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// check true
@@ -663,6 +740,13 @@ void ATCHandler::on_gcode_received(void *argument)
 			        THEKERNEL->call_event(ON_HALT, nullptr);
 			        THEKERNEL->set_halt_reason(ATC_HAS_TOOL);
 			        THEKERNEL->streams->printf("ERROR: Tool confliction occured, please check tool rack!\n");
+				}
+			} else if (gcode->subcode == 3) {
+				// check if the probe was triggered
+				if (!probe_detect()) {
+			        THEKERNEL->call_event(ON_HALT, nullptr);
+			        THEKERNEL->set_halt_reason(PROBE_INVALID);
+			        THEKERNEL->streams->printf("ERROR: Wireless probe dead or not set, please charge or set first!\n");
 				}
 			}
 		} else if (gcode->m == 493) {
@@ -690,8 +774,10 @@ void ATCHandler::on_gcode_received(void *argument)
 			// control probe laser
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// open probe laser
-			} else {
+				this->switch_prober_laser(true);
+			} else if (gcode->subcode == 2) {
 				// close probe laser
+				this->switch_prober_laser(false);
 			}
 		} else if (gcode->m == 495) {
 			// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
@@ -747,7 +833,7 @@ void ATCHandler::on_gcode_received(void *argument)
 		            		this->fill_drop_scripts(old_tool);
 		        		}
 	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts();
+	            		this->fill_cali_scripts(true);
 		            }
 		            if (margin) {
 		            	gcode->stream->printf("Auto scan margin\r\n");
@@ -799,6 +885,10 @@ void ATCHandler::on_gcode_received(void *argument)
 					rapid_move(true, gcode->get_value('X'), gcode->get_value('Y'), NAN);
 				}
 			}
+		} else if (gcode->m == 497) {
+		    // wait for the queue to be empty
+		    THECONVEYOR->wait_for_idle();
+			THEKERNEL->set_atc_state(gcode->subcode);
 		} else if (gcode->m == 498) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				THEKERNEL->streams->printf("EEPRROM Data: TOOL:%d\n", THEKERNEL->eeprom_data->TOOL);
@@ -826,9 +916,34 @@ void ATCHandler::on_gcode_received(void *argument)
 void ATCHandler::on_main_loop(void *argument)
 {
     if (this->atc_status != NONE) {
-        if(THEKERNEL->is_halted()) {
+        if (THEKERNEL->is_halted()) {
             THEKERNEL->streams->printf("Kernel is halted!....\r\n");
             return;
+        }
+
+        if (THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
+        	return;
+        }
+
+        void *return_value;
+        bool ok = PublicData::get_value( player_checksum, is_playing_checksum, &return_value );
+        if (ok) {
+            bool playing = *static_cast<bool *>(return_value);
+            if (!playing) {
+            	this->clear_script_queue();
+
+				this->atc_status = NONE;
+				set_inner_playing(false);
+				THEKERNEL->set_atc_state(ATC_NONE);
+
+				// pop old state
+				THEROBOT->pop_state();
+
+				// if we were printing from an M command from pronterface we need to send this back
+				THEKERNEL->streams->printf("Abort from ATC\n");
+
+				return;
+            }
         }
 
         while (!this->script_queue.empty()) {
@@ -856,8 +971,7 @@ void ATCHandler::on_main_loop(void *argument)
 
 		set_inner_playing(false);
 
-        // save to config file to persist data
-		// TODO
+		THEKERNEL->set_atc_state(ATC_NONE);
 
         // pop old state
         THEROBOT->pop_state();

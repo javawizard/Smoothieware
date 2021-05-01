@@ -499,7 +499,7 @@ void CartGridStrategy::setAdjustFunction(bool on)
     }
 }
 
-bool CartGridStrategy::findBed(float x, float y)
+bool CartGridStrategy::findBed(float x, float y, float z)
 {
     if(!isnan(initial_height)) {
         zprobe->coordinated_move(NAN, NAN, initial_height, zprobe->getFastFeedrate()); // move Z only to initial_height
@@ -511,7 +511,7 @@ bool CartGridStrategy::findBed(float x, float y)
     if(!zprobe->run_probe_return(mm, zprobe->getFastFeedrate())) return false;
 
     // leave head probe_height above bed
-    float dz = zprobe->getProbeHeight() - mm;
+    float dz = z - mm;
     zprobe->coordinated_move(NAN, NAN, dz, zprobe->getFastFeedrate(), true); // relative move
 
     return true;
@@ -540,12 +540,12 @@ bool CartGridStrategy::scan_bed(Gcode *gc)
     _x_start = THEROBOT->get_axis_position(X_AXIS) + X_PROBE_OFFSET_FROM_EXTRUDER;
     _y_start = THEROBOT->get_axis_position(Y_AXIS) + Y_PROBE_OFFSET_FROM_EXTRUDER;
 
-    if(!findBed(_x_start, _y_start)) return false;
+    if(!findBed(_x_start, _y_start, gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight())) return false;
 
     // do first reference probe at start
     float mm;
     if(!zprobe->doProbeAt(mm, _x_start - X_PROBE_OFFSET_FROM_EXTRUDER, _y_start - Y_PROBE_OFFSET_FROM_EXTRUDER)) return false;
-    float z_reference = zprobe->getProbeHeight() - mm;
+    float z_reference = (gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight()) - mm;
     gc->stream->printf("first probe at X%1.3f, Y%1.3f is %1.3f mm\n", _x_start, _y_start, z_reference);
     float max_delta= fabs(z_reference);
 
@@ -557,7 +557,7 @@ bool CartGridStrategy::scan_bed(Gcode *gc)
         for (int r = 0; r < n; ++r) {
             float x = _x_start + x_step * r;
             if(!zprobe->doProbeAt(mm, x - X_PROBE_OFFSET_FROM_EXTRUDER, y - Y_PROBE_OFFSET_FROM_EXTRUDER)) return false;
-            float z = zprobe->getProbeHeight() - mm - z_reference;
+            float z = (gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight()) - mm - z_reference;
             char buf[16];
             size_t n= snprintf(buf, sizeof(buf), "%1.3f ", z);
             scanline.append(buf, n);
@@ -644,17 +644,18 @@ bool CartGridStrategy::doProbe(Gcode *gc)
     }
 
     // find bed, and leave probe probe_height above bed
-    if(!findBed(x_start, y_start)) {
+    if(!findBed(x_start, y_start, gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight())) {
         gc->stream->printf("Finding bed failed, check the initial height setting\n");
         return false;
     }
 
-    gc->stream->printf("Probe start ht: %0.3f mm, start MCS x,y: %0.3f,%0.3f, rectangular bed width,height in mm: %0.3f,%0.3f, grid size: %dx%d\n", zprobe->getProbeHeight(), x_start, y_start, x_size, y_size, current_grid_x_size, current_grid_y_size);
+    gc->stream->printf("Probe start ht: %0.3f mm, start MCS x,y: %0.3f,%0.3f, rectangular bed width,height in mm: %0.3f,%0.3f, grid size: %dx%d\n", gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight(),
+    		x_start, y_start, x_size, y_size, current_grid_x_size, current_grid_y_size);
 
     // do first probe at start point
     float mm;
     if(!zprobe->doProbeAt(mm, this->x_start - X_PROBE_OFFSET_FROM_EXTRUDER, this->y_start - Y_PROBE_OFFSET_FROM_EXTRUDER)) return false;
-    float z_reference = zprobe->getProbeHeight() - mm; // this should be zero
+    float z_reference = (gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight()) - mm; // this should be zero
     gc->stream->printf("probe at 0,0 is %1.3f mm\n", z_reference);
 
     // keep track of worst case delta
@@ -681,7 +682,7 @@ bool CartGridStrategy::doProbe(Gcode *gc)
                 return false;
             }
 
-            float measured_z = zprobe->getProbeHeight() - mm - z_reference; // this is the delta z from bed at 0,0
+            float measured_z = (gc->has_letter('H') ? gc->get_value('H') : zprobe->getProbeHeight()) - mm - z_reference; // this is the delta z from bed at 0,0
             gc->stream->printf("DEBUG: X%1.3f, Y%1.3f, Z%1.3f\n", xProbe, yProbe, measured_z);
             grid[xCount + (this->current_grid_x_size * yCount)] = measured_z;
             if(fabs(measured_z) > max_delta) max_delta= fabs(measured_z);

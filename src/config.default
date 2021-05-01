@@ -199,11 +199,11 @@ switch.toolsensor.output_type				digital			# Digital means this is just an on or
 switch.toolsensor.input_on_command			M831			# Command that will turn this switch on
 switch.toolsensor.input_off_command			M832			# Command that will turn this switch off
 
-switch.powerext.enable						true			# Enable this module
-switch.powerext.output_pin					2.13			# Pin this module controls
-switch.powerext.output_type					digital			# Digital means this is just an on or off pin
-switch.powerext.input_on_command			M841			# Command that will turn this switch on
-switch.powerext.input_off_command			M842			# Command that will turn this switch off
+switch.probelaser.enable					true			# Enable this module
+switch.probelaser.output_pin				1.17!^			# Pin this module controls
+switch.probelaser.output_type				digital			# Digital means this is just an on or off pin
+switch.probelaser.input_on_command			M841			# Command that will turn this switch on
+switch.probelaser.input_off_command			M842			# Command that will turn this switch off
 
 switch.ps12.enable							true			# Enable this module
 switch.ps12.startup_state					true			# Startup by default
@@ -296,7 +296,7 @@ zprobe.slow_feedrate						1.5				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
 zprobe.fast_feedrate						5				# Move feedrate mm/sec
 zprobe.return_feedrate						20				# Return feedrate mm/sec
-zprobe.probe_height							5				# How much above bed to start probe
+zprobe.probe_height							2				# How much above bed to start probe
 zprobe.max_z								100				# max z
 #zprobe.calibrate_pin						0.21^			# calibrate_pin
 

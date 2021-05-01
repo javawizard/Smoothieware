@@ -35,12 +35,14 @@ class SimpleShell;
 class Configurator;
 
 enum STATE {
-	IDLE   = 0,
-	RUN    = 1,
-	HOLD   = 2,
-	HOME   = 3,
-	ALARM  = 4,
-	SLEEP  = 5
+	IDLE    = 0,
+	RUN     = 1,
+	HOLD    = 2,
+	HOME    = 3,
+	ALARM   = 4,
+	SLEEP   = 5,
+	SUSPEND = 6,
+	WAIT    = 7
 };
 
 enum HALT_REASON {
@@ -55,12 +57,24 @@ enum HALT_REASON {
 	SPINDLE_OVERHEATED 		= 8,
 	SOFT_LIMIT				= 9,
 	COVER_OPEN				= 10,
+	PROBE_INVALID			= 11,
 	// Need to reset when triggered
 	HARD_LIMIT				= 21,
 	MOTOR_ERROR_X			= 22,
 	MOTOR_ERROR_Y			= 23,
 	MOTOR_ERROR_Z			= 24,
 	SPINDLE_ERROR			= 25
+};
+
+enum ATC_STATE {
+	ATC_NONE   		= 0,
+	ATC_DROP 		= 1,
+	ATC_PICK		= 2,
+	ATC_CALIBRATE	= 3,
+	ATC_MARGIN		= 4,
+	ATC_ZPROBE		= 5,
+	ATC_AUTOLEVEL   = 6,
+	ATC_DONE		= 9
 };
 
 typedef struct {
@@ -114,8 +128,17 @@ class Kernel {
         void set_sleeping(bool f) { sleeping = f; }
         bool is_sleeping() const { return sleeping; }
 
+        void set_suspending(bool f) { suspending = f; }
+        bool is_suspending() const { return suspending; }
+
+        void set_waiting(bool f) { waiting = f; }
+        bool is_waiting() const { return waiting; }
+
         void set_halt_reason(uint8_t reason) { halt_reason = reason; }
         uint8_t get_halt_reason() const { return halt_reason; }
+
+        void set_atc_state(uint8_t state) { atc_state = state; }
+        uint8_t get_atc_state() const { return atc_state; }
 
         void read_eeprom_data();
         void write_eeprom_data();
@@ -142,6 +165,7 @@ class Kernel {
 
         uint8_t get_state();
         uint8_t halt_reason;
+        uint8_t atc_state;
         EEPROM_data *eeprom_data;
 
     private:
@@ -160,6 +184,8 @@ class Kernel {
             bool laser_mode:1;
             bool vacuum_mode:1;
             bool sleeping:1;
+            bool suspending: 1;
+            bool waiting: 1;
         };
 
 };

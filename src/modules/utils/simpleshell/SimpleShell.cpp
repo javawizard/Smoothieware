@@ -323,6 +323,9 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "config-restore"){
             config_restore_command(  possible_command, new_message.stream );
 
+        } else if (cmd == "config-default"){
+            config_default_command(  possible_command, new_message.stream );
+
         } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume" || cmd == "buffer") {
             // these are handled by Player module
 
@@ -1894,11 +1897,11 @@ void SimpleShell::config_get_all_command( string parameters, StreamOutput *strea
     }
 }
 
-// restore config to default
+// restore config from default
 void SimpleShell::config_restore_command( string parameters, StreamOutput *stream )
 {
     // Get parameters ( filename and line limit )
-	string filename = "/sd/config.txt";
+	string current_filename = "/sd/config.txt";
     string default_filename = "/sd/config.default";
     // Open file
     FILE *default_lp = fopen(default_filename.c_str(), "r");
@@ -1906,20 +1909,48 @@ void SimpleShell::config_restore_command( string parameters, StreamOutput *strea
         stream->printf("Default file not found: %s\r\n", default_filename.c_str());
         return;
     }
-    FILE *file_lp = fopen(filename.c_str(), "w");
-    if (file_lp == NULL) {
-        stream->printf("Config file not found or created fail: %s\r\n", filename.c_str());
+    FILE *current_lp = fopen(current_filename.c_str(), "w");
+    if (current_lp == NULL) {
+        stream->printf("Config file not found or created fail: %s\r\n", current_filename.c_str());
         return;
     }
 
     int c;
     // Print each line of the file
     while ((c = fgetc (default_lp)) != EOF) {
-    	fputc(c, file_lp);
+    	fputc(c, current_lp);
     };
-    fclose(file_lp);
+    fclose(current_lp);
     fclose(default_lp);
 
     stream->printf("Settings restored complete.\n");
 }
 
+// save current config file to default
+void SimpleShell::config_default_command( string parameters, StreamOutput *stream )
+{
+    // Get parameters ( filename and line limit )
+	string current_filename = "/sd/config.txt";
+    string default_filename = "/sd/config.default";
+    // Open file
+    FILE *default_lp = fopen(default_filename.c_str(), "w");
+    if (default_lp == NULL) {
+        stream->printf("Default file not found or created fail: %s\r\n", default_filename.c_str());
+        return;
+    }
+    FILE *current_lp = fopen(current_filename.c_str(), "r");
+    if (current_lp == NULL) {
+        stream->printf("Config file not found: %s\r\n", current_filename.c_str());
+        return;
+    }
+
+    int c;
+    // Print each line of the file
+    while ((c = fgetc (current_lp)) != EOF) {
+    	fputc(c, default_lp);
+    };
+    fclose(current_lp);
+    fclose(default_lp);
+
+    stream->printf("Settings save as default complete.\n");
+}
