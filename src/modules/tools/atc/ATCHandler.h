@@ -93,6 +93,8 @@ private:
     bool atc_homing;
     bool detecting;
 
+    bool playing_file;
+
     uint16_t probe_laser_last;
 
     using atc_homing_info_t = struct {

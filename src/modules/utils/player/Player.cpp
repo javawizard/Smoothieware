@@ -604,7 +604,7 @@ void Player::on_set_public_data(void *argument)
     } else if (pdr->second_element_is(inner_playing_checksum)) {
     	bool b = *static_cast<bool *>(pdr->get_data_ptr());
     	this->inner_playing = b;
-    	pdr->set_taken();
+    	if (this->playing_file) pdr->set_taken();
     }
 }
 

@@ -134,6 +134,9 @@ class Kernel {
         void set_waiting(bool f) { waiting = f; }
         bool is_waiting() const { return waiting; }
 
+        void set_aborted(bool f) { aborted = f; }
+        bool is_aborted() const { return aborted; }
+
         void set_halt_reason(uint8_t reason) { halt_reason = reason; }
         uint8_t get_halt_reason() const { return halt_reason; }
 
@@ -186,6 +189,7 @@ class Kernel {
             bool sleeping:1;
             bool suspending: 1;
             bool waiting: 1;
+            bool aborted: 1;
         };
 
 };

@@ -103,6 +103,7 @@ ATCHandler::ATCHandler()
     last_pos[1] = 0.0;
     last_pos[2] = 0.0;
     probe_laser_last = 0;
+    playing_file = false;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -929,7 +930,7 @@ void ATCHandler::on_main_loop(void *argument)
         bool ok = PublicData::get_value( player_checksum, is_playing_checksum, &return_value );
         if (ok) {
             bool playing = *static_cast<bool *>(return_value);
-            if (!playing) {
+            if (this->playing_file && !playing) {
             	this->clear_script_queue();
 
 				this->atc_status = NONE;
@@ -1075,5 +1076,5 @@ bool ATCHandler::get_inner_playing() const
 
 void ATCHandler::set_inner_playing(bool inner_playing)
 {
-	PublicData::set_value( player_checksum, inner_playing_checksum, &inner_playing );
+	this->playing_file = PublicData::set_value( player_checksum, inner_playing_checksum, &inner_playing );
 }
