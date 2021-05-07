@@ -372,16 +372,16 @@ power.auto_sleep 							false
 power.auto_sleep_min						30
 
 # default coordinates
-coordinate.edge_x							-374.0
-coordinate.edge_y							-244.0
+coordinate.edge_x							-374.2
+coordinate.edge_y							-249.1
 coordinate.anchor1_x						-359.2
 coordinate.anchor1_y						-234.1
-coordinate.anchor2_x						-173.3
-coordinate.anchor2_y						-196.2
+coordinate.anchor2_x						-269.3
+coordinate.anchor2_y						-188.5
 coordinate.anchor_width						15.0
 coordinate.anchor_length					100.0
-coordinate.rotation_x						-200.0
-coordinate.rotation_y						-200.0
+coordinate.rotation_x						-372.0
+coordinate.rotation_y						-199.1
 coordinate.rotation_z_offset				30.0
 coordinate.worksize_x						340.0
 coordinate.worksize_y						240.0

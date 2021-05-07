@@ -613,6 +613,7 @@ void Robot::on_gcode_received(void *argument)
                     if(gcode->has_letter('X')){ THEROBOT->reset_axis_position(gcode->get_value('X'), X_AXIS); }
                     if(gcode->has_letter('Y')){ THEROBOT->reset_axis_position(gcode->get_value('Y'), Y_AXIS); }
                     if(gcode->has_letter('Z')){ THEROBOT->reset_axis_position(gcode->get_value('Z'), Z_AXIS); }
+                    if(gcode->has_letter('A')){ THEROBOT->reset_axis_position(gcode->get_value('A'), A_AXIS); }
 
                 } else if (gcode->subcode == 3) {
                     // initialize G92 to the specified values, only used for saving it with M500
