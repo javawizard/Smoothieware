@@ -293,6 +293,41 @@ void ATCHandler::fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, f
 	this->script_queue.push(buff);
 }
 
+void ATCHandler::fill_zprobe_abs_scripts() {
+	char buff[100];
+
+	// set atc status
+	this->script_queue.push("M497.5");
+
+	// lift z to safe position with fast speed
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
+	this->script_queue.push(buff);
+
+	// goto z probe position
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", rotation_x, rotation_y);
+	this->script_queue.push(buff);
+
+	// do probe with fast speed
+	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_fast_rate);
+	this->script_queue.push(buff);
+
+	// lift a bit
+	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
+	this->script_queue.push(buff);
+
+	// do calibrate with slow speed
+	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", -1 - probe_retract_mm, probe_slow_rate);
+	this->script_queue.push(buff);
+
+	// set z working coordinate
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", rotation_z_offset);
+	this->script_queue.push(buff);
+
+	// retract z a bit
+	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
+	this->script_queue.push(buff);
+}
+
 void ATCHandler::fill_autolevel_scripts(float x_pos, float y_pos,
 		float x_size, float y_size, int x_grids, int y_grids, float height)
 {
@@ -785,6 +820,7 @@ void ATCHandler::on_gcode_received(void *argument)
 			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
 				bool margin = false;
 				bool zprobe = false;
+				bool zprobe_abs = false;
 				bool leveling = false;
 
 				float x_path_pos = gcode->get_value('X');
@@ -804,10 +840,14 @@ void ATCHandler::on_gcode_received(void *argument)
 	    			x_margin_pos_max =  gcode->get_value('C');
 	    			y_margin_pos_max =  gcode->get_value('D');
 	    		}
-	    		if (gcode->has_letter('O') && gcode->has_letter('F')) {
+	    		if (gcode->has_letter('O')) {
 	    			zprobe = true;
 	    			x_zprobe_offset =  gcode->get_value('O');
-	    			y_zprobe_offset =  gcode->get_value('F');
+	    			if (gcode->has_letter('F')) {
+		    			y_zprobe_offset =  gcode->get_value('F');
+	    			} else {
+		    			zprobe_abs = true;
+	    			}
 	    		}
 	    		if (gcode->has_letter('A') && gcode->has_letter('B') && gcode->has_letter('I') && gcode->has_letter('J') && gcode->has_letter('H')) {
 	    			leveling = true;
@@ -841,8 +881,13 @@ void ATCHandler::on_gcode_received(void *argument)
 		            	this->fill_margin_scripts(x_path_pos, y_path_pos, x_margin_pos_max, y_margin_pos_max);
 		            }
 		            if (zprobe) {
-		            	gcode->stream->printf("Auto z probe, offset: %1.3f, %1.3f\r\n", x_zprobe_offset, y_zprobe_offset);
-		            	this->fill_zprobe_scripts(x_path_pos, y_path_pos, x_zprobe_offset, y_zprobe_offset);
+		            	if (zprobe_abs) {
+			            	gcode->stream->printf("Auto z probe for 4 axis\r\n");
+			            	this->fill_zprobe_abs_scripts();
+		            	} else {
+			            	gcode->stream->printf("Auto z probe, offset: %1.3f, %1.3f\r\n", x_zprobe_offset, y_zprobe_offset);
+			            	this->fill_zprobe_scripts(x_path_pos, y_path_pos, x_zprobe_offset, y_zprobe_offset);
+		            	}
 		            }
 		            if (leveling) {
 		            	gcode->stream->printf("Auto leveling, grid: %d * %d height: %1.2f\r\n", x_level_grids, y_level_grids, z_level_height);

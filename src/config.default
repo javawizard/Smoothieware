@@ -380,9 +380,9 @@ coordinate.anchor2_x						-269.3
 coordinate.anchor2_y						-188.5
 coordinate.anchor_width						15.0
 coordinate.anchor_length					100.0
-coordinate.rotation_x						-372.0
-coordinate.rotation_y						-199.1
-coordinate.rotation_z_offset				30.0
+coordinate.rotation_x 						-372.0
+coordinate.rotation_y 						-199.1
+coordinate.rotation_z_offset 				24.0
 coordinate.worksize_x						340.0
 coordinate.worksize_y						240.0
 coordinate.clearance_x						-3.0

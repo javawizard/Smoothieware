@@ -97,8 +97,8 @@ int USBSerial::_getc()
 
 int USBSerial::gets(char** buf)
 {
-	getc_result = this->_getc();
-	*buf = &getc_result;
+	getc_result[0] = this->_getc();
+	*buf = (char *)&getc_result;
 	return 1;
 }
 

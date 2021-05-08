@@ -775,7 +775,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         }
 
         // update MD5
-        if (!file_finished && recv_count > 0) md5.update(recv_buff, recv_count - endcnt - cancnt);
+        if (!file_finished && (recv_count - endcnt - cancnt > 0)) md5.update(recv_buff, recv_count - endcnt - cancnt);
     }
 }
 

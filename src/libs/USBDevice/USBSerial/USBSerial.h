@@ -39,7 +39,7 @@ public:
     int _getc();
     int puts(const char *);
     int gets(char** buf);
-    char getc_result;
+    char getc_result[1];
 
     uint8_t available();
     bool ready();
