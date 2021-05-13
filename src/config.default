@@ -163,7 +163,7 @@ laser_module_default_power					0.8             # This is the default laser power
 
 laser_module_offset_x						-37.3			# laser model x offset
 laser_module_offset_y						4.8				# laser model y offset
-laser_module_offset_z						-40.0			# laser model z offset
+laser_module_offset_z						-85.0			# laser model z offset
 
 ## Switch modules
 switch.vacuum.enable 						true			# Enable this module

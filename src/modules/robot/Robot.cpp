@@ -624,7 +624,7 @@ void Robot::on_gcode_received(void *argument)
                     g92_offset = wcs_t(x, y, z);
 
                 } else if (gcode->subcode == 5) {
-                    // initialize G92 to the specified values, only used for saving it with M500
+                    // set laser mode offset
                 	setLaserOffset();
                 } else {
                     // standard setting of the g92 offsets, making current WCS position whatever the coordinate arguments are
@@ -1789,8 +1789,13 @@ void Robot::saveToolOffset(const float offset[N_PRIMARY_AXIS], const float cur_t
 void Robot::setLaserOffset()
 {
 	if (THEKERNEL->get_laser_mode()) {
-		g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z + std::get<Z_AXIS>(tool_offset));
+		g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z);
+		// g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z + std::get<Z_AXIS>(tool_offset));
 	}
+}
+
+void Robot::clearLaserOffset() {
+	this->g92_offset = wcs_t(0.0F, 0.0F, 0.0F);
 }
 
 

@@ -180,6 +180,10 @@ void ATCHandler::fill_cali_scripts(bool is_probe) {
 	char buff[100];
 	// set atc status
 	this->script_queue.push("M497.3");
+	// clamp tool if in laser mode
+	if (THEKERNEL->get_laser_mode()) {
+		this->script_queue.push("M490.1");
+	}
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
 	this->script_queue.push(buff);
@@ -711,6 +715,10 @@ void ATCHandler::on_gcode_received(void *argument)
             	gcode->stream->printf("T%d invalid tool\r\n", new_tool);
             } else {
             	if (new_tool != active_tool) {
+            		if (new_tool > -1 && THEKERNEL->get_laser_mode()) {
+            			THEKERNEL->streams->printf("ALARM: Can not do ATC in laser mode!\n");
+            			return;
+            		}
                     // push old state
                     THEROBOT->push_state();
                     THEROBOT->get_axis_position(last_pos, 3);
@@ -727,6 +735,9 @@ void ATCHandler::on_gcode_received(void *argument)
                 		// just drop tool
                 		atc_status = DROP;
                 		this->fill_drop_scripts(active_tool);
+                		if (THEKERNEL->get_laser_mode()) {
+                			this->fill_cali_scripts(false);
+                		}
                 	} else {
                 		gcode->stream->printf("Start atc, old tool: T%d, new tool: T%d\r\n", this->active_tool, new_tool);
                 		// full atc progress
@@ -735,7 +746,9 @@ void ATCHandler::on_gcode_received(void *argument)
                 	    this->fill_pick_scripts(new_tool);
                 	    this->fill_cali_scripts(new_tool == 0);
                 	}
-
+            	} else if (new_tool == -1  && THEKERNEL->get_laser_mode()) {
+            		// calibrate
+            		this->fill_cali_scripts(false);
             	}
             }
 		} else if (gcode->m == 490)  {
@@ -818,6 +831,11 @@ void ATCHandler::on_gcode_received(void *argument)
 		} else if (gcode->m == 495) {
 			// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
 			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
+        		if (THEKERNEL->get_laser_mode()) {
+        			THEKERNEL->streams->printf("ALARM: Can not do Automatic work in laser mode!\n");
+        			return;
+        		}
+
 				bool margin = false;
 				bool zprobe = false;
 				bool zprobe_abs = false;

@@ -193,11 +193,12 @@ void Laser::on_gcode_received(void *argument)
 		{
     		THECONVEYOR->wait_for_idle();
             // open vacuum if set
+    		/*
         	if (THEKERNEL->get_vacuum_mode()) {
         		// open vacuum
         		bool b = true;
                 PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}
+        	}*/
             // M3 with S value provided: set speed
             if (gcode->has_letter('S'))
             {
@@ -208,24 +209,31 @@ void Laser::on_gcode_received(void *argument)
 		} else if (gcode->m == 5) {
     		THECONVEYOR->wait_for_idle();
             // close vacuum if set
+    		/*
         	if (THEKERNEL->get_vacuum_mode()) {
         		// close vacuum
         		bool b = false;
                 PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}
+        	}*/
 			this->laser_on = false;
 			this->testing = false;
-		} else if (gcode->m == 321) { // change to laser mode
+		} else if (gcode->m == 321 && !THEKERNEL->get_laser_mode()) { // change to laser mode
 			THECONVEYOR->wait_for_idle();
         	THEKERNEL->set_laser_mode(true);
         	// turn on laser pin
         	this->laser_pin->set(true);
+
+        	char buf[32];
+        	// drop current tool
+            int n = snprintf(buf, sizeof(buf), "M6T-1");
+            string g1(buf, n);
+            Gcode gc1(g1, &(StreamOutput::NullStream));
+            THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc1);
         	// change g92 offset
-            char buf[32];
-            int n = snprintf(buf, sizeof(buf), "G92.5 X0");
-            string g(buf, n);
-            Gcode gc(g, &(StreamOutput::NullStream));
-            THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc);
+            n = snprintf(buf, sizeof(buf), "G92.5");
+            string g2(buf, n);
+            Gcode gc2(g1, &(StreamOutput::NullStream));
+            THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc2);
 
         	THEKERNEL->streams->printf("turning laser mode on and change offset\n");
         } else if (gcode->m == 322) { // change to CNC mode
@@ -239,7 +247,6 @@ void Laser::on_gcode_received(void *argument)
             string g(buf, n);
             Gcode gc(g, &(StreamOutput::NullStream));
             THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc);
-
 
         	// turn off laser pin
         	THEKERNEL->streams->printf("turning laser mode off and restore offset\n");
@@ -344,7 +351,10 @@ void Laser::on_halt(void *argument)
 {
     if(argument == nullptr) {
         set_laser_power(0);
-        this->testing = false;
         this->laser_on = false;
+    	THEKERNEL->set_laser_mode(false);
+    	this->laser_pin->set(false);
+    	this->testing = false;
+    	THEROBOT->clearLaserOffset();
     }
 }
