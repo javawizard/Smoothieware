@@ -136,10 +136,10 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	// lift z to safe position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
 	this->script_queue.push(buff);
-	// move around to see if tool is dropped, halt if not
-	this->script_queue.push("M492.1");
 	// set new tool to -1
 	this->script_queue.push("M493.2 T-1");
+	// move around to see if tool is dropped, halt if not
+	this->script_queue.push("M492.1");
 }
 
 void ATCHandler::fill_pick_scripts(int new_tool) {
@@ -712,7 +712,9 @@ void ATCHandler::on_gcode_received(void *argument)
 
             int new_tool = gcode->get_value('T');
             if (new_tool > this->tool_number) {
-            	gcode->stream->printf("T%d invalid tool\r\n", new_tool);
+		        THEKERNEL->call_event(ON_HALT, nullptr);
+		        THEKERNEL->set_halt_reason(ATC_TOOL_INVALID);
+            	gcode->stream->printf("ALARM: Invalid tool: T%d\r\n", new_tool);
             } else {
             	if (new_tool != active_tool) {
             		if (new_tool > -1 && THEKERNEL->get_laser_mode()) {

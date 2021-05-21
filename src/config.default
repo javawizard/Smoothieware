@@ -98,7 +98,7 @@ atc.action_rate_mm_s						1.5
 
 #atc.detector.detect_pin						0.20^
 atc.detector.detect_rate_mm_s				5
-atc.detector.detect_travel_mm				2	
+atc.detector.detect_travel_mm				3	
 
 # atc.tool_number								6		
 # atc.active_tool								0
@@ -385,6 +385,6 @@ coordinate.rotation_y 						-199.1
 coordinate.rotation_z_offset 				24.0
 coordinate.worksize_x						340.0
 coordinate.worksize_y						240.0
-coordinate.clearance_x						-3.0
+coordinate.clearance_x						-75.0
 coordinate.clearance_y						-3.0
 coordinate.clearance_z						-3.0
