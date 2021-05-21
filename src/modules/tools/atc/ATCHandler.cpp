@@ -435,10 +435,10 @@ void ATCHandler::on_halt(void* argument)
 {
     if (argument == nullptr ) {
         this->atc_status = NONE;
-        this->atc_home_info.clamp_status = UNHOMED;
         this->clear_script_queue();
         this->set_inner_playing(false);
         THEKERNEL->set_atc_state(ATC_NONE);
+        this->atc_home_info.clamp_status = UNHOMED;
 	}
 }
 
@@ -584,6 +584,7 @@ bool ATCHandler::probe_detect() {
 
 void ATCHandler::home_clamp()
 {
+	THEKERNEL->streams->printf("Homing atc...\n");
     // First wait for the queue to be empty
     THECONVEYOR->wait_for_idle();
 
@@ -618,8 +619,10 @@ void ATCHandler::home_clamp()
 	THEROBOT->delta_move(delta, atc_home_info.homing_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return;
 
 	atc_home_info.clamp_status = CLAMPED;
+	THEKERNEL->streams->printf("ATC homed!\r\n");
 
 }
 
@@ -643,8 +646,11 @@ void ATCHandler::clamp_tool()
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return;
+
 	// change clamp status
 	atc_home_info.clamp_status = CLAMPED;
+	THEKERNEL->streams->printf("ATC clamped!\r\n");
 }
 
 void ATCHandler::loose_tool()
@@ -666,8 +672,11 @@ void ATCHandler::loose_tool()
 	THEROBOT->delta_move(delta, atc_home_info.action_rate, ATC_AXIS + 1);
 	// wait for it
 	THECONVEYOR->wait_for_idle();
+	if(THEKERNEL->is_halted()) return;
+
 	// change clamp status
 	atc_home_info.clamp_status = LOOSED;
+	THEKERNEL->streams->printf("ATC loosed!\r\n");
 }
 
 void ATCHandler::set_tool_offset()
@@ -750,6 +759,11 @@ void ATCHandler::on_gcode_received(void *argument)
                 	}
             	} else if (new_tool == -1  && THEKERNEL->get_laser_mode()) {
             		// calibrate
+                    THEROBOT->push_state();
+                    THEROBOT->get_axis_position(last_pos, 3);
+                    set_inner_playing(true);
+                    this->clear_script_queue();
+            		atc_status = CALI;
             		this->fill_cali_scripts(false);
             	}
             }
@@ -757,17 +771,12 @@ void ATCHandler::on_gcode_received(void *argument)
 			if (gcode->subcode == 0) {
 				// home tool change
 				home_clamp();
-				gcode->stream->printf("clamp homed!\r\n");
-
 			} else if (gcode->subcode == 1) {
 				// clamp tool
 				clamp_tool();
-				gcode->stream->printf("tool clamped!\r\n");
-
 			} else if (gcode->subcode == 2) {
 				// loose tool
 				loose_tool();
-				gcode->stream->printf("tool loosed!\r\n");
 			}
 		} else if (gcode->m == 491) {
 			// do calibrate

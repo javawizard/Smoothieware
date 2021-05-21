@@ -106,7 +106,7 @@ void Laser::on_module_loaded()
     this->laser_minimum_power = THEKERNEL->config->value(laser_module_minimum_power_checksum)->by_default(0)->as_number() ;
 
     // S value that represents maximum (default 1)
-    this->laser_maximum_s_value = THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(100)->as_number() ;
+    this->laser_maximum_s_value = THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(1.0f)->as_number() ;
 
     set_laser_power(0);
 
@@ -192,13 +192,6 @@ void Laser::on_gcode_received(void *argument)
     	if (gcode->m == 3 && THEKERNEL->get_laser_mode())
 		{
     		THECONVEYOR->wait_for_idle();
-            // open vacuum if set
-    		/*
-        	if (THEKERNEL->get_vacuum_mode()) {
-        		// open vacuum
-        		bool b = true;
-                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}*/
             // M3 with S value provided: set speed
             if (gcode->has_letter('S'))
             {
@@ -206,15 +199,9 @@ void Laser::on_gcode_received(void *argument)
             }
     		this->laser_on = true;
     		this->testing = false;
+    		// THEKERNEL->streams->printf("Laser on, S: %1.4f\n", THEROBOT->get_s_value());
 		} else if (gcode->m == 5) {
     		THECONVEYOR->wait_for_idle();
-            // close vacuum if set
-    		/*
-        	if (THEKERNEL->get_vacuum_mode()) {
-        		// close vacuum
-        		bool b = false;
-                PublicData::set_value( switch_checksum, vacuum_checksum, state_checksum, &b );
-        	}*/
 			this->laser_on = false;
 			this->testing = false;
 		} else if (gcode->m == 321 && !THEKERNEL->get_laser_mode()) { // change to laser mode
@@ -230,9 +217,9 @@ void Laser::on_gcode_received(void *argument)
             Gcode gc1(g1, &(StreamOutput::NullStream));
             THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc1);
         	// change g92 offset
-            n = snprintf(buf, sizeof(buf), "G92.5");
+            n = snprintf(buf, sizeof(buf), "G92.5Z0");
             string g2(buf, n);
-            Gcode gc2(g1, &(StreamOutput::NullStream));
+            Gcode gc2(g2, &(StreamOutput::NullStream));
             THEKERNEL->call_event(ON_GCODE_RECEIVED, &gc2);
 
         	THEKERNEL->streams->printf("turning laser mode on and change offset\n");
@@ -297,7 +284,7 @@ bool Laser::get_laser_power(float& power) const
     // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
     // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
     if (block != nullptr && block->is_ready && block->is_g123) {
-        float requested_power = (float)block->s_value / this->laser_maximum_s_value; // s_value is 1.11 Fixed point
+        float requested_power = (float)block->s_value / (1 << 11) / this->laser_maximum_s_value; // s_value is 1.11 Fixed point
         float ratio = current_speed_ratio(block);
         power = requested_power * ratio * scale;
 
@@ -318,16 +305,19 @@ uint32_t Laser::set_proportional_power(uint32_t dummy)
         return 0;
     }
 
-    float power;
-    if(get_laser_power(power)) {
-        // adjust power to maximum power and actual velocity
-        float proportional_power = ( (this->laser_maximum_power - this->laser_minimum_power) * power ) + this->laser_minimum_power;
-        set_laser_power(proportional_power);
+    if (laser_on) {
+        float power;
+        if(get_laser_power(power)) {
+            // adjust power to maximum power and actual velocity
+            float proportional_power = ( (this->laser_maximum_power - this->laser_minimum_power) * power ) + this->laser_minimum_power;
+            set_laser_power(proportional_power);
 
-    } else if (laser_on) {
+        }
+    } else {
         // turn laser off
         set_laser_power(0);
     }
+
     return 0;
 }
 
@@ -336,7 +326,7 @@ bool Laser::set_laser_power(float power)
     // Ensure power is >=0 and <= 1
     power = confine(power, 0.0F, 1.0F);
 
-    if(power > 0.00001F) {
+    if(power > 0.0001F) {
         this->pwm_pin->write(this->pwm_inverting ? 1 - power : power);
         if(!laser_on && this->ttl_used) this->ttl_pin->set(true);
         return true;

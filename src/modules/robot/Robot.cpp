@@ -223,7 +223,7 @@ void Robot::load_config()
 
     // default s value for laser
     this->s_value = THEKERNEL->config->value(laser_module_default_power_checksum)->by_default(0.8F)->as_number()
-    					* THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(100)->as_number();
+    					* THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(1.0f)->as_number();
 
 	this->laser_module_offset_x = THEKERNEL->config->value(laser_module_offset_x_checksum)->by_default(-38.0f)->as_number() ;
 	this->laser_module_offset_y = THEKERNEL->config->value(laser_module_offset_y_checksum)->by_default(5.0f)->as_number() ;
@@ -1790,12 +1790,14 @@ void Robot::setLaserOffset()
 {
 	if (THEKERNEL->get_laser_mode()) {
 		g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z);
+		THEKERNEL->streams->printf("Laser offset set to: %1.3f, %1.3f, %1.3f\n", laser_module_offset_x, laser_module_offset_y, laser_module_offset_z);
 		// g92_offset = wcs_t(laser_module_offset_x, laser_module_offset_y, laser_module_offset_z + std::get<Z_AXIS>(tool_offset));
 	}
 }
 
 void Robot::clearLaserOffset() {
 	this->g92_offset = wcs_t(0.0F, 0.0F, 0.0F);
+	THEKERNEL->streams->printf("Laser offset cleared!\n");
 }
 
 
