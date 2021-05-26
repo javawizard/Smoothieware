@@ -97,8 +97,8 @@ atc.action_mm								2.6
 atc.action_rate_mm_s						1.5
 
 #atc.detector.detect_pin						0.20^
-atc.detector.detect_rate_mm_s				5
-atc.detector.detect_travel_mm				3	
+atc.detector.detect_rate_mm_s				20				# Tool detect speed (mm / second)	
+atc.detector.detect_travel_mm				5				# Tool detect back and forth distance (mm)
 
 # atc.tool_number								6		
 # atc.active_tool								0

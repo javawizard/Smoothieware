@@ -491,6 +491,8 @@ void Kernel::write_eeprom_data()
     wait(0.05);
     if (result != 0) {
     	this->streams->printf("ALARM: EEPROM data write error.\n");
+    } else {
+        this->streams->printf("EEPROM data write finished.\n");
     }
 }
 
@@ -508,6 +510,8 @@ void Kernel::erase_eeprom_data()
     wait(0.05);
     if (result != 0) {
     	this->streams->printf("ALARM: EEPROM data erase error.\n");
+    } else {
+    	this->streams->printf("EEPROM data erase finished.\n");
     }
 }
 

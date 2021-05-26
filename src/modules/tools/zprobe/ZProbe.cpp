@@ -186,26 +186,26 @@ uint32_t ZProbe::read_calibrate(uint32_t dummy)
 {
     if (!calibrating || calibrate_detected) return 0;
 
-    // we check all axis as it maybe a G38.2 X10 for instance, not just a probe in Z
-    if(STEPPER[Z_AXIS]->is_moving()) {
+    // just check z Axis move
+    if (STEPPER[Z_AXIS]->is_moving()) {
     	if (this->pin.get()) {
     		probe_detected = true;
     	}
         // if it is moving then we check the probe, and debounce it
         if (this->calibrate_pin.get()) {
-            if(debounce < debounce_ms) {
-                debounce++;
+            if (cali_debounce < debounce_ms) {
+                cali_debounce++;
             } else {
                 // we signal the motors to stop, which will preempt any moves on that axis
                 // we do all motors as it may be a delta
                 for(auto &a : THEROBOT->actuators) a->stop_moving();
                 calibrate_detected = true;
-                debounce = 0;
+                cali_debounce = 0;
             }
 
         } else {
             // The endstop was not hit yet
-            debounce = 0;
+            cali_debounce = 0;
         }
     }
 
@@ -227,6 +227,7 @@ bool ZProbe::run_probe(float& mm, float feedrate, float max_dist, bool reverse)
     probing= true;
     probe_detected= false;
     debounce= 0;
+    cali_debounce = 0;
 
     // save current actuator position so we can report how far we moved
     float z_start_pos= THEROBOT->actuators[Z_AXIS]->get_current_position();
@@ -467,7 +468,8 @@ void ZProbe::probe_XYZ(Gcode *gcode)
     // enable the probe checking in the timer
     probing= true;
     probe_detected= false;
-    debounce= 0;
+    debounce = 0;
+    cali_debounce = 0;
 
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {x, y, z};
@@ -533,6 +535,7 @@ void ZProbe::calibrate_Z(Gcode *gcode)
     probe_detected = false;
     calibrate_detected = false;
     debounce = 0;
+    cali_debounce = 0;
 
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {0, 0, z};

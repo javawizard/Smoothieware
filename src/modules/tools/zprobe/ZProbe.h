@@ -63,7 +63,7 @@ private:
     Pin pin;
     Pin calibrate_pin;
     std::vector<LevelingStrategy*> strategies;
-    uint16_t debounce_ms, debounce;
+    uint16_t debounce_ms, debounce, cali_debounce;
 
     uint32_t probe_trigger_time;
 
