@@ -32,8 +32,11 @@ using namespace std;
 #define turn_off_min_checksum						CHECKSUM("turn_off_min")
 #define stop_on_cover_open_checksum					CHECKSUM("stop_on_cover_open")
 
+#define sd_ok_checksum								CHECKSUM("sd_ok")
+
 MainButton::MainButton()
 {
+	this->sd_ok = false;
 	this->led_update_timer = 0;
 	this->hold_toggle = 0;
     this->button_state = NONE;
@@ -67,13 +70,26 @@ void MainButton::on_module_loaded()
 
     this->stop_on_cover_open = THEKERNEL->config->value( stop_on_cover_open_checksum )->by_default(false)->as_bool(); // @deprecated
 
+    this->sd_ok = THEKERNEL->config->value( sd_ok_checksum )->by_default(false)->as_bool(); // @deprecated
+
     this->register_for_event(ON_IDLE);
+
+    this->register_for_event(ON_SECOND_TICK);
 
     this->main_button_LED_R.set(0);
     this->main_button_LED_G.set(0);
     this->main_button_LED_B.set(0);
 
     THEKERNEL->slow_ticker->attach( this->poll_frequency, this, &MainButton::button_tick );
+}
+
+void MainButton::on_second_tick(void *)
+{
+    // check if sd card is ok
+	if (!this->sd_ok && !THEKERNEL->is_halted()) {
+        THEKERNEL->call_event(ON_HALT, nullptr);
+        THEKERNEL->set_halt_reason(SD_ERROR);
+	}
 }
 
 void MainButton::on_idle(void *argument)

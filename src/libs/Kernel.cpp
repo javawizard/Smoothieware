@@ -492,7 +492,7 @@ void Kernel::write_eeprom_data()
     if (result != 0) {
     	this->streams->printf("ALARM: EEPROM data write error.\n");
     } else {
-        this->streams->printf("EEPROM data write finished.\n");
+        // this->streams->printf("EEPROM data write finished.\n");
     }
 }
 

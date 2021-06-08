@@ -613,7 +613,18 @@ void Robot::on_gcode_received(void *argument)
                     if(gcode->has_letter('X')){ THEROBOT->reset_axis_position(gcode->get_value('X'), X_AXIS); }
                     if(gcode->has_letter('Y')){ THEROBOT->reset_axis_position(gcode->get_value('Y'), Y_AXIS); }
                     if(gcode->has_letter('Z')){ THEROBOT->reset_axis_position(gcode->get_value('Z'), Z_AXIS); }
-                    if(gcode->has_letter('A')){ THEROBOT->reset_axis_position(gcode->get_value('A'), A_AXIS); }
+
+                    if(gcode->has_letter('A')){
+                    	if (gcode->has_letter('S')) {
+                    		// shrink A value
+                    		float ma = actuators[A_AXIS]->get_current_position();
+                    		if (fabs(ma) > 360) {
+                    			THEROBOT->reset_axis_position(fmodf(ma, 360.0), A_AXIS);
+                    		}
+                    	} else {
+                        	THEROBOT->reset_axis_position(gcode->get_value('A'), A_AXIS);
+                    	}
+                    }
 
                 } else if (gcode->subcode == 3) {
                     // initialize G92 to the specified values, only used for saving it with M500
@@ -1330,13 +1341,18 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
             if ( i <= Z_AXIS && max_speeds[i] > 0 ) {
                 float axis_speed = fabsf(unit_vec[i] * rate_mm_s);
 
-                if (axis_speed > max_speeds[i])
+                if (axis_speed > max_speeds[i]) {
+                	//float last_rate_mm_s = rate_mm_s;
                     rate_mm_s *= ( max_speeds[i] / axis_speed );
+                    // THEKERNEL->streams->printf("Reduce Speed of %d from %1.2f to %1.2f\n", i, last_rate_mm_s, rate_mm_s);
+                }
             }
         }
 
         if(this->max_speed > 0 && rate_mm_s > this->max_speed) {
-            rate_mm_s= this->max_speed;
+        	// float last_rate_mm_s = rate_mm_s;
+            rate_mm_s = this->max_speed;
+            // THEKERNEL->streams->printf("Reduce Total Speed from %1.2f to %1.2f\n", last_rate_mm_s, rate_mm_s);
         }
     }
 
@@ -1344,7 +1360,7 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     ActuatorCoordinates actuator_pos;
     if(!disable_arm_solution) {
         arm_solution->cartesian_to_actuator( transformed_target, actuator_pos );
-
+        // some arm solutions can indicate a halt if the calcs go bad
     }else{
         // basically the same as cartesian, would be used for special homing situations like for scara
         for (size_t i = X_AXIS; i <= Z_AXIS; i++) {
@@ -1380,7 +1396,7 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     // use default acceleration to start with
     float acceleration = default_acceleration;
 
-    float isecs = rate_mm_s / distance;
+    float isecs = distance / rate_mm_s;
 
 	// check per-actuator speed limits
 	for (size_t actuator = 0; actuator < n_motors; actuator++) {
@@ -1388,50 +1404,74 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
 		float d = fabsf(actuator_pos[actuator] - actuators[actuator]->get_last_milestone());
 		if (d < 0.00001F || !actuators[actuator]->is_selected()) continue; // no realistic movement for this actuator
 
-		float actuator_rate = d * isecs;
+		float actuator_rate = d / isecs;
 
 		if (actuator == A_AXIS) {
-		    float a_perimeter = PI * 2;
-			// A Axis moved, calculate real A Axis real speed based on Y and Z wcs
+		    // THEKERNEL->streams->printf("d: %f, rate: %f, distance: %f, aux_move: %d, acc: %f, isecs: %f, line: %d\n", d, actuator_rate, distance, auxilliary_move, acceleration, isecs, line);
+		    float a_perimeter = PI * 2 + 30;
+			// A Axis moved, calculate real A Axis speed based on Y and Z wcs
 	        wcs_t curr_mpos = wcs_t(target[X_AXIS], target[Y_AXIS], target[Z_AXIS]);
 	        wcs_t curr_wpos = this->mcs2wcs(curr_mpos);
 			float abs_y_wcs = fabsf(std::get<Y_AXIS>(curr_wpos));
 			float abs_z_wcs = fabsf(std::get<Z_AXIS>(curr_wpos));
 			float rotation_radius = (abs_y_wcs > 0.00001 || abs_z_wcs > 0.00001) ? sqrtf(powf(abs_y_wcs, 2) + powf(abs_z_wcs, 2)) : 0;
 			if (rotation_radius > 1.0) {
-				a_perimeter = PI * 2 * rotation_radius;
+				a_perimeter = PI * 2 * rotation_radius + 30;
 		    }
 			if (auxilliary_move) {
-				// A axis move only, speed up if necessary, up to 30 revolutions per minute
-				float revolutions_s = rate_mm_s / a_perimeter;
-				if (revolutions_s > 0.5) {
-					revolutions_s = 0.5;
+				// A axis move only, speed up if necessary
+				float mm_per_sec = a_perimeter * (rate_mm_s / 360);
+				if (mm_per_sec < rate_mm_s) {
+					// speed up
+					rate_mm_s *= (rate_mm_s / mm_per_sec);
 				}
-				rate_mm_s = revolutions_s * 360.0;
-				// THEKERNEL->streams->printf("auxilliary_move: %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, rate_mm_s, a_perimeter);
+				if (rate_mm_s > actuators[actuator]->get_max_rate()) {
+					rate_mm_s = actuators[actuator]->get_max_rate();
+				}
+				float ma = actuators[actuator]->get_acceleration(); // in mm / sec² or degree / sec² for A axis
+				if (!isnan(ma)) acceleration = ma;
+				// THEKERNEL->streams->printf("only A: %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, rate_mm_s, a_perimeter);
 				continue;
 			} else {
-				actuator_rate = a_perimeter * d * isecs / 360.0;
-				// THEKERNEL->streams->printf("auxilliary_move: %1.4f, %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, actuator_rate, actuators[actuator]->get_max_rate(), a_perimeter);
+				// A axis move along with other axis, speed down if necessary
+				float mm_per_sec = actuator_rate * a_perimeter / 360;
+				if (mm_per_sec > rate_mm_s) {
+					// speed down
+					actuator_rate *= (rate_mm_s / mm_per_sec);
+					rate_mm_s *= (rate_mm_s / mm_per_sec);
+					isecs = d / rate_mm_s;
+					// THEKERNEL->streams->printf("Speed down to : %1.4f, %1.4f, %1.4f\n", isecs, rate_mm_s, actuator_rate);
+				}
+				// if (rate_mm_s < 1)  rate_mm_s = 1;
+				// THEKERNEL->streams->printf("Not only A: %1.4f, %1.4f, %1.4f, %1.4f, %1.4f\r\n", abs_y_wcs, abs_z_wcs, actuator_rate, rate_mm_s, a_perimeter);
 			}
 		}
 
 		if (actuator_rate > actuators[actuator]->get_max_rate()) {
 			rate_mm_s *= (actuators[actuator]->get_max_rate() / actuator_rate);
-			isecs = rate_mm_s / distance;
+			isecs =  distance / rate_mm_s;
+			if (actuator == A_AXIS && !auxilliary_move) {
+				isecs = d / rate_mm_s;
+			}
 			DEBUG_PRINTF("new rate: %f - %d\n", rate_mm_s, actuator);
+            // THEKERNEL->streams->printf("Reduce actuator Speed %d, from %1.2f to %1.2f\n", actuator, actuator_rate, rate_mm_s);
 		}
 
 		DEBUG_PRINTF("act: %d, d: %f, distance: %f, actrate: %f, rate: %f, secs: %f, acc: %f\n", actuator, d, distance, actuator_rate, rate_mm_s, 1/isecs, acceleration);
 
 		// adjust acceleration to lowest found, for all actuators as this also corrects
 		// the math for a tiny X move and large A move
-		float ma = actuators[actuator]->get_acceleration(); // in mm/sec²
+		float ma = actuators[actuator]->get_acceleration(); // in mm / sec² or degree / sec² for A axis
 		if (!isnan(ma)) {  // if axis does not have acceleration set then it uses the default_acceleration
 			float ca = (d / distance) * acceleration;
 			if (ca > ma) {
-				acceleration *= (ma / ca);
+				if (actuator == A_AXIS) {
+					acceleration *= (ma * 3 / ca);
+				} else {
+					acceleration *= (ma / ca);
+				}
 				DEBUG_PRINTF("new acceleration: %f\n", acceleration);
+				// THEKERNEL->streams->printf("Reduce acceleration from %1.2f to %1.2f, %f\n", ca, acceleration, rate_mm_s);
 			}
 		}
 	}
@@ -1797,7 +1837,6 @@ void Robot::setLaserOffset()
 
 void Robot::clearLaserOffset() {
 	this->g92_offset = wcs_t(0.0F, 0.0F, 0.0F);
-	THEKERNEL->streams->printf("Laser offset cleared!\n");
 }
 
 

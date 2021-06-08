@@ -164,7 +164,7 @@ uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
     if (spindle_on) {
     	if (update_count > UPDATE_FREQ / 5) {
     		update_count = 0;
-            float error = target_rpm - current_rpm;
+            float error = target_rpm * (factor / 100) - current_rpm;
 //            current_I_value += control_I_term * error * 1.0f / UPDATE_FREQ;
 //            current_I_value = confine(current_I_value, -1.0f, 1.0f);
             float acc_pwm = control_P_term * error;

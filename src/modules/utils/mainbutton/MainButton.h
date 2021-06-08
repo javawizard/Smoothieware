@@ -9,6 +9,7 @@ class MainButton : public Module {
         void on_module_loaded();
         void on_idle(void *argument);
         uint32_t button_tick(uint32_t dummy);
+        void on_second_tick(void *);
 
     private:
         Pin main_button;
@@ -41,6 +42,8 @@ class MainButton : public Module {
         bool stop_on_cover_open;
 
         uint32_t poll_frequency;
+
+        bool sd_ok;
 };
 
 #endif

@@ -82,4 +82,5 @@ private:
 
     static const ptentry_t commands_table[];
     static int reset_delay_secs;
+
 };

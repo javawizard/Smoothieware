@@ -148,7 +148,7 @@ class Robot : public Module {
 		float laser_module_offset_y;
 		float laser_module_offset_z;
 
-        // Number of arc generation iterations by small angle approximation before exact arc trajectory
+		// Number of arc generation iterations by small angle approximation before exact arc trajectory
         // correction. This parameter may be decreased if there are issues with the accuracy of the arc
         // generations. In general, the default value is more than enough for the intended CNC applications
         // of grbl, and should be on the order or greater than the size of the buffer to help with the

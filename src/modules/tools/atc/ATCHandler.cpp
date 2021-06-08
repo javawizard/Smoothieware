@@ -142,13 +142,13 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	this->script_queue.push("M492.1");
 }
 
-void ATCHandler::fill_pick_scripts(int new_tool) {
+void ATCHandler::fill_pick_scripts(int new_tool, bool clear_z) {
 	char buff[100];
 	struct atc_tool *current_tool = &atc_tools[new_tool];
 	// set atc status
 	this->script_queue.push("M497.2");
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_empty_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", clear_z ? this->clearance_z : this->safe_z_empty_mm);
 	this->script_queue.push(buff);
 	// move x and y to new tool position
 	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
@@ -176,7 +176,7 @@ void ATCHandler::fill_pick_scripts(int new_tool) {
 
 }
 
-void ATCHandler::fill_cali_scripts(bool is_probe) {
+void ATCHandler::fill_cali_scripts(bool is_probe, bool clear_z) {
 	char buff[100];
 	// set atc status
 	this->script_queue.push("M497.3");
@@ -185,7 +185,7 @@ void ATCHandler::fill_cali_scripts(bool is_probe) {
 		this->script_queue.push("M490.1");
 	}
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->safe_z_mm);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", clear_z ? this->clearance_z : this->safe_z_mm);
 	this->script_queue.push(buff);
 	// move x and y to calibrate position
 	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", probe_mx_mm, probe_my_mm);
@@ -739,23 +739,23 @@ void ATCHandler::on_gcode_received(void *argument)
                 		gcode->stream->printf("Start picking new tool: T%d\r\n", new_tool);
                 		// just pick up tool
                 		atc_status = PICK;
-                		this->fill_pick_scripts(new_tool);
-                		this->fill_cali_scripts(new_tool == 0);
+                		this->fill_pick_scripts(new_tool, true);
+                		this->fill_cali_scripts(new_tool == 0, false);
                 	} else if (new_tool < 0) {
                 		gcode->stream->printf("Start dropping current tool: T%d\r\n", this->active_tool);
                 		// just drop tool
                 		atc_status = DROP;
                 		this->fill_drop_scripts(active_tool);
                 		if (THEKERNEL->get_laser_mode()) {
-                			this->fill_cali_scripts(false);
+                			this->fill_cali_scripts(false, false);
                 		}
                 	} else {
                 		gcode->stream->printf("Start atc, old tool: T%d, new tool: T%d\r\n", this->active_tool, new_tool);
                 		// full atc progress
                 		atc_status = FULL;
                 	    this->fill_drop_scripts(active_tool);
-                	    this->fill_pick_scripts(new_tool);
-                	    this->fill_cali_scripts(new_tool == 0);
+                	    this->fill_pick_scripts(new_tool, false);
+                	    this->fill_cali_scripts(new_tool == 0, false);
                 	}
             	} else if (new_tool == -1  && THEKERNEL->get_laser_mode()) {
             		// calibrate
@@ -764,7 +764,7 @@ void ATCHandler::on_gcode_received(void *argument)
                     set_inner_playing(true);
                     this->clear_script_queue();
             		atc_status = CALI;
-            		this->fill_cali_scripts(false);
+            		this->fill_cali_scripts(false, true);
             	}
             }
 		} else if (gcode->m == 490)  {
@@ -785,7 +785,7 @@ void ATCHandler::on_gcode_received(void *argument)
             set_inner_playing(true);
             this->clear_script_queue();
             atc_status = CALI;
-    	    this->fill_cali_scripts(active_tool == 0);
+    	    this->fill_cali_scripts(active_tool == 0, true);
 		} else if (gcode->m == 492) {
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// check true
@@ -902,8 +902,8 @@ void ATCHandler::on_gcode_received(void *argument)
 		            		// change to probe tool
 		            		this->fill_drop_scripts(old_tool);
 		        		}
-	            		this->fill_pick_scripts(0);
-	            		this->fill_cali_scripts(true);
+	            		this->fill_pick_scripts(0, active_tool <= 0);
+	            		this->fill_cali_scripts(true, false);
 		            }
 		            if (margin) {
 		            	gcode->stream->printf("Auto scan margin\r\n");
@@ -921,6 +921,10 @@ void ATCHandler::on_gcode_received(void *argument)
 		            if (leveling) {
 		            	gcode->stream->printf("Auto leveling, grid: %d * %d height: %1.2f\r\n", x_level_grids, y_level_grids, z_level_height);
 	            		this->fill_autolevel_scripts(x_path_pos, y_path_pos, x_level_size, y_level_size, x_level_grids, y_level_grids, z_level_height);
+		            }
+		            if (gcode->has_letter('P')) {
+		            	gcode->stream->printf("Goto path origin first\r\n");
+		            	this->fill_goto_origin_scripts(x_path_pos, y_path_pos);
 		            }
 	    		} else {
 	    			if (gcode->has_letter('P')) {
