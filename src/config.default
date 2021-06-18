@@ -109,7 +109,7 @@ atc.safe_z_empty_mm 						-50.0			# Safety Z height when not clamping tool
 atc.safe_z_offset_mm						15.0
 atc.fast_z_rate_mm_m						1000				
 atc.slow_z_rate_mm_m						200
-atc.margin_rate_mm_m						600
+atc.margin_rate_mm_m						1000
 
 atc.probe.mx_mm								-3.7
 atc.probe.my_mm								-53.4

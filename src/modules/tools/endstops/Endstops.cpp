@@ -1039,18 +1039,17 @@ void Endstops::set_homing_offset(Gcode *gcode)
 void Endstops::handle_park_g28()
 {
     // TODO: spec says if XYZ specified move to them first then move to MCS of specifed axis
-    THEROBOT->push_state();
-    THEROBOT->absolute_mode = true;
-    char buf[32];
+    // THEROBOT->push_state();
+    // THEROBOT->absolute_mode = true;
 	// snprintf(buf, sizeof(buf), "G53 G0 X%f Y%f", THEROBOT->from_millimeters(g28_position[X_AXIS]), THEROBOT->from_millimeters(g28_position[Y_AXIS])); // must use machine coordinates in case G92 or WCS is in effect
-    snprintf(buf, sizeof(buf), "M496"); // Got clearance position instead
-    struct SerialMessage message;
-    message.message = buf;
-    message.stream = &(StreamOutput::NullStream);
-    THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message ); // as it is a multi G code command
+    // snprintf(buf, sizeof(buf), "M496"); // Got clearance position instead
+//    struct SerialMessage message;
+//    message.message = "M496";
+//    message.stream = &(StreamOutput::NullStream);
+//    THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     // Wait for above to finish
-    THECONVEYOR->wait_for_idle();
-    THEROBOT->pop_state();
+    // THECONVEYOR->wait_for_idle();
+    // THEROBOT->pop_state();
 }
 
 // parse gcodes
@@ -1061,7 +1060,6 @@ void Endstops::on_gcode_received(void *argument)
         switch(gcode->subcode) {
             case 0: // G28 in grbl mode will do a rapid to the predefined position otherwise it is home command
                 if(THEKERNEL->is_grbl_mode()){
-                	gcode->stream->printf("G28 means goto clearance position on CARVERA\n");
                     handle_park_g28();
                 }else{
                     process_home_command(gcode);

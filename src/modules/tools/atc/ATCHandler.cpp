@@ -394,7 +394,7 @@ void ATCHandler::on_config_reload(void *argument)
 	this->safe_z_offset_mm = THEKERNEL->config->value(atc_checksum, safe_z_offset_checksum)->by_default(10)->as_number();
 	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
 	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
-	this->margin_rate = THEKERNEL->config->value(atc_checksum, margin_rate_checksum)->by_default(600)->as_number();
+	this->margin_rate = THEKERNEL->config->value(atc_checksum, margin_rate_checksum)->by_default(1000)->as_number();
 	this->active_tool = THEKERNEL->config->value(atc_checksum, active_tool_checksum)->by_default(0)->as_number();
 	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
 
@@ -490,7 +490,7 @@ uint32_t ATCHandler::countdown_probe_laser(uint32_t dummy)
     if (ok) {
         if (pad.state) {
         	probe_laser_last ++;
-        	if (probe_laser_last > 60) {
+        	if (probe_laser_last > 120) {
         		// turn off probelaser switch
         	    bool switch_state = false;
         	    ok = PublicData::set_value(switch_checksum, probelaser_checksum, state_checksum, &switch_state);
@@ -989,6 +989,15 @@ void ATCHandler::on_gcode_received(void *argument)
 				}
 			}
 		}
+    } else if (gcode->has_g && gcode->g == 28 && (gcode->subcode == 0 || gcode->subcode == 1)) {
+        THEROBOT->push_state();
+        THEKERNEL->streams->printf("G28 means goto clearance position on CARVERA\n");
+        // goto z clearance
+        rapid_move(true, NAN, NAN, this->clearance_z);
+		// goto x and y clearance
+	    rapid_move(true, this->clearance_x, this->clearance_y, NAN);
+	    THECONVEYOR->wait_for_idle();
+	    THEROBOT->pop_state();
     }
 }
 

@@ -336,7 +336,8 @@ void  Robot::push_state()
     bool am = this->absolute_mode;
     bool em = this->e_absolute_mode;
     bool im = this->inch_mode;
-    saved_state_t s(this->feed_rate, this->seek_rate, am, em, im, current_wcs);
+    bool g123 = this->is_g123;
+    saved_state_t s(this->feed_rate, this->seek_rate, am, em, im, g123, current_wcs);
     state_stack.push(s);
 }
 
@@ -350,7 +351,8 @@ void Robot::pop_state()
         this->absolute_mode = std::get<2>(s);
         this->e_absolute_mode = std::get<3>(s);
         this->inch_mode = std::get<4>(s);
-        this->current_wcs = std::get<5>(s);
+        this->is_g123 = std::get<5>(s);
+        this->current_wcs = std::get<6>(s);
     }
 }
 
