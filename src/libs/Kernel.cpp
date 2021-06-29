@@ -67,7 +67,7 @@ Kernel::Kernel()
     bad_mcu= true;
     uploading = false;
     laser_mode = false;
-    vacuum_mode = false;
+    vacuum_mode = true;
     sleeping = false;
     waiting = false;
     suspending = false;

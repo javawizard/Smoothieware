@@ -105,7 +105,7 @@ atc.detector.detect_travel_mm				5				# Tool detect back and forth distance (mm)
 # atc.tool_number								6		
 # atc.active_tool								0
 atc.safe_z_mm								-20.0
-atc.safe_z_empty_mm 						-50.0			# Safety Z height when not clamping tool
+atc.safe_z_empty_mm 						-45.0			# Safety Z height when not clamping tool
 atc.safe_z_offset_mm						15.0
 atc.fast_z_rate_mm_m						1000				
 atc.slow_z_rate_mm_m						200
@@ -165,7 +165,7 @@ laser_module_default_power					0.8             # This is the default laser power
 
 laser_module_offset_x						-37.3			# laser model x offset
 laser_module_offset_y						4.8				# laser model y offset
-laser_module_offset_z						-85.0			# laser model z offset
+laser_module_offset_z						-45.0			# laser model z offset
 
 ## Switch modules
 switch.vacuum.enable 						true			# Enable this module
