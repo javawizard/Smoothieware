@@ -52,6 +52,7 @@
 
 WifiProvider::WifiProvider()
 {
+	ap_channel = 1;
 	tcp_link_no = 0;
 	udp_link_no = 1;
 	wifi_init_ok = false;
@@ -401,122 +402,138 @@ void WifiProvider::set_wifi_op_mode() {
 void WifiProvider::on_get_public_data(void* argument) {
     PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
     if(!pdr->starts_with(wlan_checksum)) return;
-    if(!pdr->second_element_is(get_wlan_checksum)) return;
+    if(!pdr->second_element_is(get_wlan_checksum) && !pdr->second_element_is(get_ap_channel_checksum)) return;
 
-	u8 signals = 0;
-	u16 status = 0;
-	char ssid[32];
-	u8 ssid_len = 0;
-	u8 connection_status = 0;
+    if (pdr->second_element_is(get_wlan_checksum)) {
+    	u8 signals = 0;
+    	u16 status = 0;
+    	char ssid[32];
+    	u8 ssid_len = 0;
+    	u8 connection_status = 0;
 
-    // get current connected information
-    M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_SSID, (u8 *)ssid, &ssid_len, &status);
+        // get current connected information
+        M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_SSID, (u8 *)ssid, &ssid_len, &status);
 
-	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+    	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
 
-    ScannedSigs wlans[MAX_WLAN_SIGNALS];
-	M8266WIFI_SPI_STA_Scan_Signals(wlans, MAX_WLAN_SIGNALS, 0xff, 0, &status);
-	// wait for scan finish
-	while (true) {
-		signals = M8266WIFI_SPI_STA_Fetch_Last_Scanned_Signals(wlans, MAX_WLAN_SIGNALS, &status);
-		if (signals == 0) {
-			// 0x25: If not start scan before
-			// 0x26: If currently module is scanning
-			// 0x27: If last scan result has failure
-			// 0x29: Other failure
-			if ((status & 0xff) == 0x26) {
-				THEKERNEL->call_event(ON_IDLE, this);
-				// wait 1 ms
-				M8266WIFI_Module_delay_ms(1);
-				continue;
-			} else {
-				// scan fail
-				return;
-			}
-		} else {
-			// NOTE caller must free the returned string when done
-			size_t n;
-			std::string str;
-			char buf[10];
-			for (int i = 0; i < signals; i ++) {
-				str.append(wlans[i].ssid);
-				str.append(",");
-				str.append(wlans[i].authmode == 0 ? "0" : "1");
-				str.append(",");
-				n = snprintf(buf, sizeof(buf), "%d", wlans[i].rssi);
-				if(n > sizeof(buf)) n = sizeof(buf);
-				str.append(buf, n);
-				str.append(",");
-				if (strncmp(ssid, wlans[i].ssid, ssid_len <= 32 ? ssid_len : 32) == 0 && connection_status == 5) {
-					str.append("1\n");
-				} else {
-					str.append("0\n");
-				}
-			}
-			char *temp_buf = (char *)malloc(str.length() + 1);
-			memcpy(temp_buf, str.c_str(), str.length());
-			temp_buf[str.length()]= '\0';
-			pdr->set_data_ptr(temp_buf);
-			pdr->set_taken();
-			return;
-		}
-	}
+        ScannedSigs wlans[MAX_WLAN_SIGNALS];
+    	M8266WIFI_SPI_STA_Scan_Signals(wlans, MAX_WLAN_SIGNALS, 0xff, 0, &status);
+    	// wait for scan finish
+    	while (true) {
+    		signals = M8266WIFI_SPI_STA_Fetch_Last_Scanned_Signals(wlans, MAX_WLAN_SIGNALS, &status);
+    		if (signals == 0) {
+    			// 0x25: If not start scan before
+    			// 0x26: If currently module is scanning
+    			// 0x27: If last scan result has failure
+    			// 0x29: Other failure
+    			if ((status & 0xff) == 0x26) {
+    				THEKERNEL->call_event(ON_IDLE, this);
+    				// wait 1 ms
+    				M8266WIFI_Module_delay_ms(1);
+    				continue;
+    			} else {
+    				// scan fail
+    				return;
+    			}
+    		} else {
+    			// NOTE caller must free the returned string when done
+    			size_t n;
+    			std::string str;
+    			char buf[10];
+    			for (int i = 0; i < signals; i ++) {
+    				str.append(wlans[i].ssid);
+    				str.append(",");
+    				str.append(wlans[i].authmode == 0 ? "0" : "1");
+    				str.append(",");
+    				n = snprintf(buf, sizeof(buf), "%d", wlans[i].rssi);
+    				if(n > sizeof(buf)) n = sizeof(buf);
+    				str.append(buf, n);
+    				str.append(",");
+    				if (strncmp(ssid, wlans[i].ssid, ssid_len <= 32 ? ssid_len : 32) == 0 && connection_status == 5) {
+    					str.append("1\n");
+    				} else {
+    					str.append("0\n");
+    				}
+    			}
+    			char *temp_buf = (char *)malloc(str.length() + 1);
+    			memcpy(temp_buf, str.c_str(), str.length());
+    			temp_buf[str.length()]= '\0';
+    			pdr->set_data_ptr(temp_buf);
+    			pdr->set_taken();
+    			return;
+    		}
+    	}
+    } else {
+        u8 *channel = static_cast<u8 *>(pdr->get_data_ptr());
+        *channel = this->ap_channel;
+        pdr->set_taken();
+    }
 }
 
 void WifiProvider::on_set_public_data(void *argument)
 {
     PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
     if(!pdr->starts_with(wlan_checksum)) return;
-    if(!pdr->second_element_is(set_wlan_checksum)) return;
+    if(!pdr->second_element_is(set_wlan_checksum) && !pdr->second_element_is(set_ap_channel_checksum)) return;
 
-    ap_conn_info *s = static_cast<ap_conn_info *>(pdr->get_data_ptr());
-	u16 status = 0;
-    u8 connection_status;
+    if (pdr->second_element_is(set_wlan_checksum)) {
+        ap_conn_info *s = static_cast<ap_conn_info *>(pdr->get_data_ptr());
+    	u16 status = 0;
+        u8 connection_status;
 
-	s->has_error = false;
-	if (s->disconnect) {
-		if (M8266WIFI_SPI_STA_DisConnect_Ap(&status) == 0) {
-			s->has_error = true;
-			snprintf(s->error_info, sizeof(s->error_info), "Disconnect error!");
+    	s->has_error = false;
+    	if (s->disconnect) {
+    		if (M8266WIFI_SPI_STA_DisConnect_Ap(&status) == 0) {
+    			s->has_error = true;
+    			snprintf(s->error_info, sizeof(s->error_info), "Disconnect error!");
+    		}
+    	} else {
+    	    // u8 M8266WIFI_SPI_STA_Connect_Ap(u8 ssid[32], u8 password[64], u8 saved, u8 timeout_in_s, u16* status);
+    	    M8266WIFI_SPI_STA_Connect_Ap((u8 *)s->ssid, (u8 *)s->password, 1, 0, &status);
+
+    		// wait for connection finish
+    		while (true) {
+    			M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+    			if (connection_status == 1) {
+    				// connecting, wait
+    				THEKERNEL->call_event(ON_IDLE, this);
+    				// wait 1 ms
+    				M8266WIFI_Module_delay_ms(1);
+    				continue;
+    			} else if (connection_status == 5) {
+    				// connection success
+    				s->has_error = false;
+    				break;
+    			} else {
+    				s->has_error = true;
+    				if (connection_status == 0) {
+    					snprintf(s->error_info, sizeof(s->error_info), "No connecting started!");
+    				} else if (connection_status == 2) {
+    					snprintf(s->error_info, sizeof(s->error_info), "Wifi password incorrect: %s!", s->password);
+    				} else if (connection_status == 3) {
+    					snprintf(s->error_info, sizeof(s->error_info), "No wifi ssid found: %s!", s->ssid);
+    				} else if (connection_status == 4) {
+    					snprintf(s->error_info, sizeof(s->error_info), "Other error reason!");
+    				}
+    				break;
+    			}
+    		}
+
+    		// get ip address if no error
+    		if (!s->has_error) {
+    			M8266WIFI_SPI_Get_STA_IP_Addr(s->ip_address, &status);
+    		}
+
+    	}
+    } else {
+    	u16 status = 0;
+    	this->ap_channel = *static_cast<u8 *>(pdr->get_data_ptr());
+		if (M8266WIFI_SPI_Config_AP_Param(AP_PARAM_TYPE_CHANNEL, &this->ap_channel, 1, 1, &status) == 0) {
+			THEKERNEL->streams->printf("M8266WIFI_SPI_Config_AP_Param ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+		} else {
+			THEKERNEL->streams->printf("AP Channel has been changed to %d\n", this->ap_channel);
 		}
-	} else {
-	    // u8 M8266WIFI_SPI_STA_Connect_Ap(u8 ssid[32], u8 password[64], u8 saved, u8 timeout_in_s, u16* status);
-	    M8266WIFI_SPI_STA_Connect_Ap((u8 *)s->ssid, (u8 *)s->password, 1, 0, &status);
-
-		// wait for connection finish
-		while (true) {
-			M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
-			if (connection_status == 1) {
-				// connecting, wait
-				THEKERNEL->call_event(ON_IDLE, this);
-				// wait 1 ms
-				M8266WIFI_Module_delay_ms(1);
-				continue;
-			} else if (connection_status == 5) {
-				// connection success
-				s->has_error = false;
-				break;
-			} else {
-				s->has_error = true;
-				if (connection_status == 0) {
-					snprintf(s->error_info, sizeof(s->error_info), "No connecting started!");
-				} else if (connection_status == 2) {
-					snprintf(s->error_info, sizeof(s->error_info), "Wifi password incorrect: %s!", s->password);
-				} else if (connection_status == 3) {
-					snprintf(s->error_info, sizeof(s->error_info), "No wifi ssid found: %s!", s->ssid);
-				} else if (connection_status == 4) {
-					snprintf(s->error_info, sizeof(s->error_info), "Other error reason!");
-				}
-				break;
-			}
-		}
-
-		// get ip address if no error
-		if (!s->has_error) {
-			M8266WIFI_SPI_Get_STA_IP_Addr(s->ip_address, &status);
-		}
-
-	}
+    }
 	pdr->set_taken();
 }
 
@@ -583,11 +600,15 @@ void WifiProvider::init_wifi_module(bool reset) {
 	// load current AP IP and Netmask
 	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_IP_ADDR, (u8 *)this->ap_address, &param_len, &status) == 0)
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+		THEKERNEL->streams->printf("Get AP_PARAM_TYPE_IP_ADDR ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_NETMASK_ADDR, (u8 *)this->ap_netmask, &param_len, &status) == 0)
 	{
-		THEKERNEL->streams->printf("M8266WIFI_SPI_Query_AP_Param ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+		THEKERNEL->streams->printf("Get AP_PARAM_TYPE_NETMASK_ADDR ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+	}
+	if( M8266WIFI_SPI_Query_AP_Param(AP_PARAM_TYPE_CHANNEL, (u8 *)&this->ap_channel, &param_len, &status) == 0)
+	{
+		THEKERNEL->streams->printf("Get AP_PARAM_TYPE_CHANNEL ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
 
 	if (reset) {

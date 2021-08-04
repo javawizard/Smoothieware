@@ -86,6 +86,7 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"set_temp", SimpleShell::set_temp_command},
     {"switch",   SimpleShell::switch_command},
     {"net",      SimpleShell::net_command},
+	{"ap",     SimpleShell::ap_command},
 	{"wlan",     SimpleShell::wlan_command},
 	{"diagnose",   SimpleShell::diagnose_command},
 	{"sleep",   SimpleShell::sleep_command},
@@ -953,6 +954,26 @@ void SimpleShell::net_command( string parameters, StreamOutput *stream)
     }
 }
 
+// get or set ap channel config
+void SimpleShell::ap_command( string parameters, StreamOutput *stream)
+{
+	uint8_t channel;
+    if (!parameters.empty() ) {
+    	channel = strtol(parameters.c_str(), NULL, 10);
+    	if (channel < 1 || channel > 14) {
+    		stream->printf("AP Channel should between 1 to 14\n");
+    	} else {
+            PublicData::set_value( wlan_checksum, set_ap_channel_checksum, &channel );
+    	}
+    } else {
+        bool ok = PublicData::get_value( wlan_checksum, get_ap_channel_checksum, &channel );
+        if (ok) {
+            stream->printf("Current AP channel: %d\r\n", channel);
+        }
+    }
+}
+
+
 // wlan config
 void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
 {
@@ -1816,6 +1837,7 @@ void SimpleShell::help_command( string parameters, StreamOutput *stream )
     stream->printf("set_temp bed|hotend 185\r\n");
     stream->printf("switch name [value]\r\n");
     stream->printf("net\r\n");
+    stream->printf("ap [channel]\r\n");
     stream->printf("wlan [ssid] [password] [-d] [-e]\r\n");
     stream->printf("diagnose\r\n");
     stream->printf("load [file] - loads a configuration override file from soecified name or config-override\r\n");
