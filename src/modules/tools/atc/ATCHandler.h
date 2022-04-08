@@ -81,6 +81,7 @@ private:
     void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
     void fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset);
     void fill_zprobe_abs_scripts();
+    void fill_xyzprobe_scripts(float dia, bool set_origin);
     void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids, float height);
     void fill_goto_origin_scripts(float x_pos, float y_pos);
 
@@ -148,6 +149,7 @@ private:
     float clearance_x;
     float clearance_y;
     float clearance_z;
+
 
     struct atc_tool {
     	int num;
