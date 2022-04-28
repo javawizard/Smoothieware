@@ -140,7 +140,7 @@ void WatchScreen::get_current_status()
 {
     // get spindle status
     struct pad_switch s;
-    bool ok = PublicData::get_value( switch_checksum, fan_checksum, 0, &s );
+    bool ok = PublicData::get_value( switch_checksum, spindlefan_checksum, 0, &s );
     if (ok) {
         this->spindle_state = s.state;
     } else {

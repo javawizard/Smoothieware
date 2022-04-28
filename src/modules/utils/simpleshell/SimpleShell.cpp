@@ -7,6 +7,8 @@
 
 
 #include "SimpleShell.h"
+
+#include "../mainbutton/MainButtonPublicAccess.h"
 #include "libs/Kernel.h"
 #include "libs/nuts_bolts.h"
 #include "libs/utils.h"
@@ -33,9 +35,9 @@
 #include "SpindlePublicAccess.h"
 #include "ZProbePublicAccess.h"
 #include "LaserPublicAccess.h"
-#include "ATCHandlerPublicAccess.h"
 #include "TemperatureControlPublicAccess.h"
 #include "EndstopsPublicAccess.h"
+#include "ATCHandlerPublicAccess.h"
 #include "NetworkPublicAccess.h"
 #include "platform_memory.h"
 #include "SwitchPublicAccess.h"
@@ -44,7 +46,7 @@
 #include "md5.h"
 #include "utils.h"
 #include "AutoPushPop.h"
-
+#include "MainButtonPublicAccess.h"
 #include "system_LPC17xx.h"
 #include "LPC17xx.h"
 
@@ -1170,9 +1172,7 @@ void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
 	THEKERNEL->set_sleeping(true);
 	THEKERNEL->call_event(ON_HALT, nullptr);
 	// turn off 12V/24V power supply
-	bool b = false;
-	PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
-	PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
+	PublicData::set_value( main_button_checksum, set_power_supply_checksum, nullptr );
 
 }
 

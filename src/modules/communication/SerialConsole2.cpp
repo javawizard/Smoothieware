@@ -11,6 +11,8 @@ using std::string;
 #include "libs/Module.h"
 #include "libs/Kernel.h"
 #include "Gcode.h"
+#include "Config.h"
+#include "ConfigValue.h"
 #include "libs/nuts_bolts.h"
 #include "SerialConsole2.h"
 #include "libs/RingBuffer.h"
@@ -42,8 +44,8 @@ void SerialConsole2::on_module_loaded() {
     // We want to be called every time a new char is received
     this->serial->attach(this, &SerialConsole2::on_serial_char_received, mbed::Serial::RxIrq);
 
-    // this->min_voltage = THEKERNEL->config->value(wp_checksum, min_voltage_checksum)->by_default(3.5)->as_number();
-    // this->max_voltage = THEKERNEL->config->value(wp_checksum, max_voltage_checksum)->by_default(4.2)->as_number();
+    this->min_voltage = THEKERNEL->config->value(wp_checksum, min_voltage_checksum)->by_default(3.5F)->as_number();
+    this->max_voltage = THEKERNEL->config->value(wp_checksum, max_voltage_checksum)->by_default(4.2F)->as_number();
 
     // We only call the command dispatcher in the main loop, nowhere else
     this->register_for_event(ON_MAIN_LOOP);

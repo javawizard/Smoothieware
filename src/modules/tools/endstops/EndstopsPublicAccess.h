@@ -10,6 +10,5 @@
 #define get_homed_status_checksum CHECKSUM("homed_status")
 #define get_endstop_states_checksum CHECKSUM("endstop_states")
 #define get_cover_endstop_state_checksum CHECKSUM("cover_endstop_state")
-#define get_e_stop_state_checksum CHECKSUM("e_stop_state")
 
 #endif

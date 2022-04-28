@@ -14,6 +14,8 @@
 #include "PlayerPublicAccess.h"
 #include "SwitchPublicAccess.h"
 #include "libs/PublicData.h"
+#include "PublicDataRequest.h"
+#include "MainButtonPublicAccess.h"
 
 using namespace std;
 
@@ -314,7 +316,7 @@ void MainButton::on_get_public_data(void* argument)
 {
     PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
 
-    if (pdr->starts_with(endstops_checksum)) {
+    if (pdr->starts_with(main_button_checksum)) {
     	if (pdr->second_element_is(get_e_stop_state_checksum)) {
 			char *data = static_cast<char *>(pdr->get_data_ptr());
 			// cover endstop
@@ -324,4 +326,14 @@ void MainButton::on_get_public_data(void* argument)
     }
 }
 
+void MainButton::on_set_public_data(void* argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+
+    if (pdr->starts_with(main_button_checksum)) {
+    	if (pdr->second_element_is(set_power_supply_checksum)) {
+    		this->switch_power_supply(0);
+    	}
+    }
+}
 

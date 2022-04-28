@@ -11,6 +11,7 @@ class MainButton : public Module {
         uint32_t button_tick(uint32_t dummy);
         void on_second_tick(void *);
         void on_get_public_data(void* argument);
+        void on_set_public_data(void* argument);
 
     private:
         Pin main_button;
