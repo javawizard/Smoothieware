@@ -37,7 +37,6 @@
 #include "TemperatureControlPublicAccess.h"
 #include "EndstopsPublicAccess.h"
 #include "NetworkPublicAccess.h"
-#include "WifiPublicAccess.h"
 #include "platform_memory.h"
 #include "SwitchPublicAccess.h"
 #include "SDFAT.h"
@@ -86,8 +85,8 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"set_temp", SimpleShell::set_temp_command},
     {"switch",   SimpleShell::switch_command},
     {"net",      SimpleShell::net_command},
-	{"ap",     SimpleShell::ap_command},
-	{"wlan",     SimpleShell::wlan_command},
+	// {"ap",     SimpleShell::ap_command},
+	// {"wlan",     SimpleShell::wlan_command},
 	{"diagnose",   SimpleShell::diagnose_command},
 	{"sleep",   SimpleShell::sleep_command},
     {"load",     SimpleShell::load_command},
@@ -955,6 +954,7 @@ void SimpleShell::net_command( string parameters, StreamOutput *stream)
 }
 
 // get or set ap channel config
+/*
 void SimpleShell::ap_command( string parameters, StreamOutput *stream)
 {
 	uint8_t channel;
@@ -1055,6 +1055,7 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
         }
     }
 }
+*/
 
 // wlan config
 void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
@@ -1110,9 +1111,22 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
         if(n > sizeof(buf)) n = sizeof(buf);
         str.append(buf, n);
     }
+    ok = PublicData::get_value(switch_checksum, get_checksum("air"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|R:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("probecharger"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|C:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
 
-    // get endstops
-    char data[10];
+
+    // get states
+    char data[11];
     ok = PublicData::get_value(endstops_checksum, get_endstop_states_checksum, 0, data);
     if (ok) {
         n = snprintf(buf, sizeof(buf), "|E:%d,%d,%d,%d,%d,%d", data[0], data[1], data[2], data[3], data[4], data[5]);
@@ -1136,6 +1150,13 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
         str.append(buf, n);
     }
 
+    // get e-stop states
+    ok = PublicData::get_value(endstops_checksum, get_e_stop_state_checksum, 0, &data[10]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|I:%d", data[10]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
 
 
     str.append("}\n");

@@ -10,6 +10,7 @@ class MainButton : public Module {
         void on_idle(void *argument);
         uint32_t button_tick(uint32_t dummy);
         void on_second_tick(void *);
+        void on_get_public_data(void* argument);
 
     private:
         Pin main_button;
@@ -22,6 +23,10 @@ class MainButton : public Module {
 			BUTTON_SHORT_PRESSED,
 			BUTTON_LED_UPDATE
         };
+
+        Pin e_stop;
+        Pin PS12;
+        Pin PS24;
 
         uint8_t hold_toggle;
         uint8_t led_update_timer;
@@ -44,6 +49,8 @@ class MainButton : public Module {
         uint32_t poll_frequency;
 
         bool sd_ok;
+
+        void switch_power_supply(int state);
 };
 
 #endif

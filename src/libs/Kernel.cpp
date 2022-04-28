@@ -341,6 +341,15 @@ std::string Kernel::get_query_string()
         str.append(buf, n);
     }
 
+    // current tool number and tool offset
+    float wp_voltage;
+    ok = PublicData::get_value( atc_handler_checksum, get_wp_voltage_checksum, &wp_voltage );
+    if (ok) {
+        n= snprintf(buf, sizeof(buf), ",%1.2f", wp_voltage);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
+
     // current Laser power and override
     struct laser_status ls;
 	if(PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls)) {

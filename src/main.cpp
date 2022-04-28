@@ -19,7 +19,6 @@
 #include "modules/tools/temperatureswitch/TemperatureSwitch.h"
 #include "modules/tools/drillingcycles/Drillingcycles.h"
 #include "modules/tools/atc/ATCHandler.h"
-#include "modules/utils/wifi/WifiProvider.h"
 #include "FilamentDetector.h"
 #include "MotorDriverControl.h"
 
@@ -31,6 +30,7 @@
 #include "modules/utils/mainbutton/MainButton.h"
 #include "modules/utils/PlayLed/PlayLed.h"
 #include "modules/utils/panel/Panel.h"
+#include "modules/communication/SerialConsole2.h"
 #include "libs/Network/uip/Network.h"
 #include "Config.h"
 #include "checksumm.h"
@@ -63,6 +63,8 @@
 
 #include "mbed.h"
 
+// disable MSD
+#define DISABLEMSD
 #define second_usb_serial_enable_checksum  CHECKSUM("second_usb_serial_enable")
 #define disable_msd_checksum  CHECKSUM("msd_disable")
 #define dfu_enable_checksum  CHECKSUM("dfu_enable")
@@ -100,13 +102,21 @@ void init() {
     }
 
     // open 12V
-    GPIO v12 = GPIO(P0_11);
+    // GPIO v12 = GPIO(P0_11);
+    /*
+    GPIO v12 = GPIO(P0_9);
     v12.output();
     v12 = 1;
 
-    GPIO v24 = GPIO(P1_29);
+    // GPIO v24 = GPIO(P1_29);
+    GPIO v24 = GPIO(P0_0);
     v24.output();
     v24 = 1;
+
+    GPIO vCharge = GPIO(P0_23);
+    vCharge.output();
+    vCharge = 1;
+    */
 
     Kernel* kernel = new Kernel();
 
@@ -121,6 +131,10 @@ void init() {
     #endif
 
 #ifdef DISABLEMSD
+	msc = NULL;
+	kernel->streams->printf("MSD is disabled\r\n");
+
+	/*
     // attempt to be able to disable msd in config
     if(sdok && !kernel->config->value( disable_msd_checksum )->by_default(true)->as_bool()){
         // HACK to zero the memory USBMSD uses as it and its objects seem to not initialize properly in the ctor
@@ -129,9 +143,10 @@ void init() {
         memset(v, 0, n); // clear the allocated memory
         msc= new(v) USBMSD(&u, &sd); // allocate object using zeroed memory
     }else{
-        msc= NULL;
+        msc = NULL;
         kernel->streams->printf("MSD is disabled\r\n");
-    }
+    }*/
+
 #endif
 
     // Create and add main modules
@@ -139,8 +154,9 @@ void init() {
 
     // ATC Handler
     kernel->add_module( new(AHB0) ATCHandler() );
-    // Wifi Provider
-    kernel->add_module( new(AHB0) WifiProvider() );
+
+    // Serial Console 2
+    kernel->add_module( new(AHB0) SerialConsole2() );
 
     kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) MainButton() );
@@ -217,10 +233,12 @@ void init() {
     }
 #endif
 
+    /* disable USB module
     kernel->add_module( &usbserial );
     if( kernel->config->value( second_usb_serial_enable_checksum )->by_default(false)->as_bool() ){
         kernel->add_module( new(AHB0) USBSerial(&u) );
     }
+    */
 
     if( kernel->config->value( dfu_enable_checksum )->by_default(false)->as_bool() ){
         kernel->add_module( new(AHB0) DFU(&u));

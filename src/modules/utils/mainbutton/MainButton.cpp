@@ -25,10 +25,13 @@ using namespace std;
 #define main_button_poll_frequency_checksum			CHECKSUM("main_button_poll_frequency")
 #define main_long_press_time_ms_checksum			CHECKSUM("main_button_long_press_time")
 
+#define e_stop_pin_checksum							CHECKSUM("e_stop_pin")
+#define ps12_pin_checksum							CHECKSUM("ps12_pin")
+#define ps24_pin_checksum							CHECKSUM("ps24_pin")
+
 #define power_checksum								CHECKSUM("power")
 #define auto_sleep_checksum							CHECKSUM("auto_sleep")
 #define auto_sleep_min_checksum						CHECKSUM("auto_sleep_min")
-#define light_checksum								CHECKSUM("light")
 #define turn_off_min_checksum						CHECKSUM("turn_off_min")
 #define stop_on_cover_open_checksum					CHECKSUM("stop_on_cover_open")
 
@@ -54,12 +57,16 @@ void MainButton::on_module_loaded()
         return;
     }
 
-    this->main_button.from_string( THEKERNEL->config->value( main_button_pin_checksum )->by_default("2.7!^")->as_string())->as_input();
-    this->main_button_LED_R.from_string( THEKERNEL->config->value( main_button_LED_R_pin_checksum )->by_default("1.14")->as_string())->as_output();
-    this->main_button_LED_G.from_string( THEKERNEL->config->value( main_button_LED_G_pin_checksum )->by_default("1.16")->as_string())->as_output();
-    this->main_button_LED_B.from_string( THEKERNEL->config->value( main_button_LED_B_pin_checksum )->by_default("1.15")->as_string())->as_output();
+    this->main_button.from_string( THEKERNEL->config->value( main_button_pin_checksum )->by_default("1.16^")->as_string())->as_input();
+    this->main_button_LED_R.from_string( THEKERNEL->config->value( main_button_LED_R_pin_checksum )->by_default("1.10")->as_string())->as_output();
+    this->main_button_LED_G.from_string( THEKERNEL->config->value( main_button_LED_G_pin_checksum )->by_default("1.15")->as_string())->as_output();
+    this->main_button_LED_B.from_string( THEKERNEL->config->value( main_button_LED_B_pin_checksum )->by_default("1.14")->as_string())->as_output();
     this->poll_frequency = THEKERNEL->config->value( main_button_poll_frequency_checksum )->by_default(20)->as_number();
     this->long_press_time_ms = THEKERNEL->config->value( main_long_press_time_ms_checksum )->by_default(3000)->as_number();
+
+    this->e_stop.from_string( THEKERNEL->config->value( e_stop_pin_checksum )->by_default("0.26^")->as_string())->as_input();
+    this->PS12.from_string( THEKERNEL->config->value( ps12_pin_checksum )->by_default("0.9")->as_string())->as_output();
+    this->PS24.from_string( THEKERNEL->config->value( ps24_pin_checksum )->by_default("0.0")->as_string())->as_output();
 
     this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
     this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
@@ -76,11 +83,22 @@ void MainButton::on_module_loaded()
 
     this->register_for_event(ON_SECOND_TICK);
 
+    this->register_for_event(ON_GET_PUBLIC_DATA);
+
+    // turn on power
+    this->switch_power_supply(1);
+
     this->main_button_LED_R.set(0);
     this->main_button_LED_G.set(0);
     this->main_button_LED_B.set(0);
 
     THEKERNEL->slow_ticker->attach( this->poll_frequency, this, &MainButton::button_tick );
+}
+
+void MainButton::switch_power_supply(int state)
+{
+	this->PS12.set(state);
+	this->PS24.set(state);
 }
 
 void MainButton::on_second_tick(void *)
@@ -95,9 +113,14 @@ void MainButton::on_second_tick(void *)
 void MainButton::on_idle(void *argument)
 {
 	bool cover_open_stop = false;
-    if (button_state ==  BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
+	bool e_stop_pressed = this->e_stop.get();
+    if (e_stop_pressed || button_state == BUTTON_LED_UPDATE || button_state == BUTTON_SHORT_PRESSED || button_state == BUTTON_LONG_PRESSED) {
     	// get current status
     	uint8_t state = THEKERNEL->get_state();
+    	if (e_stop_pressed && state != ALARM) {
+    	    THEKERNEL->call_event(ON_HALT, nullptr);
+    	    THEKERNEL->set_halt_reason(MANUAL);
+    	}
 		if (this->stop_on_cover_open && !THEKERNEL->is_halted()) {
             void *return_value;
 			bool cover_endstop_state;
@@ -122,9 +145,7 @@ void MainButton::on_idle(void *argument)
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
     				// turn off 12V/24V power supply
-					bool b = false;
-					PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
-					PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
+					this->switch_power_supply(0);
         		}
         	} else {
         		sleep_countdown_us = us_ticker_read();
@@ -168,15 +189,13 @@ void MainButton::on_idle(void *argument)
     				break;
     		}
     	} else if (button_state == BUTTON_LONG_PRESSED) {
-    		bool b = false;
     		switch (state) {
     			case IDLE:
     				// sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
     				// turn off 12V/24V power supply
-					PublicData::set_value( switch_checksum, ps12_checksum, state_checksum, &b );
-					PublicData::set_value( switch_checksum, ps24_checksum, state_checksum, &b );
+    				this->switch_power_supply(0);
     				break;
     			case RUN:
     			case HOME:
@@ -290,4 +309,19 @@ uint32_t MainButton::button_tick(uint32_t dummy)
 	}
     return 0;
 }
+
+void MainButton::on_get_public_data(void* argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+
+    if (pdr->starts_with(endstops_checksum)) {
+    	if (pdr->second_element_is(get_e_stop_state_checksum)) {
+			char *data = static_cast<char *>(pdr->get_data_ptr());
+			// cover endstop
+			data[0] = (char)this->e_stop.get();
+			pdr->set_taken();
+    	}
+    }
+}
+
 

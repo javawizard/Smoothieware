@@ -61,7 +61,7 @@ void Laser::on_module_loaded()
 
     // Get smoothie-style pin from config
     this->laser_pin = new Pin();
-    this->laser_pin->from_string(THEKERNEL->config->value(laser_module_pin_checksum)->by_default("0.10")->as_string())->as_output();
+    this->laser_pin->from_string(THEKERNEL->config->value(laser_module_pin_checksum)->by_default("2.13")->as_string())->as_output();
     if (!this->laser_pin->connected()) {
         delete this->laser_pin;
         this->laser_pin= nullptr;

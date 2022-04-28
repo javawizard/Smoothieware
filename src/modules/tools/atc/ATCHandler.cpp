@@ -102,7 +102,7 @@ ATCHandler::ATCHandler()
     last_pos[0] = 0.0;
     last_pos[1] = 0.0;
     last_pos[2] = 0.0;
-    probe_laser_last = 0;
+    probe_laser_last = 9999;
     playing_file = false;
 }
 
@@ -433,7 +433,7 @@ void ATCHandler::on_config_reload(void *argument)
 {
 	char buff[10];
 
-	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("1.9!^" )->as_string())->as_input();
+	atc_home_info.pin.from_string( THEKERNEL->config->value(atc_checksum, endstop_pin_checksum)->by_default("1.0^" )->as_string())->as_input();
 	atc_home_info.debounce_ms    = THEKERNEL->config->value(atc_checksum, debounce_ms_checksum)->by_default(1  )->as_number();
 	atc_home_info.max_travel    = THEKERNEL->config->value(atc_checksum, max_travel_mm_checksum)->by_default(8  )->as_number();
 	atc_home_info.retract    = THEKERNEL->config->value(atc_checksum, homing_retract_mm_checksum)->by_default(3  )->as_number();
@@ -441,7 +441,7 @@ void ATCHandler::on_config_reload(void *argument)
 	atc_home_info.homing_rate    = THEKERNEL->config->value(atc_checksum, homing_rate_mm_s_checksum)->by_default(1  )->as_number();
 	atc_home_info.action_rate    = THEKERNEL->config->value(atc_checksum, action_rate_mm_s_checksum)->by_default(1  )->as_number();
 
-	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("0.20^" )->as_string())->as_input();
+	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("0.21^" )->as_string())->as_input();
 	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
 	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
 
@@ -540,35 +540,11 @@ uint32_t ATCHandler::read_detector(uint32_t dummy)
 // Called every second in an ISR
 uint32_t ATCHandler::countdown_probe_laser(uint32_t dummy)
 {
-    // get switchs state
-    struct pad_switch pad;
-    bool ok = PublicData::get_value(switch_checksum, probelaser_checksum, 0, &pad);
-    if (ok) {
-        if (pad.state) {
-        	probe_laser_last ++;
-        	if (probe_laser_last > 120) {
-        		// turn off probelaser switch
-        	    bool switch_state = false;
-        	    ok = PublicData::set_value(switch_checksum, probelaser_checksum, state_checksum, &switch_state);
-        	    if (!ok) {
-        	        THEKERNEL->streams->printf("ERROR: Failed switch off probelaser switch.\r\n");
-        	    }
-        	}
-        } else {
-        	probe_laser_last = 0;
-        }
-    } else {
-        THEKERNEL->streams->printf("ERROR: Failed to get probe laser switch state.\r\n");
-    }
+	if (this->probe_laser_last < 120) {
+		this->probe_laser_last ++;
+		PublicData::set_value(atc_handler_checksum, set_wp_laser_checksum, nullptr);
+	}
     return 0;
-}
-
-void ATCHandler::switch_prober_laser(bool turn_on) {
-    bool switch_state = turn_on;
-    bool ok = PublicData::set_value(switch_checksum, probelaser_checksum, state_checksum, &switch_state);
-    if (!ok) {
-        THEKERNEL->streams->printf("ERROR: Failed switch on/off probelaser switch.\r\n");
-    }
 }
 
 bool ATCHandler::laser_detect() {
@@ -890,10 +866,10 @@ void ATCHandler::on_gcode_received(void *argument)
 			// control probe laser
 			if (gcode->subcode == 0 || gcode->subcode == 1) {
 				// open probe laser
-				this->switch_prober_laser(true);
+				this->probe_laser_last = 0;
 			} else if (gcode->subcode == 2) {
 				// close probe laser
-				this->switch_prober_laser(false);
+				this->probe_laser_last = 9999;
 			}
 		} else if (gcode->m == 495) {
 			if (gcode->subcode == 3) {

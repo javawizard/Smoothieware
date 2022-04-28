@@ -13,7 +13,7 @@ new_status_format							true
 #sd_ok										false
 
 #dfu_enable									false
-msd_disable									false			# Disable the MSD (USB SDCARD)
+msd_disable									true			# Disable the MSD (USB SDCARD)
 
 #home_on_boot								true			# If do home when bootup
 
@@ -37,9 +37,9 @@ junction_deviation							0.01			#
 #z_junction_deviation						0.0				# For Z only moves, -1 uses junction_deviation, zero disables junction_deviation on z moves DO NOT SET ON A DELTA
 
 # Cartesian axis speed limits
-#x_axis_max_speed							4000			# Maximum speed in mm/min
-#y_axis_max_speed							4000			# Maximum speed in mm/min
-#z_axis_max_speed							3000			# Maximum speed in mm/min
+x_axis_max_speed							4000			# Maximum speed in mm/min
+y_axis_max_speed							4000			# Maximum speed in mm/min
+z_axis_max_speed							3000			# Maximum speed in mm/min
 
 # Stepper module configuration
 # Pins are defined as  ports, and pin numbers, appending "!" to the number will invert a pin
@@ -57,7 +57,7 @@ beta_max_rate								3000.0			# Maxmimum rate in mm/min
 
 gamma_step_pin								1.22			# Pin for gamma stepper step signal
 gamma_dir_pin								1.23			# Pin for gamma stepper direction, add '!' to reverse direction
-gamma_en_pin								nc			# Pin for gamma enable
+gamma_en_pin								nc				# Pin for gamma enable
 gamma_current								0.5				# Z stepper motor current
 gamma_max_rate								2000.0			# Maximum rate in mm/min
 
@@ -74,7 +74,7 @@ delta_acceleration							360			    # degree/secÂ²
 epsilon_steps_per_mm						43200			# 1:27 rate may be steps per degree for example (43200)
 epsilon_step_pin							1.18			# Pin for delta stepper step signal
 epsilon_dir_pin								1.19			# Pin for delta stepper direction
-epsilon_en_pin								0.24			# Pin for delta enable
+epsilon_en_pin								1.30			# Pin for delta enable
 epsilon_current								0.5				# B stepper motor current
 epsilon_max_rate							100.0			# mm/min
 epsilon_acceleration						10.0			# mm/secÂ²
@@ -86,24 +86,24 @@ epsilon_acceleration						10.0			# mm/secÂ²
 #wifi.udp_send_port							3333
 #wifi.udp_recv_port							4444
 #wifi.tcp_timeout_s							10
-wifi.machine_name							CARVERA
+#wifi.machine_name							CARVERA
 
 # ATC
-#atc.enable									true
-#atc.homing_endstop_pin						1.9!^
-#atc.homing_debounce_ms						1
-#atc.homing_max_travel_mm					8
+atc.enable									true
+atc.homing_endstop_pin						1.0^
+atc.homing_debounce_ms						1
+atc.homing_max_travel_mm					8
 atc.homing_retract_mm						1.5
 atc.homing_rate_mm_s						0.4
 atc.action_mm								1.5
 atc.action_rate_mm_s						0.25
 
-#atc.detector.detect_pin						0.20^
+atc.detector.detect_pin						0.21^
 atc.detector.detect_rate_mm_s				20				# Tool detect speed (mm / second)	
 atc.detector.detect_travel_mm				5				# Tool detect back and forth distance (mm)
 
-# atc.tool_number								6		
-# atc.active_tool								0
+atc.tool_number								6		
+atc.active_tool								0
 atc.safe_z_mm								-20.0
 atc.safe_z_empty_mm 						-45.0			# Safety Z height when not clamping tool
 atc.safe_z_offset_mm						15.0
@@ -148,11 +148,14 @@ atc.tool6.mx_mm								-4.1
 atc.tool6.my_mm								-233.1
 atc.tool6.mz_mm								-105
 
+# wireless probe
+wp.min_voltage									3.5			# wireless probe charge begin voltage
+wp.max_voltage									4.2			# wireless probe charge stop voltage
 
 # Laser module configuration
-#laser_module_enable							true			# Whether to activate the laser module at all
-#laser_module_pin							0.10			# 
-#laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
+laser_module_enable							true			# Whether to activate the laser module at all
+laser_module_pin							2.13			# 
+laser_module_pwm_pin						2.2				# This pin will be PWMed to control the laser.
 
 #laser_module_ttl_pin						1.30			# This pin turns on when the laser turns on, and off when the laser turns off.
 laser_module_test_power						0.01            # This is the maximum duty cycle that will be applied to the laser
@@ -161,7 +164,7 @@ laser_module_minimum_power					0.0				# This is a value just below the minimum d
 laser_module_default_power					0.8             # This is the default laser power that will be used for cuts if a power has not been specified.  
 															#The value is a scale between
 															# the maximum and minimum power levels specified above
-#laser_module_pwm_period					20				# This sets the pwm frequency as the period in microseconds
+laser_module_pwm_period						20				# This sets the pwm frequency as the period in microseconds
 
 laser_module_offset_x						-37.3			# laser model x offset
 laser_module_offset_y						4.8				# laser model y offset
@@ -171,7 +174,7 @@ laser_module_offset_z						-45.0			# laser model z offset
 switch.vacuum.enable 						true			# Enable this module
 switch.vacuum.input_on_command				M801			# Command that will turn this switch on
 switch.vacuum.input_off_command				M802			# Command that will turn this switch off
-switch.vacuum.output_pin					2.11			# Pin this module controls
+switch.vacuum.output_pin					0.11			# Pin this module controls
 switch.vacuum.output_type					digitalpwm		# Digital means this is just an on or off pin
 switch.vacuum.pwm_pin						2.3				#
 switch.vacuum.min_pwm						0				#
@@ -181,16 +184,13 @@ switch.vacuum.default_on_value				70				#
 switch.spindlefan.enable					true			# Enable this module
 switch.spindlefan.input_on_command			M811			# Command that will turn this switch on
 switch.spindlefan.input_off_command			M812			# Command that will turn this switch off
-switch.spindlefan.output_pin				1.28			# Pin this module controls
-switch.spindlefan.output_type				digitalpwm		# Digital means this is just an on or off pin
-switch.spindlefan.pwm_pin					2.1				#
-switch.spindlefan.min_pwm					0				#
-switch.spindlefan.max_pwm					100				#
-switch.spindlefan.default_on_value			90				#
+switch.spindlefan.output_pin				2.1			# Pin this module controls
+switch.spindlefan.output_type				hwpwm			# Digital means this is just an on or off pin
+switch.spindlefan.default_on_value			70				#
 
 switch.light.enable							true			# Enable this module
 switch.light.startup_state					true			# Startup light by default
-switch.light.output_pin						0.22			# Pin this module controls
+switch.light.output_pin						2.0				# Pin this module controls
 switch.light.input_on_command				M821			# Command that will turn this switch on
 switch.light.input_off_command				M822			# Command that will turn this switch off
 switch.light.ignore_on_halt					true			# ignore on halt
@@ -201,30 +201,28 @@ switch.toolsensor.output_type				digital			# Digital means this is just an on or
 switch.toolsensor.input_on_command			M831			# Command that will turn this switch on
 switch.toolsensor.input_off_command			M832			# Command that will turn this switch off
 
-switch.probelaser.enable					true			# Enable this module
-switch.probelaser.output_pin				1.17!^			# Pin this module controls
-switch.probelaser.output_type				digital			# Digital means this is just an on or off pin
-switch.probelaser.input_on_command			M841			# Command that will turn this switch on
-switch.probelaser.input_off_command			M842			# Command that will turn this switch off
+#switch.probelaser.enable					true			# Enable this module
+#switch.probelaser.output_pin				0.5!^			# Pin this module controls
+#switch.probelaser.output_type				digital			# Digital means this is just an on or off pin
+#switch.probelaser.input_on_command			M841			# Command that will turn this switch on
+#switch.probelaser.input_off_command		M842			# Command that will turn this switch off
 
-switch.ps12.enable							true			# Enable this module
-switch.ps12.startup_state					true			# Startup by default
-switch.ps12.output_pin						0.11			# Pin this module controls
-switch.ps12.output_type						digital			# Digital means this is just an on or off pin
-switch.ps12.failsafe_set_to					1				# failsafe
-switch.ps12.ignore_on_halt					true			# ignore on halt
+switch.probecharger.enable					true			# Enable this module
+switch.probecharger.output_pin				0.23			# Pin this module controls
+switch.probecharger.output_type				digital			# Digital means this is just an on or off pin
+switch.probecharger.input_on_command		M841			# Command that will turn this switch on
+switch.probecharger.input_off_command		M842			# Command that will turn this switch off
 
-switch.ps24.enable							true			# Enable this module
-switch.ps24.startup_state					true			# Startup by default
-switch.ps24.output_pin						1.29			# Pin this module controls
-switch.ps24.output_type						digital			# Digital means this is just an on or off pin
-switch.ps24.failsafe_set_to					1				# failsafe
-switch.ps24.ignore_on_halt					true			# ignore on halt
+switch.air.enable							true			# Enable this module
+switch.air.output_pin						0.1				# Pin this module controls
+switch.air.output_type						digital			# Digital means this is just an on or off pin
+switch.air.input_on_command					M7				# Command that will turn this switch on
+switch.air.input_off_command				M9				# Command that will turn this switch off
 
 ## Temperature control configuration
 # spindle temperature configuration
 temperature_control.spindle.enable			true			# Whether to activate this ( "hotend" ) module at all.
-temperature_control.spindle.thermistor_pin	1.30			# Pin for the thermistor to read
+temperature_control.spindle.thermistor_pin	1.31			# Pin for the thermistor to read
 temperature_control.spindle.heater_pin		nc				# Pin that controls the heater, set to nc if a readonly thermistor is being defined
 temperature_control.spindle.beta			3950			# Or set the beta value
 temperature_control.spindle.get_m_code		105				# M-code to set the temperature for this module
@@ -243,11 +241,11 @@ temperatureswitch.spindle.cooldown_poll		60				# poll cooldown at 60 sec interva
 
 
 ## Endstops
-#endstops_enable								true			# The endstop module is enabled by default and can be disabled here
-#cover_endstop								1.10!^		      
+endstops_enable								true			# The endstop module is enabled by default and can be disabled here
+cover_endstop								1.9^		      
 
-alpha_min_endstop							1.8^			# Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
-alpha_max_endstop							1.4^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
+alpha_min_endstop							0.24^			# Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
+alpha_max_endstop							0.25^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
 alpha_homing_direction						home_to_max		# Or set to home_to_max and set alpha_max and uncomment the alpha_max_endstop
 alpha_min									0				# This gets loaded as the current position after homing when home_to_min is set
 alpha_max									0				# This gets loaded as the current position after homing when home_to_max is set
@@ -256,10 +254,10 @@ alpha_fast_homing_rate_mm_s					15				# Alpha/X fast homing feedrate in mm/secon
 alpha_slow_homing_rate_mm_s					3				# Alpha/X slow homing feedrate in mm/second
 alpha_limit_enable                          true            # Set to true to enable X min and max limit switches
 alpha_homing_retract_mm						1				# Distance to retract from the endstop after it is hit for alpha/X
-alpha_motor_alarm_pin						0.1!^				# servo motor alarm for X axis
+alpha_motor_alarm_pin						1.29!^				# servo motor alarm for X axis
 
 beta_min_endstop							1.1^            # Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
-beta_max_endstop							1.0^            # Pin to read max endstop, uncomment this and comment the above if using max endstops
+beta_max_endstop							1.4^            # Pin to read max endstop, uncomment this and comment the above if using max endstops
 beta_homing_direction						home_to_max		# Or set to home_to_max and set alpha_max and uncomment the alpha_max_endstop
 beta_min									0				# This gets loaded as the current position after homing when home_to_min is set
 beta_max									0				# This gets loaded as the current position after homing when home_to_max is set
@@ -268,10 +266,10 @@ beta_fast_homing_rate_mm_s					15				# Beta/Y  fast homing feedrate in mm/second
 beta_slow_homing_rate_mm_s					3				# Beta/Y  slow homing feedrate in mm/second
 beta_limit_enable                           true            # Set to true to enable Y min and max limit switches
 beta_homing_retract_mm						1				# Distance to retract from the endstop after it is hit for beta/Y
-beta_motor_alarm_pin						0.0!^				# servo motor alarm for Y axis
+beta_motor_alarm_pin						1.28!^				# servo motor alarm for Y axis
 
 #gamma_min_endstop							0.26^			# Pin to read min endstop, add a ! to invert if endstop is NO connected to ground
-gamma_max_endstop							0.25^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
+gamma_max_endstop							1.8^			# Pin to read max endstop, uncomment this and comment the above if using max endstops
 gamma_homing_direction						home_to_max		# Or set to home_to_max and set alpha_max and uncomment the alpha_max_endstop
 gamma_min									0				# This gets loaded as the current position after homing when home_to_min is set
 gamma_max									0				# This gets loaded as the current position after homing when home_to_max is set
@@ -293,14 +291,14 @@ gamma_motor_alarm_pin						3.25!^			# servo motor alarm for Z axis
 
 ## Z-probe
 #zprobe.enable								true			# Set to true to enable a zprobe
-zprobe.probe_pin							2.8^			# Pin probe is attached to, if NC remove the !
+zprobe.probe_pin							2.7v			# Pin probe is attached to, if NC remove the !
 zprobe.slow_feedrate						1.5				# Mm/sec probe feed rate
 zprobe.debounce_ms							1				# Set if noisy
 zprobe.fast_feedrate						5				# Move feedrate mm/sec
 zprobe.return_feedrate						20				# Return feedrate mm/sec
 zprobe.probe_height							2				# How much above bed to start probe
 zprobe.max_z								100				# max z
-#zprobe.calibrate_pin						0.21^			# calibrate_pin
+zprobe.calibrate_pin						2.6^			# calibrate_pin
 
 # Leveling strategy
 leveling-strategy.rectangular-grid.enable					true
@@ -334,12 +332,17 @@ second_usb_serial_enable					false			# This enables a second USB serial port
 
 # Main button
 #main_button_enable							true			# Set to true to enable main button
-#main_button_pin								2.7!^			# Main button pin
-#main_button_LED_R_pin						1.14			# Main button red LED pin
-#main_button_LED_G_pin						1.16			# Main button green LED pin
-#main_button_LED_B_pin						1.15			# Main button blue LED pin
+main_button_pin								1.16^			# Main button pin
+main_button_LED_R_pin						1.10			# Main button red LED pin
+main_button_LED_G_pin						1.15			# Main button green LED pin
+main_button_LED_B_pin						1.14			# Main button blue LED pin
 main_button_poll_frequency					20				# Main button pool frequency
 main_button_long_press_time					3000			# Long press time
+
+ps12_pin									0.9				# 12V power pin
+ps24_pin									0.0				# 24V power pin
+e_stop_pin									0.26^			# Emergency stop pin
+
 
 # 
 #currentcontrol_module_enable				false			# Control stepper motor current via the configuration file
@@ -349,7 +352,7 @@ main_button_long_press_time					3000			# Long press time
 #spindle.type								pwm				# sets the spindle module to PWM mode
 spindle.pwm_pin								2.4				# Big Mosfet Q7. Pin must be hardware PWM capable.
 spindle.pwm_period							1000			# default 1000, sets the PWM frequency
-spindle.feedback_pin						0.23			# Pin must be interrupt capable. 
+spindle.feedback_pin						0.19			# Pin must be interrupt capable. 
 spindle.pulses_per_rev						12				# default 1. Defines the number of pulses occur for each rotation 
 spindle.default_rpm							5000			# default 5000. Defines a default RPM value in case no RPM value is provided.
 spindle.control_P							0.00005			# default 0.0001. P value for the PID controller              
@@ -358,7 +361,7 @@ spindle.control_D							0.00005			# default 0.0001. D value for the PID controll
 spindle.control_smoothing					0.1				# default 0.1. This value is low pass filter time constant in seconds.
 spindle.delay_s								3.0				# delay seconds before next motion after spindle turn on or off
 spindle.acc_ratio							1.58			# acceleration ratio
-spindle.alarm_pin							0.19^			# spindle alarm trigger pin
+spindle.alarm_pin							0.20^			# spindle alarm trigger pin
 spindle.stall_s								1.0				# how many seconds before report stall status
 spindle.stall_count_rpm						1000			# don't calculate stall when lower than this RPM
 spindle.stall_alarm_rpm						300				# consider as stall alarm if lower than this RPM

@@ -53,7 +53,7 @@ private:
     uint32_t read_detector(uint32_t dummy);
     uint32_t countdown_probe_laser(uint32_t dummy);
 
-    void switch_prober_laser(bool turn_on);
+    void switch_probe_laser(bool state);
 
     // clamp actions
     void clamp_tool();

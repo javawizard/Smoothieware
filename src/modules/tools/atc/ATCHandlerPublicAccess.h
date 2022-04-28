@@ -7,7 +7,10 @@
 #define atc_handler_checksum   		CHECKSUM("atc_handler")
 #define get_tool_status_checksum    CHECKSUM("get_tool_status")
 #define set_ref_tool_mz_checksum	CHECKSUM("set_ref_tool_mz")
-#define get_atc_pin_status_checksum	CHECKSUM("set_ref_tool_mz")
+#define get_atc_pin_status_checksum	CHECKSUM("get_atc_pin_status")
+
+#define set_wp_laser_checksum	CHECKSUM("set_wp_laser")
+#define get_wp_voltage_checksum	CHECKSUM("get_wp_voltage")
 
 struct tool_status {
 	int active_tool;
