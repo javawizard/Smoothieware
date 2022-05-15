@@ -30,6 +30,8 @@ using namespace std;
 #define e_stop_pin_checksum							CHECKSUM("e_stop_pin")
 #define ps12_pin_checksum							CHECKSUM("ps12_pin")
 #define ps24_pin_checksum							CHECKSUM("ps24_pin")
+#define power_fan_pin_checksum						CHECKSUM("power_fan_pin")
+#define power_fan_delay_s_checksum					CHECKSUM("power_fan_delay_s")
 
 #define power_checksum								CHECKSUM("power")
 #define auto_sleep_checksum							CHECKSUM("auto_sleep")
@@ -49,6 +51,7 @@ MainButton::MainButton()
     this->stop_on_cover_open = false;
     this->sleep_countdown_us = us_ticker_read();
     this->light_countdown_us = us_ticker_read();
+    this->power_fan_countdown_us = us_ticker_read();
 }
 
 void MainButton::on_module_loaded()
@@ -69,6 +72,8 @@ void MainButton::on_module_loaded()
     this->e_stop.from_string( THEKERNEL->config->value( e_stop_pin_checksum )->by_default("0.26^")->as_string())->as_input();
     this->PS12.from_string( THEKERNEL->config->value( ps12_pin_checksum )->by_default("0.9")->as_string())->as_output();
     this->PS24.from_string( THEKERNEL->config->value( ps24_pin_checksum )->by_default("0.0")->as_string())->as_output();
+    this->power_fan.from_string( THEKERNEL->config->value( power_fan_pin_checksum )->by_default("2.11")->as_string())->as_output();
+    this->power_fan_delay_s = THEKERNEL->config->value( power_fan_delay_s_checksum )->by_default(10)->as_int();
 
     this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
     this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
@@ -82,10 +87,9 @@ void MainButton::on_module_loaded()
     this->sd_ok = THEKERNEL->config->value( sd_ok_checksum )->by_default(false)->as_bool(); // @deprecated
 
     this->register_for_event(ON_IDLE);
-
     this->register_for_event(ON_SECOND_TICK);
-
     this->register_for_event(ON_GET_PUBLIC_DATA);
+    this->register_for_event(ON_SET_PUBLIC_DATA);
 
     // turn on power
     this->switch_power_supply(1);
@@ -121,7 +125,7 @@ void MainButton::on_idle(void *argument)
     	uint8_t state = THEKERNEL->get_state();
     	if (e_stop_pressed && state != ALARM) {
     	    THEKERNEL->call_event(ON_HALT, nullptr);
-    	    THEKERNEL->set_halt_reason(MANUAL);
+    	    THEKERNEL->set_halt_reason(E_STOP);
     	}
 		if (this->stop_on_cover_open && !THEKERNEL->is_halted()) {
             void *return_value;
@@ -139,15 +143,26 @@ void MainButton::on_idle(void *argument)
                 }
             }
 		}
+		// turn on/off power fan with delay
+		if (state == IDLE || state == SLEEP) {
+    		// reset sleep timer
+    		if (us_ticker_read() - this->power_fan_countdown_us > (uint32_t)this->power_fan_delay_s * 1000000) {
+				// turn off power fan
+    			this->power_fan.set(0);
+    		}
+		} else {
+			this->power_fan.set(1);
+			this->power_fan_countdown_us = us_ticker_read();
+		}
     	if (this->auto_sleep && auto_sleep_min > 0) {
         	if (state == IDLE) {
         		// reset sleep timer
         		if (us_ticker_read() - sleep_countdown_us > (uint32_t)auto_sleep_min * 60 * 1000000) {
+    				// turn off 12V/24V power supply
+					this->switch_power_supply(0);
         			// go to sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
-    				// turn off 12V/24V power supply
-					this->switch_power_supply(0);
         		}
         	} else {
         		sleep_countdown_us = us_ticker_read();
@@ -193,11 +208,11 @@ void MainButton::on_idle(void *argument)
     	} else if (button_state == BUTTON_LONG_PRESSED) {
     		switch (state) {
     			case IDLE:
+    				// turn off 12V/24V power supply
+    				this->switch_power_supply(0);
     				// sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
-    				// turn off 12V/24V power supply
-    				this->switch_power_supply(0);
     				break;
     			case RUN:
     			case HOME:

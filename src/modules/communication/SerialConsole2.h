@@ -29,6 +29,7 @@ class SerialConsole2 : public Module {
         void on_main_loop(void * argument);
         void on_get_public_data(void *argument);
         void on_set_public_data(void *argument);
+        void on_second_tick(void *);
 
         float wp_voltage;
         float min_voltage;

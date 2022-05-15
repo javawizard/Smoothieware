@@ -27,6 +27,9 @@ using std::string;
 #define wp_checksum						CHECKSUM("wp")
 #define min_voltage_checksum			CHECKSUM("min_voltage")
 #define max_voltage_checksum			CHECKSUM("max_voltage")
+#define baud_rate_setting_checksum 		CHECKSUM("baud_rate")
+#define uart_checksum              		CHECKSUM("uart")
+
 
 // Wireless probe serial reading module
 // Treats every received line as a command and passes it ( via event call ) to the command dispatcher.
@@ -38,8 +41,8 @@ SerialConsole2::SerialConsole2() {
 // Called when the module has just been loaded
 void SerialConsole2::on_module_loaded() {
 
-    this->serial = new mbed::Serial( USBTX, USBRX );
-    this->serial->baud(DEFAULT_SERIAL_BAUD_RATE);
+	this->serial = new mbed::Serial( USBTX, USBRX );
+    this->serial->baud(THEKERNEL->config->value(uart_checksum, baud_rate_setting_checksum)->by_default(DEFAULT_SERIAL_BAUD_RATE)->as_number());
 
     // We want to be called every time a new char is received
     this->serial->attach(this, &SerialConsole2::on_serial_char_received, mbed::Serial::RxIrq);
@@ -51,6 +54,11 @@ void SerialConsole2::on_module_loaded() {
     this->register_for_event(ON_MAIN_LOOP);
     this->register_for_event(ON_GET_PUBLIC_DATA);
     this->register_for_event(ON_SET_PUBLIC_DATA);
+    this->register_for_event(ON_SECOND_TICK);
+}
+
+void SerialConsole2::on_second_tick(void *)
+{
 }
 
 // Called on Serial::RxIrq interrupt, meaning we have received a char
@@ -77,9 +85,11 @@ void SerialConsole2::on_main_loop(void * argument) {
         	   this->wp_voltage = gc.get_value('V');
         	   // compare voltage value and switch probe charger
         	   if (this->wp_voltage <= this->min_voltage) {
+        		    THEKERNEL->streams->printf("WP battery low: %1.2fV, start charging\n", this->wp_voltage);
 					bool b = true;
 					PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
-        	   } else  if (this->wp_voltage >= this->min_voltage) {
+        	   } else  if (this->wp_voltage >= this->max_voltage) {
+        		    THEKERNEL->streams->printf("WP battery full: %1.2fV, end charging\n", this->wp_voltage);
 					bool b = false;
 					PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
         	   }

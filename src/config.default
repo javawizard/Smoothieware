@@ -184,7 +184,7 @@ switch.vacuum.default_on_value				70				#
 switch.spindlefan.enable					true			# Enable this module
 switch.spindlefan.input_on_command			M811			# Command that will turn this switch on
 switch.spindlefan.input_off_command			M812			# Command that will turn this switch off
-switch.spindlefan.output_pin				2.1			# Pin this module controls
+switch.spindlefan.output_pin				2.1				# Pin this module controls
 switch.spindlefan.output_type				hwpwm			# Digital means this is just an on or off pin
 switch.spindlefan.default_on_value			70				#
 
@@ -324,7 +324,7 @@ leveling-strategy.rectangular-grid.only_by_two_corners		true
 ## System configuration
 # Serial communications configuration ( baud rate defaults to 9600 if undefined )
 # For communication over the UART port, *not* the USB/Serial port
-uart0.baud_rate								115200			# Baud rate for the default hardware ( UART ) serial port
+uart.baud_rate								115200			# Baud rate for the default hardware ( UART ) serial port
 
 second_usb_serial_enable					false			# This enables a second USB serial port
 #leds_disable								true			# Disable using leds after config loaded
@@ -341,7 +341,9 @@ main_button_long_press_time					3000			# Long press time
 
 ps12_pin									0.9				# 12V power pin
 ps24_pin									0.0				# 24V power pin
-e_stop_pin									0.26^			# Emergency stop pin
+power_fan_pin								2.11			# power fan pin
+power_fan_delay_s							10				# power fan turn on/off delay
+e_stop_pin									0.26!^			# Emergency stop pin
 
 
 # 

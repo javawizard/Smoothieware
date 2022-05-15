@@ -29,6 +29,10 @@ class MainButton : public Module {
         Pin PS12;
         Pin PS24;
 
+        Pin power_fan;
+        uint16_t power_fan_delay_s;
+        uint32_t power_fan_countdown_us;
+
         uint8_t hold_toggle;
         uint8_t led_update_timer;
         uint32_t button_press_time;

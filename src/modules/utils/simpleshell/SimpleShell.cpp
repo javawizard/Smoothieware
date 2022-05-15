@@ -1153,7 +1153,7 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
     }
 
     // get e-stop states
-    ok = PublicData::get_value(endstops_checksum, get_e_stop_state_checksum, 0, &data[10]);
+    ok = PublicData::get_value(main_button_checksum, get_e_stop_state_checksum, 0, &data[10]);
     if (ok) {
         n = snprintf(buf, sizeof(buf), "|I:%d", data[10]);
         if(n > sizeof(buf)) n = sizeof(buf);
@@ -1169,10 +1169,10 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
 // sleep command
 void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
 {
-	THEKERNEL->set_sleeping(true);
-	THEKERNEL->call_event(ON_HALT, nullptr);
 	// turn off 12V/24V power supply
 	PublicData::set_value( main_button_checksum, set_power_supply_checksum, nullptr );
+	THEKERNEL->set_sleeping(true);
+	THEKERNEL->call_event(ON_HALT, nullptr);
 
 }
 
@@ -1191,12 +1191,14 @@ void SimpleShell::version_command( string parameters, StreamOutput *stream)
     stream->printf("  NOMSD Build\r\n");
     #endif
     stream->printf("%d axis\n", MAX_ROBOT_ACTUATORS);
+    THEKERNEL->set_bad_mcu(false);
+    /*
     if(!(dev & 0x00100000)) {
         stream->printf("WARNING: This is not a sanctioned board and may be unreliable and even dangerous.\nThis MCU is deprecated, and cannot guarantee proper function\n");
         THEKERNEL->set_bad_mcu(true);
     }else{
         THEKERNEL->set_bad_mcu(false);
-    }
+    }*/
 }
 
 // Reset the system

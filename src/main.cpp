@@ -49,7 +49,7 @@
 #include "libs/USBDevice/USB.h"
 #include "libs/USBDevice/USBMSD/USBMSD.h"
 #include "libs/USBDevice/USBMSD/SDCard.h"
-#include "libs/USBDevice/USBSerial/USBSerial.h"
+//#include "libs/USBDevice/USBSerial/USBSerial.h"
 #include "libs/USBDevice/DFU.h"
 #include "libs/SDFAT.h"
 #include "StreamOutputPool.h"
@@ -75,8 +75,8 @@ SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_18, P0_17, P0_15, P0_16); 
 //SDCard sd(P0_18, P0_17, P0_15, P0_16);  // this selects SPI0 as the sdcard
 //SDCard sd(P0_18, P0_17, P0_15, P2_8);  // this selects SPI0 as the sdcard witrh a different sd select
 
-USB u __attribute__ ((section ("AHBSRAM0")));
-USBSerial usbserial __attribute__ ((section ("AHBSRAM0"))) (&u);
+// USB u __attribute__ ((section ("AHBSRAM0")));
+// USBSerial usbserial __attribute__ ((section ("AHBSRAM0"))) (&u);
 #ifndef DISABLEMSD
 USBMSD msc __attribute__ ((section ("AHBSRAM0"))) (&u, &sd);
 #else
@@ -88,7 +88,7 @@ SDFAT mounter __attribute__ ((section ("AHBSRAM0"))) ("sd", &sd);
 GPIO leds[5] = {
     GPIO(P4_29),
     GPIO(P4_28),
-    GPIO(P0_4),
+	GPIO(P0_4),
     GPIO(P0_5),
     GPIO(P1_14)
 };
@@ -221,7 +221,7 @@ void init() {
     kernel->add_module( new MotorDriverControl(0) );
     #endif
     // Create and initialize USB stuff
-    u.init();
+    // u.init();
 
 #ifdef DISABLEMSD
     if(sdok && msc != NULL){
@@ -240,9 +240,9 @@ void init() {
     }
     */
 
-    if( kernel->config->value( dfu_enable_checksum )->by_default(false)->as_bool() ){
-        kernel->add_module( new(AHB0) DFU(&u));
-    }
+    // if( kernel->config->value( dfu_enable_checksum )->by_default(false)->as_bool() ){
+    //     kernel->add_module( new(AHB0) DFU(&u));
+    // }
 
     // 10 second watchdog timeout (or config as seconds)
     float t= kernel->config->value( watchdog_timeout_checksum )->by_default(10.0F)->as_number();
@@ -255,7 +255,7 @@ void init() {
     }
 
 
-    kernel->add_module( &u );
+    // kernel->add_module( &u );
 
     // memory before cache is cleared
     //SimpleShell::print_mem(kernel->streams);
