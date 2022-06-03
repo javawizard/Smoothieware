@@ -511,7 +511,7 @@ try_again:
 
     } else {
         // an uppercase non command word on its own (except XYZF) just returns ok, we could add an error but no hosts expect that.
-        new_message.stream->printf("ok - ignored\n");
+        new_message.stream->printf("ok - ignore\n");
     }
 }
 

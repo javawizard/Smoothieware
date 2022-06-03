@@ -85,18 +85,17 @@ USBMSD *msc= NULL;
 
 SDFAT mounter __attribute__ ((section ("AHBSRAM0"))) ("sd", &sd);
 
-GPIO leds[5] = {
+GPIO leds[4] = {
     GPIO(P4_29),
     GPIO(P4_28),
 	GPIO(P0_4),
-    GPIO(P0_5),
-    GPIO(P1_14)
+    GPIO(P1_17)
 };
 
 void init() {
 
     // Default pins to low status
-    for (int i = 0; i < 5; i++){
+    for (int i = 0; i < 4; i++){
         leds[i].output();
         leds[i]= 0;
     }

@@ -502,8 +502,8 @@ void Player::on_main_loop(void *argument)
 
         while(fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
             int len = strlen(buf);
-            if(len == 0) continue; // empty line? should not be possible
-            if(buf[len - 1] == '\n' || feof(this->current_file_handler)) {
+            if (len == 0) continue; // empty line? should not be possible
+            if (buf[len - 1] == '\n' || feof(this->current_file_handler)) {
                 if(discard) { // we are discarding a long line
                     discard = false;
                     continue;
@@ -520,6 +520,7 @@ void Player::on_main_loop(void *argument)
                 message.line = played_lines + 1;
 
                 // waits for the queue to have enough room
+                // this->current_stream->printf("Run: %s", buf);
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
                 played_lines += 1;
                 played_cnt += len;

@@ -79,6 +79,7 @@ Kernel::Kernel()
     // serial first at fixed baud rate (DEFAULT_SERIAL_BAUD_RATE) so config can report errors to serial
     // Set to UART0, this will be changed to use the same UART as MRI if it's enabled
     this->serial = new SerialConsole(P2_8, P2_9, DEFAULT_SERIAL_BAUD_RATE);
+    // this->serial = new SerialConsole(USBTX, USBRX, DEFAULT_SERIAL_BAUD_RATE);
 
     // Config next, but does not load cache yet
     this->config = new Config();
@@ -118,7 +119,8 @@ Kernel::Kernel()
 
     // default
     if(this->serial == NULL) {
-        this->serial = new(AHB0) SerialConsole(P2_8, P2_9, this->config->value(uart_checksum, baud_rate_setting_checksum)->by_default(DEFAULT_SERIAL_BAUD_RATE)->as_number());
+        // this->serial = new(AHB0) SerialConsole(P2_8, P2_9, this->config->value(uart_checksum, baud_rate_setting_checksum)->by_default(DEFAULT_SERIAL_BAUD_RATE)->as_number());
+    	this->serial = new(AHB0) SerialConsole(P2_8, P2_9, 115200);
     }
 
     //some boards don't have leds.. TOO BAD!

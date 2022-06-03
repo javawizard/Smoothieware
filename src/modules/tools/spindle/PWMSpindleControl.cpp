@@ -72,8 +72,8 @@ void PWMSpindleControl::on_module_loaded()
 
     delay_s        = THEKERNEL->config->value(spindle_checksum, spindle_delay_s_checksum)->by_default(3)->as_number();
     stall_s        = THEKERNEL->config->value(spindle_checksum, spindle_stall_s_checksum)->by_default(1)->as_number();
-    stall_count_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_count_rpm_checksum)->by_default(1000)->as_number();
-    stall_alarm_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_alarm_rpm_checksum)->by_default(300)->as_number();
+    stall_count_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_count_rpm_checksum)->by_default(3000)->as_number();
+    stall_alarm_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_alarm_rpm_checksum)->by_default(1500)->as_number();
     acc_ratio      = THEKERNEL->config->value(spindle_checksum, spindle_acc_ratio_checksum)->by_default(1.0f)->as_number();
     alarm_pin.from_string(THEKERNEL->config->value(spindle_checksum, spindle_alarm_pin_checksum)->by_default("nc")->as_string())->as_input();
 
@@ -300,16 +300,16 @@ void PWMSpindleControl::on_idle(void *argument)
 	if(THEKERNEL->is_halted()) return;
 	// check spindle alarm
     if (this->get_alarm()) {
-		THEKERNEL->streams->printf("ALARM: Spindle alarm triggered -  reset required\n");
+		THEKERNEL->streams->printf("ALARM: Spindle alarm triggered -  power off/on required\n");
 		THEKERNEL->call_event(ON_HALT, nullptr);
-		THEKERNEL->set_halt_reason(SPINDLE_ERROR);
+		THEKERNEL->set_halt_reason(SPINDLE_ALARM);
 		return;
     }
     // check spindle stall
     if (this->get_stall()) {
 		THEKERNEL->streams->printf("ALARM: Spindle stall triggered -  reset required\n");
 		THEKERNEL->call_event(ON_HALT, nullptr);
-		THEKERNEL->set_halt_reason(SPINDLE_ERROR);
+		THEKERNEL->set_halt_reason(SPINDLE_STALL);
     }
 
 }

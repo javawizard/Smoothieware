@@ -201,17 +201,17 @@ switch.toolsensor.output_type				digital			# Digital means this is just an on or
 switch.toolsensor.input_on_command			M831			# Command that will turn this switch on
 switch.toolsensor.input_off_command			M832			# Command that will turn this switch off
 
-#switch.probelaser.enable					true			# Enable this module
-#switch.probelaser.output_pin				0.5!^			# Pin this module controls
-#switch.probelaser.output_type				digital			# Digital means this is just an on or off pin
-#switch.probelaser.input_on_command			M841			# Command that will turn this switch on
-#switch.probelaser.input_off_command		M842			# Command that will turn this switch off
-
 switch.probecharger.enable					true			# Enable this module
 switch.probecharger.output_pin				0.23			# Pin this module controls
 switch.probecharger.output_type				digital			# Digital means this is just an on or off pin
 switch.probecharger.input_on_command		M841			# Command that will turn this switch on
 switch.probecharger.input_off_command		M842			# Command that will turn this switch off
+
+switch.probelaser.enable					true			# Enable this module
+switch.probelaser.output_pin				0.5!^			# Pin this module controls
+switch.probelaser.output_type				digital			# Digital means this is just an on or off pin
+switch.probelaser.input_on_command			M851			# Command that will turn this switch on
+switch.probelaser.input_off_command			M852			# Command that will turn this switch off
 
 switch.air.enable							true			# Enable this module
 switch.air.output_pin						0.1				# Pin this module controls
@@ -365,8 +365,8 @@ spindle.delay_s								3.0				# delay seconds before next motion after spindle t
 spindle.acc_ratio							1.58			# acceleration ratio
 spindle.alarm_pin							0.20^			# spindle alarm trigger pin
 spindle.stall_s								1.0				# how many seconds before report stall status
-spindle.stall_count_rpm						1000			# don't calculate stall when lower than this RPM
-spindle.stall_alarm_rpm						300				# consider as stall alarm if lower than this RPM
+spindle.stall_count_rpm						3000			# don't calculate stall when lower than this RPM
+spindle.stall_alarm_rpm						1500			# consider as stall alarm if lower than this RPM
 
 # Light
 light.turn_off_min							0

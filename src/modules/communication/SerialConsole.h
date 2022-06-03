@@ -28,12 +28,15 @@ class SerialConsole : public Module, public StreamOutput {
         void on_serial_char_received();
         void on_main_loop(void * argument);
         void on_idle(void * argument);
+        void on_set_public_data(void *argument);
         bool has_char(char letter);
+        void attach_irq(bool enable_irq);
 
         int _putc(int c);
         int _getc(void);
         int puts(const char*);
         int gets(char** buf);
+        bool ready();
         char getc_result;
 
         //string receive_buffer;                 // Received chars are stored here until a newline character is received

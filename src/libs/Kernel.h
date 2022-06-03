@@ -65,8 +65,10 @@ enum HALT_REASON {
 	MOTOR_ERROR_X			= 22,
 	MOTOR_ERROR_Y			= 23,
 	MOTOR_ERROR_Z			= 24,
-	SPINDLE_ERROR			= 25,
-	SD_ERROR				= 26
+	SPINDLE_STALL			= 25,
+	SD_ERROR				= 26,
+	// Need to switch off/on the power
+	SPINDLE_ALARM			= 41
 };
 
 enum ATC_STATE {

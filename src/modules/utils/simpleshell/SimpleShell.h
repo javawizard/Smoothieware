@@ -42,6 +42,7 @@ private:
     static void mv_command(string parameters, StreamOutput *stream );
     static void mkdir_command(string parameters, StreamOutput *stream );
     static void upload_command(string parameters, StreamOutput *stream );
+    static void download_command(string parameters, StreamOutput *stream );
     static void break_command(string parameters, StreamOutput *stream );
     static void reset_command(string parameters, StreamOutput *stream );
     static void dfu_command(string parameters, StreamOutput *stream );
@@ -80,6 +81,13 @@ private:
         const char *command;
         const PFUNC func;
     } const ptentry_t;
+
+    static void set_serial_rx_irq(bool enable);
+    static int inbyte(StreamOutput *stream, unsigned int timeout_ms);
+    static void flush_input(StreamOutput *stream);
+    static void cancel_transfer(StreamOutput *stream);
+    static unsigned int crc16_ccitt(unsigned char *data, unsigned int len);
+    static int check_crc(int crc, unsigned char *data, unsigned int len);
 
     static const ptentry_t commands_table[];
     static int reset_delay_secs;
