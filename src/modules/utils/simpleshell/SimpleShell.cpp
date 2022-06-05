@@ -900,7 +900,7 @@ void SimpleShell::set_serial_rx_irq(bool enable)
 
 void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 {
-	unsigned char xbuff[134]; /* 128 for XModem + 3 head chars + 2 crc + nul */
+	unsigned char xbuff[135]; /* 1 for data length, 128 for XModem + 3 head chars + 2 crc + nul */
     unsigned char *p;
     int bufsz, crc = 0;
     unsigned char trychar = 'C';
@@ -908,10 +908,12 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     int i, c, len = 0;
     int retry = 0;
     int retrans = MAXRETRANS;
+    bool md5_received = false;
 
     // open file
 	char error_msg[64];
     string filename = absolute_from_relative(parameters);
+    string md5_filename = change_to_md5_path(filename);
 
 	// diasble serial rx irq
 	set_serial_rx_irq(false);
@@ -922,10 +924,12 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     FILE *fd = fopen(filename.c_str(), "wb");
-    if (fd == NULL) {
+    FILE *fd_md5 = fopen(md5_filename.c_str(), "wb");
+
+    if (fd == NULL || fd_md5 == NULL) {
         stream->_putc(EOT);
-    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", filename.substr(0, 30).c_str());
-        goto upload_error;
+    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", fd == NULL ? filename.substr(0, 30).c_str() : md5_filename.substr(0, 30).c_str() );
+    	goto upload_error;
     }
 
     for (;;) {
@@ -972,18 +976,26 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         trychar = 0;
         p = xbuff;
         *p++ = c;
-        for (i = 0;  i < (bufsz + (crc ? 1 : 0) + 3); ++i) {
+        for (i = 0;  i < (1 + bufsz + (crc ? 1 : 0) + 3); ++i) {
             if ((c = inbyte(stream, TIMEOUT_MS)) < 0)
                 goto reject;
             *p++ = c;
         }
 
-        if (xbuff[1] == (unsigned char)(~xbuff[2]) &&
+        if (!md5_received && xbuff[1] == 0 && xbuff[1] == (unsigned char)(~xbuff[2])
+        		&& check_crc(crc, &xbuff[3], bufsz + 1) && xbuff[3] == 32) {
+        	// received md5
+			fwrite(&xbuff[4], sizeof(char), 32, fd_md5);
+            THEKERNEL->call_event(ON_IDLE);
+            stream->_putc(ACK);
+            md5_received = true;
+            continue;
+        } else if (xbuff[1] == (unsigned char)(~xbuff[2]) &&
             (xbuff[1] == packetno || xbuff[1] == (unsigned char)packetno - 1) &&
-                check_crc(crc, &xbuff[3], bufsz)) {
+                check_crc(crc, &xbuff[3], bufsz + 1)) {
             if (xbuff[1] == packetno)    {
-				fwrite(&xbuff[3], sizeof(char), bufsz, fd);
-				len += bufsz;
+            	len = xbuff[3];
+				fwrite(&xbuff[4], sizeof(char), len, fd);
                 ++ packetno;
                 retrans = MAXRETRANS + 1;
                 THEKERNEL->call_event(ON_IDLE);
@@ -1006,6 +1018,11 @@ upload_error:
 		fd = NULL;
 		remove(filename.c_str());
 	}
+	if (fd_md5 != NULL) {
+		fclose(fd_md5);
+		fd_md5 = NULL;
+		remove(md5_filename.c_str());
+	}
 	flush_input(stream);
 	set_serial_rx_irq(true);
 	stream->printf(error_msg);
@@ -1013,6 +1030,8 @@ upload_error:
 upload_success:
 	fclose(fd);
 	fd = NULL;
+	fclose(fd_md5);
+	fd_md5 = NULL;
 	flush_input(stream);
 	set_serial_rx_irq(true);
 	stream->printf("Info: upload success: %s.\r\n", filename.c_str());
@@ -1020,16 +1039,17 @@ upload_success:
 
 void SimpleShell::download_command( string parameters, StreamOutput *stream )
 {
-	unsigned char xbuff[134]; /* 128 for XModem + 3 head chars + 2 crc + nul */
+	unsigned char xbuff[135]; /* 1 for data length + 128 for XModem + 3 head chars + 2 crc + nul */
     int bufsz = 128;
     int crc = 0;
-    unsigned char packetno = 1;
+    unsigned char packetno = 0;
     int i, c, len = 0;
     int retry = 0;
 
     // open file
 	char error_msg[64];
     string filename = absolute_from_relative(parameters);
+    string md5_filename = change_to_md5_path(filename);
 
 	// diasble serial rx irq
 	set_serial_rx_irq(false);
@@ -1041,11 +1061,14 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     }
 
     FILE *fd = fopen(filename.c_str(), "rb");
-    if (fd == NULL) {
+    FILE *fd_md5 = fopen(md5_filename.c_str(), "rb");
+
+    if (fd == NULL || fd_md5 == NULL) {
         cancel_transfer(stream);
-    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", filename.substr(0, 30).c_str());
-        goto download_error;
+    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", fd == NULL ? filename.substr(0, 30).c_str() : md5_filename.substr(0, 30).c_str() );
+    	goto download_error;
     }
+
 
 	for(;;) {
 		for (retry = 0; retry < MAXRETRANS; ++retry) {
@@ -1076,71 +1099,79 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 
 		for(;;) {
 		start_trans:
-			c = fread(&xbuff[3], sizeof(char), bufsz, fd);
-			if (c > 0) {
-				xbuff[0] = SOH;
-				xbuff[1] = packetno;
-				xbuff[2] = ~packetno;
-				if (c < bufsz) {
-					memset(&xbuff[3 + c], CTRLZ, bufsz - c);
-				}
-				if (crc) {
-					unsigned short ccrc = crc16_ccitt(&xbuff[3], bufsz);
-					xbuff[bufsz + 3] = (ccrc >> 8) & 0xFF;
-					xbuff[bufsz + 4] = ccrc & 0xFF;
-				} else {
-					unsigned char ccks = 0;
-					for (i = 3; i < bufsz+3; ++i) {
-						ccks += xbuff[i];
-					}
-					xbuff[bufsz + 3] = ccks;
-				}
-				for (retry = 0; retry < MAXRETRANS; ++retry) {
-					for (i = 0; i < bufsz + 4 + (crc ? 1:0); ++i) {
-						stream->_putc(xbuff[i]);
-					}
-					if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {
-						switch (c) {
-						case ACK:
-							++packetno;
-							len += bufsz;
-							goto start_trans;
-						case CAN:
-							if ((c = inbyte(stream, TIMEOUT_MS)) == CAN) {
-								stream->_putc(ACK);
-								flush_input(stream);
-						    	sprintf(error_msg, "Info: canceled by remote!\r\n");
-						        goto download_error;
-							}
-							break;
-						case NAK:
-						default:
-							break;
-						}
-					}
-				}
-		        cancel_transfer(stream);
-				sprintf(error_msg, "Error: xmit error!\r\n");
-		        goto download_error;
+			if (packetno == 0) {
+				c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
 			} else {
-				for (retry = 0; retry < MAXRETRANS; ++retry) {
-					stream->_putc(EOT);
-					if ((c = inbyte(stream, TIMEOUT_MS)) == ACK) break;
-				}
-				flush_input(stream);
-				if (c == ACK) {
-					goto download_success;
-				} else {
-					sprintf(error_msg, "Error: get finish ACK error!\r\n");
-			        goto download_error;
+				c = fread(&xbuff[4], sizeof(char), bufsz, fd);
+				if (c <= 0) {
+					for (retry = 0; retry < MAXRETRANS; ++retry) {
+						stream->_putc(EOT);
+						if ((c = inbyte(stream, TIMEOUT_MS)) == ACK) break;
+					}
+					flush_input(stream);
+					if (c == ACK) {
+						goto download_success;
+					} else {
+						sprintf(error_msg, "Error: get finish ACK error!\r\n");
+				        goto download_error;
+					}
 				}
 			}
+			xbuff[0] = SOH;
+			xbuff[1] = packetno;
+			xbuff[2] = ~packetno;
+			xbuff[3] = c;
+			if (c < bufsz) {
+				memset(&xbuff[4 + c], CTRLZ, bufsz - c);
+			}
+			if (crc) {
+				unsigned short ccrc = crc16_ccitt(&xbuff[4], bufsz);
+				xbuff[bufsz + 4] = (ccrc >> 8) & 0xFF;
+				xbuff[bufsz + 5] = ccrc & 0xFF;
+			} else {
+				unsigned char ccks = 0;
+				for (i = 4; i < bufsz+4; ++i) {
+					ccks += xbuff[i];
+				}
+				xbuff[bufsz + 4] = ccks;
+			}
+			for (retry = 0; retry < MAXRETRANS; ++retry) {
+				for (i = 0; i < bufsz + 5 + (crc ? 1:0); ++i) {
+					stream->_putc(xbuff[i]);
+				}
+				if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {
+					switch (c) {
+					case ACK:
+						++packetno;
+						len += bufsz;
+						goto start_trans;
+					case CAN:
+						if ((c = inbyte(stream, TIMEOUT_MS)) == CAN) {
+							stream->_putc(ACK);
+							flush_input(stream);
+					    	sprintf(error_msg, "Info: canceled by remote!\r\n");
+					        goto download_error;
+						}
+						break;
+					case NAK:
+					default:
+						break;
+					}
+				}
+			}
+	        cancel_transfer(stream);
+			sprintf(error_msg, "Error: xmit error!\r\n");
+	        goto download_error;
 		}
 	}
 download_error:
 	if (fd != NULL) {
 		fclose(fd);
 		fd = NULL;
+	}
+	if (fd_md5 != NULL) {
+		fclose(fd_md5);
+		fd_md5 = NULL;
 	}
 	flush_input(stream);
 	set_serial_rx_irq(true);
@@ -1149,6 +1180,8 @@ download_error:
 download_success:
 	fclose(fd);
 	fd = NULL;
+	fclose(fd_md5);
+	fd_md5 = NULL;
 	flush_input(stream);
 	set_serial_rx_irq(true);
 	stream->printf("Info: download success: %s.\r\n", filename.c_str());
