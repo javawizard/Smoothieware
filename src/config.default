@@ -174,7 +174,8 @@ laser_module_offset_z						-45.0			# laser model z offset
 switch.vacuum.enable 						true			# Enable this module
 switch.vacuum.input_on_command				M801			# Command that will turn this switch on
 switch.vacuum.input_off_command				M802			# Command that will turn this switch off
-switch.vacuum.output_pin					0.11			# Pin this module controls
+# switch.vacuum.output_pin					0.11			# Pin this module controls
+switch.vacuum.output_pin					0.9				# Pin this module controls
 switch.vacuum.output_type					digitalpwm		# Digital means this is just an on or off pin
 switch.vacuum.pwm_pin						2.3				#
 switch.vacuum.min_pwm						0				#
