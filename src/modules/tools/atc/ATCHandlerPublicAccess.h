@@ -13,6 +13,7 @@
 
 #define set_wp_laser_checksum	CHECKSUM("set_wp_laser")
 #define get_wp_voltage_checksum	CHECKSUM("get_wp_voltage")
+#define show_wp_state_checksum  CHECKSUM("show_wp_state")
 
 struct tool_status {
 	int active_tool;

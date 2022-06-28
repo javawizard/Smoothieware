@@ -410,6 +410,7 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
 {
 	bool send_eof = false;
     string path = absolute_from_relative(shift_parameter( parameters ));
+    string md5_path = change_to_md5_path(path);
     if(!parameters.empty() && shift_parameter(parameters) == "-e") {
     	send_eof = true;
     }
@@ -422,8 +423,17 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
         }
     	stream->printf("Could not delete %s \r\n", fn);
     } else {
-		if (send_eof) {
-			stream->puts("\004\004\004"); // ^D terminates the upload
+    	const char *fn_md5 = absolute_from_relative(md5_path).c_str();
+    	s = remove(fn_md5);
+		if (s != 0) {
+			if(send_eof) {
+				stream->puts("\032\032\032"); // ^Z terminates error
+			}
+			stream->printf("Could not delete %s \r\n", fn_md5);
+		} else {
+	        if(send_eof) {
+	            stream->puts("\004\004\004"); // ^D terminates the upload
+	        }
 		}
     }
 }
@@ -1125,7 +1135,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 				memset(&xbuff[4 + c], CTRLZ, bufsz - c);
 			}
 			if (crc) {
-				unsigned short ccrc = crc16_ccitt(&xbuff[4], bufsz);
+				unsigned short ccrc = crc16_ccitt(&xbuff[3], bufsz + 1);
 				xbuff[bufsz + 4] = (ccrc >> 8) & 0xFF;
 				xbuff[bufsz + 5] = ccrc & 0xFF;
 			} else {
@@ -1779,6 +1789,8 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
 		// current_position/mpos includes the compensation transform so we need to get the inverse to get actual position
 		if(THEROBOT->compensationTransform) THEROBOT->compensationTransform(mpos, true, true); // get inverse compensation transform
 		stream->printf("Current z: %1.4f, compensation z: %1.4f\n", old_z, mpos[Z_AXIS]);
+    } else if (what == "wp" || what == "wp_state") {
+    	PublicData::get_value(atc_handler_checksum, show_wp_state_checksum, NULL);
     } else {
         stream->printf("error:unknown option %s\n", what.c_str());
     }
