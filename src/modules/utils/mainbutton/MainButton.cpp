@@ -16,6 +16,7 @@
 #include "libs/PublicData.h"
 #include "PublicDataRequest.h"
 #include "MainButtonPublicAccess.h"
+#include "TemperatureControlPublicAccess.h"
 
 using namespace std;
 
@@ -70,8 +71,8 @@ void MainButton::on_module_loaded()
     this->long_press_time_ms = THEKERNEL->config->value( main_long_press_time_ms_checksum )->by_default(3000)->as_number();
 
     this->e_stop.from_string( THEKERNEL->config->value( e_stop_pin_checksum )->by_default("0.26^")->as_string())->as_input();
-    this->PS12.from_string( THEKERNEL->config->value( ps12_pin_checksum )->by_default("0.9")->as_string())->as_output();
-    this->PS24.from_string( THEKERNEL->config->value( ps24_pin_checksum )->by_default("0.0")->as_string())->as_output();
+    this->PS12.from_string( THEKERNEL->config->value( ps12_pin_checksum )->by_default("0.22")->as_string())->as_output();
+    this->PS24.from_string( THEKERNEL->config->value( ps24_pin_checksum )->by_default("0.10")->as_string())->as_output();
     this->power_fan.from_string( THEKERNEL->config->value( power_fan_pin_checksum )->by_default("2.11")->as_string())->as_output();
     this->power_fan_delay_s = THEKERNEL->config->value( power_fan_delay_s_checksum )->by_default(10)->as_int();
 
@@ -92,7 +93,8 @@ void MainButton::on_module_loaded()
     this->register_for_event(ON_SET_PUBLIC_DATA);
 
     // turn on power
-    this->switch_power_supply(1);
+    this->switch_power_12(1);
+    this->switch_power_24(1);
 
     this->main_button_LED_R.set(0);
     this->main_button_LED_G.set(0);
@@ -101,9 +103,13 @@ void MainButton::on_module_loaded()
     THEKERNEL->slow_ticker->attach( this->poll_frequency, this, &MainButton::button_tick );
 }
 
-void MainButton::switch_power_supply(int state)
+void MainButton::switch_power_12(int state)
 {
 	this->PS12.set(state);
+}
+
+void MainButton::switch_power_24(int state)
+{
 	this->PS24.set(state);
 }
 
@@ -159,7 +165,8 @@ void MainButton::on_idle(void *argument)
         		// reset sleep timer
         		if (us_ticker_read() - sleep_countdown_us > (uint32_t)auto_sleep_min * 60 * 1000000) {
     				// turn off 12V/24V power supply
-					this->switch_power_supply(0);
+					this->switch_power_12(0);
+					this->switch_power_24(0);
         			// go to sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
@@ -209,7 +216,8 @@ void MainButton::on_idle(void *argument)
     		switch (state) {
     			case IDLE:
     				// turn off 12V/24V power supply
-    				this->switch_power_supply(0);
+    				this->switch_power_12(0);
+    				this->switch_power_24(0);
     				// sleep
     				THEKERNEL->set_sleeping(true);
     				THEKERNEL->call_event(ON_HALT, nullptr);
@@ -346,8 +354,13 @@ void MainButton::on_set_public_data(void* argument)
     PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
 
     if (pdr->starts_with(main_button_checksum)) {
-    	if (pdr->second_element_is(set_power_supply_checksum)) {
-    		this->switch_power_supply(0);
+    	if (pdr->second_element_is(switch_power_12_checksum)) {
+			char *state = static_cast<char *>(pdr->get_data_ptr());
+    		this->switch_power_12(*state);
+    	}
+    	if (pdr->second_element_is(switch_power_24_checksum)) {
+			char *state = static_cast<char *>(pdr->get_data_ptr());
+    		this->switch_power_24(*state);
     	}
     }
 }

@@ -61,7 +61,7 @@ void Laser::on_module_loaded()
 
     // Get smoothie-style pin from config
     this->laser_pin = new Pin();
-    this->laser_pin->from_string(THEKERNEL->config->value(laser_module_pin_checksum)->by_default("2.13")->as_string())->as_output();
+    this->laser_pin->from_string(THEKERNEL->config->value(laser_module_pin_checksum)->by_default("2.12")->as_string())->as_output();
     if (!this->laser_pin->connected()) {
         delete this->laser_pin;
         this->laser_pin= nullptr;
@@ -70,7 +70,7 @@ void Laser::on_module_loaded()
 	}
 
 	Pin *dummy_pin = new Pin();
-	dummy_pin->from_string(THEKERNEL->config->value(laser_module_pwm_pin_checksum)->by_default("2.2")->as_string())->as_output();
+	dummy_pin->from_string(THEKERNEL->config->value(laser_module_pwm_pin_checksum)->by_default("2.4")->as_string())->as_output();
     pwm_pin = dummy_pin->hardware_pwm();
     if (pwm_pin == NULL) {
         THEKERNEL->streams->printf("Error: Laser cannot use P%d.%d (P2.0 - P2.5, P1.18, P1.20, P1.21, P1.23, P1.24, P1.26, P3.25, P3.26 only). Laser module disabled.\n", dummy_pin->port_number, dummy_pin->pin);

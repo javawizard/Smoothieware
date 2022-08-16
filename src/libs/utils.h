@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include "time.h"
 
 std::string lc(const std::string& str);
 
@@ -40,5 +41,7 @@ void safe_delay_us(uint32_t delay);
 void safe_delay_ms(uint32_t delay);
 
 #define confine(value, min, max) (((value) < (min))?(min):(((value) > (max))?(max):(value)))
+
+struct tm *get_fftime(unsigned short t_date, unsigned short t_time, struct tm *timeinfo);
 
 //#define dd(...) LPC_GPIO2->FIODIR = 0xffff; LPC_GPIO2->FIOCLR = 0xffff; LPC_GPIO2->FIOSET = __VA_ARGS__

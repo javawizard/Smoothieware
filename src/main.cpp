@@ -9,7 +9,6 @@
 
 #include "modules/tools/laser/Laser.h"
 #include "modules/tools/spindle/SpindleMaker.h"
-#include "modules/tools/extruder/ExtruderMaker.h"
 #include "modules/tools/temperaturecontrol/TemperatureControlPool.h"
 #include "modules/tools/endstops/Endstops.h"
 #include "modules/tools/zprobe/ZProbe.h"
@@ -19,19 +18,14 @@
 #include "modules/tools/temperatureswitch/TemperatureSwitch.h"
 #include "modules/tools/drillingcycles/Drillingcycles.h"
 #include "modules/tools/atc/ATCHandler.h"
-#include "FilamentDetector.h"
-#include "MotorDriverControl.h"
-
+#include "modules/utils/wifi/WifiProvider.h"
 #include "modules/robot/Conveyor.h"
 #include "modules/utils/simpleshell/SimpleShell.h"
 #include "modules/utils/configurator/Configurator.h"
-#include "modules/utils/currentcontrol/CurrentControl.h"
 #include "modules/utils/player/Player.h"
 #include "modules/utils/mainbutton/MainButton.h"
-#include "modules/utils/PlayLed/PlayLed.h"
-#include "modules/utils/panel/Panel.h"
 #include "modules/communication/SerialConsole2.h"
-#include "libs/Network/uip/Network.h"
+#include "libs/USBDevice/MSCFileSystem.h"
 #include "Config.h"
 #include "checksumm.h"
 #include "ConfigValue.h"
@@ -46,11 +40,9 @@
 // Debug
 #include "libs/SerialMessage.h"
 
-#include "libs/USBDevice/USB.h"
-#include "libs/USBDevice/USBMSD/USBMSD.h"
-#include "libs/USBDevice/USBMSD/SDCard.h"
-//#include "libs/USBDevice/USBSerial/USBSerial.h"
-#include "libs/USBDevice/DFU.h"
+#include "libs/USBDevice/SDCard/SDCard.h"
+// #include "libs/USBDevice/USBSerial/USBSerial.h"
+// #include "libs/USBDevice/DFU.h"
 #include "libs/SDFAT.h"
 #include "StreamOutputPool.h"
 #include "ToolManager.h"
@@ -66,8 +58,8 @@
 // disable MSD
 #define DISABLEMSD
 #define second_usb_serial_enable_checksum  CHECKSUM("second_usb_serial_enable")
-#define disable_msd_checksum  CHECKSUM("msd_disable")
-#define dfu_enable_checksum  CHECKSUM("dfu_enable")
+// #define disable_msd_checksum  CHECKSUM("msd_disable")
+// #define dfu_enable_checksum  CHECKSUM("dfu_enable")
 #define watchdog_timeout_checksum  CHECKSUM("watchdog_timeout")
 
 // USB Stuff
@@ -77,11 +69,14 @@ SDCard sd  __attribute__ ((section ("AHBSRAM0"))) (P0_18, P0_17, P0_15, P0_16); 
 
 // USB u __attribute__ ((section ("AHBSRAM0")));
 // USBSerial usbserial __attribute__ ((section ("AHBSRAM0"))) (&u);
+
+/*
 #ifndef DISABLEMSD
 USBMSD msc __attribute__ ((section ("AHBSRAM0"))) (&u, &sd);
 #else
 USBMSD *msc= NULL;
 #endif
+*/
 
 SDFAT mounter __attribute__ ((section ("AHBSRAM0"))) ("sd", &sd);
 
@@ -130,8 +125,8 @@ void init() {
     #endif
 
 #ifdef DISABLEMSD
-	msc = NULL;
-	kernel->streams->printf("MSD is disabled\r\n");
+	// msc = NULL;
+	// kernel->streams->printf("MSD is disabled\r\n");
 
 	/*
     // attempt to be able to disable msd in config
@@ -154,12 +149,16 @@ void init() {
     // ATC Handler
     kernel->add_module( new(AHB0) ATCHandler() );
 
+    // MSC File System Handler
+    kernel->add_module( new(AHB0) MSCFileSystem("ud") );
+
     // Serial Console 2
     kernel->add_module( new(AHB0) SerialConsole2() );
 
-    kernel->add_module( new(AHB0) CurrentControl() );
     kernel->add_module( new(AHB0) MainButton() );
-    kernel->add_module( new(AHB0) PlayLed() );
+    // Wifi Provider
+    kernel->add_module( new(AHB0) WifiProvider() );
+
 
     // these modules can be completely disabled in the Makefile by adding to EXCLUDE_MODULES
     #ifndef NO_TOOLS_SWITCH
@@ -167,17 +166,20 @@ void init() {
     sp->load_tools();
     delete sp;
     #endif
+
     #ifndef NO_TOOLS_EXTRUDER
     // NOTE this must be done first before Temperature control so ToolManager can handle Tn before temperaturecontrol module does
     ExtruderMaker *em= new ExtruderMaker();
     em->load_tools();
     delete em;
     #endif
+
     // #ifndef NO_TOOLS_TEMPERATURECONTROL
     // Note order is important here must be after extruder so Tn as a parameter will get executed first
     TemperatureControlPool *tp= new TemperatureControlPool();
     tp->load_tools();
     delete tp;
+
     // #endif
     #ifndef NO_TOOLS_ENDSTOPS
     kernel->add_module( new(AHB0) Endstops() );
@@ -185,8 +187,9 @@ void init() {
     #ifndef NO_TOOLS_LASER
     kernel->add_module( new Laser() );
     #endif
+
     #ifndef NO_TOOLS_SPINDLE
-    SpindleMaker *sm= new SpindleMaker();
+    SpindleMaker *sm = new SpindleMaker();
     sm->load_spindle();
     delete sm;
     //kernel->add_module( new(AHB0) Spindle() );
@@ -203,9 +206,9 @@ void init() {
     #ifndef NO_TOOLS_ROTARYDELTACALIBRATION
     kernel->add_module( new(AHB0) RotaryDeltaCalibration() );
     #endif
-    #ifndef NONETWORK
-    kernel->add_module( new Network() );
-    #endif
+//    #ifndef NONETWORK
+//    kernel->add_module( new Network() );
+//    #endif
     #ifndef NO_TOOLS_TEMPERATURESWITCH
     // Must be loaded after TemperatureControl
     kernel->add_module( new(AHB0) TemperatureSwitch() );
@@ -213,15 +216,10 @@ void init() {
     #ifndef NO_TOOLS_DRILLINGCYCLES
     kernel->add_module( new(AHB0) Drillingcycles() );
     #endif
-    #ifndef NO_TOOLS_FILAMENTDETECTOR
-    kernel->add_module( new(AHB0) FilamentDetector() );
-    #endif
-    #ifndef NO_UTILS_MOTORDRIVERCONTROL
-    kernel->add_module( new MotorDriverControl(0) );
-    #endif
     // Create and initialize USB stuff
     // u.init();
 
+/*
 #ifdef DISABLEMSD
     if(sdok && msc != NULL){
         kernel->add_module( msc );
@@ -231,6 +229,7 @@ void init() {
         kernel->add_module( &msc );
     }
 #endif
+*/
 
     /* disable USB module
     kernel->add_module( &usbserial );
@@ -252,7 +251,6 @@ void init() {
     }else{
         kernel->streams->printf("WARNING Watchdog is disabled\n");
     }
-
 
     // kernel->add_module( &u );
 

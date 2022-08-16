@@ -41,10 +41,10 @@
 
 #define ATC_AXIS 4
 #define STEPPER THEROBOT->actuators
-#define STEPS_PER_MM(a) (STEPPER[a]->get_steps_per_mm())
+// #define STEPS_PER_MM(a) (STEPPER[a]->get_steps_per_mm())
 
 #define atc_checksum            	CHECKSUM("atc")
-// #define enable_checksum          	CHECKSUM("enable")
+#define probe_checksum            	CHECKSUM("probe")
 #define endstop_pin_checksum      	CHECKSUM("homing_endstop_pin")
 #define debounce_ms_checksum      	CHECKSUM("homing_debounce_ms")
 #define max_travel_mm_checksum    	CHECKSUM("homing_max_travel_mm")
@@ -59,12 +59,6 @@
 #define detect_rate_mm_s_checksum	CHECKSUM("detect_rate_mm_s")
 #define detect_travel_mm_checksum 	CHECKSUM("detect_travel_mm")
 
-#define tool_number_checksum     	CHECKSUM("tool_number")
-#define active_tool_checksum     	CHECKSUM("active_tool")
-
-#define mx_mm_checksum     			CHECKSUM("mx_mm")
-#define my_mm_checksum     			CHECKSUM("my_mm")
-#define mz_mm_checksum     			CHECKSUM("mz_mm")
 #define safe_z_checksum				CHECKSUM("safe_z_mm")
 #define safe_z_empty_checksum		CHECKSUM("safe_z_empty_mm")
 #define safe_z_offset_checksum		CHECKSUM("safe_z_offset_mm")
@@ -72,7 +66,6 @@
 #define slow_z_rate_checksum		CHECKSUM("slow_z_rate_mm_m")
 #define margin_rate_checksum		CHECKSUM("margin_rate_mm_m")
 
-#define probe_checksum				CHECKSUM("probe")
 #define fast_rate_mm_m_checksum		CHECKSUM("fast_rate_mm_m")
 #define slow_rate_mm_m_checksum		CHECKSUM("slow_rate_mm_m")
 #define retract_mm_checksum			CHECKSUM("retract_mm")
@@ -81,11 +74,14 @@
 #define coordinate_checksum			CHECKSUM("coordinate")
 #define anchor1_x_checksum			CHECKSUM("anchor1_x")
 #define anchor1_y_checksum			CHECKSUM("anchor1_y")
-#define anchor2_x_checksum			CHECKSUM("anchor2_x")
-#define anchor2_y_checksum			CHECKSUM("anchor2_y")
-#define rotation_x_checksum			CHECKSUM("rotation_x")
-#define rotation_y_checksum			CHECKSUM("rotation_y")
-#define rotation_z_offset_checksum	CHECKSUM("rotation_z_offset")
+#define anchor2_offset_x_checksum	CHECKSUM("anchor2_offset_x")
+#define anchor2_offset_y_checksum	CHECKSUM("anchor2_offset_y")
+#define rotation_offset_x_checksum	CHECKSUM("rotation_offset_x")
+#define rotation_offset_y_checksum	CHECKSUM("rotation_offset_y")
+#define rotation_offset_z_checksum	CHECKSUM("rotation_offset_z")
+#define toolrack_offset_x_checksum	CHECKSUM("toolrack_offset_x")
+#define toolrack_offset_y_checksum	CHECKSUM("toolrack_offset_y")
+#define toolrack_z_checksum			CHECKSUM("toolrack_z")
 #define clearance_x_checksum		CHECKSUM("clearance_x")
 #define clearance_y_checksum		CHECKSUM("clearance_y")
 #define clearance_z_checksum		CHECKSUM("clearance_z")
@@ -304,11 +300,11 @@ void ATCHandler::fill_zprobe_abs_scripts() {
 	this->script_queue.push("M497.5");
 
 	// lift z to safe position with fast speed
-	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", this->clearance_z);
+	snprintf(buff, sizeof(buff), "G53 G0 Z%.3f", clearance_z);
 	this->script_queue.push(buff);
 
 	// goto z probe position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", rotation_x, rotation_y);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", anchor1_x + rotation_offset_x, anchor1_y + rotation_offset_y);
 	this->script_queue.push(buff);
 
 	// do probe with fast speed
@@ -324,7 +320,7 @@ void ATCHandler::fill_zprobe_abs_scripts() {
 	this->script_queue.push(buff);
 
 	// set z working coordinate
-	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", rotation_z_offset);
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", rotation_offset_z);
 	this->script_queue.push(buff);
 
 	// retract z a bit
@@ -332,7 +328,7 @@ void ATCHandler::fill_zprobe_abs_scripts() {
 	this->script_queue.push(buff);
 }
 
-void ATCHandler::fill_xyzprobe_scripts(float dia, bool set_origin) {
+void ATCHandler::fill_xyzprobe_scripts(float tool_dia, float probe_height) {
 	char buff[100];
 
 	// set atc status
@@ -342,10 +338,9 @@ void ATCHandler::fill_xyzprobe_scripts(float dia, bool set_origin) {
 	snprintf(buff, sizeof(buff), "G38.2 Z%.3f F%.3f", probe_mz_mm, probe_slow_rate);
 	this->script_queue.push(buff);
 
-	if (set_origin) {
-		snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", 8.9);
-		this->script_queue.push(buff);
-	}
+	// set Z origin
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Z%.3f", probe_height);
+	this->script_queue.push(buff);
 
 	// lift a bit
 	snprintf(buff, sizeof(buff), "G91 G0 Z%.3f", probe_retract_mm);
@@ -355,10 +350,9 @@ void ATCHandler::fill_xyzprobe_scripts(float dia, bool set_origin) {
 	snprintf(buff, sizeof(buff), "G38.2 X%.3f F%.3f", -35.0, probe_slow_rate);
 	this->script_queue.push(buff);
 
-	if (set_origin) {
-		snprintf(buff, sizeof(buff), "G10 L20 P0 X%.3f", dia / 2);
-		this->script_queue.push(buff);
-	}
+	// set x origin
+	snprintf(buff, sizeof(buff), "G10 L20 P0 X%.3f", tool_dia / 2);
+	this->script_queue.push(buff);
 
 	// move right a little bit
 	snprintf(buff, sizeof(buff), "G91 G0 X%.3f", 5.0);
@@ -368,10 +362,9 @@ void ATCHandler::fill_xyzprobe_scripts(float dia, bool set_origin) {
 	snprintf(buff, sizeof(buff), "G38.2 Y%.3f F%.3f", -35.0, probe_slow_rate);
 	this->script_queue.push(buff);
 
-	if (set_origin) {
-		snprintf(buff, sizeof(buff), "G10 L20 P0 Y%.3f", dia / 2);
-		this->script_queue.push(buff);
-	}
+	// set y origin
+	snprintf(buff, sizeof(buff), "G10 L20 P0 Y%.3f", tool_dia / 2);
+	this->script_queue.push(buff);
 
 	// move forward a little bit
 	snprintf(buff, sizeof(buff), "G91 G0 Y%.3f", 5.0);
@@ -382,7 +375,7 @@ void ATCHandler::fill_xyzprobe_scripts(float dia, bool set_origin) {
 	this->script_queue.push(buff);
 
 	// move to XY zero
-	snprintf(buff, sizeof(buff), "G91 G0 X%.3f Y%0.3f", -5 - dia / 2, -5 - dia / 2);
+	snprintf(buff, sizeof(buff), "G91 G0 X%.3f Y%0.3f", -5 - tool_dia / 2, -5 - tool_dia / 2);
 	this->script_queue.push(buff);
 
 }
@@ -441,7 +434,7 @@ void ATCHandler::on_config_reload(void *argument)
 	atc_home_info.homing_rate    = THEKERNEL->config->value(atc_checksum, homing_rate_mm_s_checksum)->by_default(1  )->as_number();
 	atc_home_info.action_rate    = THEKERNEL->config->value(atc_checksum, action_rate_mm_s_checksum)->by_default(1  )->as_number();
 
-	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("0.21^" )->as_string())->as_input();
+	detector_info.detect_pin.from_string( THEKERNEL->config->value(atc_checksum, detector_checksum, detect_pin_checksum)->by_default("0.20^" )->as_string())->as_input();
 	detector_info.detect_rate = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_rate_mm_s_checksum)->by_default(1  )->as_number();
 	detector_info.detect_travel = THEKERNEL->config->value(atc_checksum, detector_checksum, detect_travel_mm_checksum)->by_default(1  )->as_number();
 
@@ -451,38 +444,41 @@ void ATCHandler::on_config_reload(void *argument)
 	this->fast_z_rate = THEKERNEL->config->value(atc_checksum, fast_z_rate_checksum)->by_default(500)->as_number();
 	this->slow_z_rate = THEKERNEL->config->value(atc_checksum, slow_z_rate_checksum)->by_default(60)->as_number();
 	this->margin_rate = THEKERNEL->config->value(atc_checksum, margin_rate_checksum)->by_default(1000)->as_number();
-	this->active_tool = THEKERNEL->config->value(atc_checksum, active_tool_checksum)->by_default(0)->as_number();
-	this->tool_number = THEKERNEL->config->value(atc_checksum, tool_number_checksum)->by_default(6)->as_number();
 
-	probe_mx_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mx_mm_checksum)->by_default(-10  )->as_number();
-	probe_my_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, my_mm_checksum)->by_default(-10  )->as_number();
-	probe_mz_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, mz_mm_checksum)->by_default(-10  )->as_number();
-	probe_fast_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, fast_rate_mm_m_checksum)->by_default(300  )->as_number();
-	probe_slow_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, slow_rate_mm_m_checksum)->by_default(60   )->as_number();
-	probe_retract_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, retract_mm_checksum)->by_default(2   )->as_number();
-	probe_height_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, probe_height_mm_checksum)->by_default(0   )->as_number();
+	this->probe_fast_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, fast_rate_mm_m_checksum)->by_default(300  )->as_number();
+	this->probe_slow_rate = THEKERNEL->config->value(atc_checksum, probe_checksum, slow_rate_mm_m_checksum)->by_default(60   )->as_number();
+	this->probe_retract_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, retract_mm_checksum)->by_default(2   )->as_number();
+	this->probe_height_mm = THEKERNEL->config->value(atc_checksum, probe_checksum, probe_height_mm_checksum)->by_default(0   )->as_number();
+
+	this->anchor1_x = THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359  )->as_number();
+	this->anchor1_y = THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234  )->as_number();
+	this->anchor2_offset_x = THEKERNEL->config->value(coordinate_checksum, anchor2_offset_x_checksum)->by_default(90  )->as_number();
+	this->anchor2_offset_y = THEKERNEL->config->value(coordinate_checksum, anchor2_offset_y_checksum)->by_default(45.65F  )->as_number();
+
+	this->toolrack_z = THEKERNEL->config->value(coordinate_checksum, toolrack_z_checksum)->by_default(-105  )->as_number();
+	this->toolrack_offset_x = THEKERNEL->config->value(coordinate_checksum, toolrack_offset_x_checksum)->by_default(356  )->as_number();
+	this->toolrack_offset_y = THEKERNEL->config->value(coordinate_checksum, toolrack_offset_y_checksum)->by_default(0  )->as_number();
 
 	atc_tools.clear();
-	for (int i = 0; i <=  tool_number; i ++) {
+	for (int i = 0; i <=  6; i ++) {
 		struct atc_tool tool;
 		tool.num = i;
 	    // lift z axis to atc start position
 		snprintf(buff, sizeof(buff), "tool%d", i);
-		tool.mx_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mx_mm_checksum)->by_default(-10  )->as_number();
-		tool.my_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), my_mm_checksum)->by_default(-10  )->as_number();
-		tool.mz_mm = THEKERNEL->config->value(atc_checksum, get_checksum(buff), mz_mm_checksum)->by_default(-10  )->as_number();
+		tool.mx_mm = this->anchor1_x + this->toolrack_offset_x;
+		tool.my_mm = this->anchor1_y + this->toolrack_offset_y + i == 0 ? 210 : (6 - i) * 30;
+		tool.mz_mm = this->toolrack_z;
 		atc_tools.push_back(tool);
 	}
+	probe_mx_mm = this->anchor1_x + this->toolrack_offset_x;
+	probe_my_mm = this->anchor1_y + this->toolrack_offset_y + 180;
+	probe_mz_mm = this->toolrack_z;
 
-	this->anchor1_x = THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359  )->as_number();
-	this->anchor1_y = THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234  )->as_number();
-	this->anchor2_x = THEKERNEL->config->value(coordinate_checksum, anchor2_x_checksum)->by_default(-173  )->as_number();
-	this->anchor2_y = THEKERNEL->config->value(coordinate_checksum, anchor2_y_checksum)->by_default(-196  )->as_number();
+	this->rotation_offset_x = THEKERNEL->config->value(coordinate_checksum, rotation_offset_x_checksum)->by_default(-10  )->as_number();
+	this->rotation_offset_y = THEKERNEL->config->value(coordinate_checksum, rotation_offset_y_checksum)->by_default(30  )->as_number();
+	this->rotation_offset_z = THEKERNEL->config->value(coordinate_checksum, rotation_offset_z_checksum)->by_default(22.5F  )->as_number();
 
-	this->rotation_x = THEKERNEL->config->value(coordinate_checksum, rotation_x_checksum)->by_default(-200  )->as_number();
-	this->rotation_y = THEKERNEL->config->value(coordinate_checksum, rotation_y_checksum)->by_default(-200  )->as_number();
-	this->rotation_z_offset = THEKERNEL->config->value(coordinate_checksum, rotation_z_offset_checksum)->by_default(30  )->as_number();
-	this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-3  )->as_number();
+	this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-75  )->as_number();
 	this->clearance_y = THEKERNEL->config->value(coordinate_checksum, clearance_y_checksum)->by_default(-3  )->as_number();
 	this->clearance_z = THEKERNEL->config->value(coordinate_checksum, clearance_z_checksum)->by_default(-3  )->as_number();
 }
@@ -873,16 +869,19 @@ void ATCHandler::on_gcode_received(void *argument)
 			}
 		} else if (gcode->m == 495) {
 			if (gcode->subcode == 3) {
-				bool set_origin = gcode->has_letter('O');
-				float probe_dia = 3.175;
+				float tool_dia = 3.175;
+				float probe_height = 9.0;
 				if (gcode->has_letter('D')) {
-					probe_dia = gcode->get_value('D');
+					tool_dia = gcode->get_value('D');
+				}
+				if (gcode->has_letter('H')) {
+					probe_height = gcode->get_value('H');
 				}
 	            THEROBOT->push_state();
 				set_inner_playing(true);
 				atc_status = AUTOMATION;
 	            this->clear_script_queue();
-				this->fill_xyzprobe_scripts(probe_dia, set_origin);
+				this->fill_xyzprobe_scripts(tool_dia, probe_height);
 			} else {
 				// Do Margin, ZProbe, Auto Leveling based on parameters, change probe tool if needed
 				if (gcode->has_letter('X') && gcode->has_letter('Y')) {
@@ -997,7 +996,7 @@ void ATCHandler::on_gcode_received(void *argument)
 				rapid_move(true, this->anchor1_x, this->anchor1_y, NAN);
 			} else if (gcode->subcode == 4) {
 				// goto anchor 2
-				rapid_move(true, this->anchor2_x, this->anchor2_y, NAN);
+				rapid_move(true, this->anchor1_x + this->anchor2_offset_x, this->anchor1_y + this->anchor2_offset_y, NAN);
 			} else if (gcode->subcode == 5) {
 				// goto designative work position
 				if (gcode->has_letter('X') && gcode->has_letter('Y')) {

@@ -41,6 +41,8 @@ class Switch : public Module {
         void send_gcode(std::string msg, StreamOutput* stream);
         bool match_input_on_gcode(const Gcode* gcode) const;
         bool match_input_off_gcode(const Gcode* gcode) const;
+        void turn_on_switch(float value);
+        void turn_off_switch();
 
         float switch_value;
         float default_on_value;

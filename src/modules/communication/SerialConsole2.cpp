@@ -54,6 +54,7 @@ void SerialConsole2::on_module_loaded() {
     this->register_for_event(ON_MAIN_LOOP);
     this->register_for_event(ON_GET_PUBLIC_DATA);
     this->register_for_event(ON_SET_PUBLIC_DATA);
+    this->register_for_event(ON_GCODE_RECEIVED);
 }
 
 
@@ -76,7 +77,7 @@ void SerialConsole2::on_main_loop(void * argument) {
            char c;
            this->buffer.pop_front(c);
            if ( c == '\n' ) {
-        	   THEKERNEL->streams->printf("WP received: [%s]\n", received.c_str());
+        	   // THEKERNEL->streams->printf("WP received: [%s]\n", received.c_str());
         	   if (received[0] == 'V') {
             	   // get wireless probe voltage
             	   Gcode gc(received, &StreamOutput::NullStream);
@@ -90,7 +91,7 @@ void SerialConsole2::on_main_loop(void * argument) {
                 		   bool b = true;
                 		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
                        }
-            	   } else  if (this->wp_voltage >= this->max_voltage) {
+            	   } else if (this->wp_voltage >= this->max_voltage) {
             		   struct pad_switch pad;
                        bool ok = PublicData::get_value(switch_checksum, probecharger_checksum, 0, &pad);
                        if (!ok || pad.state) {
@@ -99,11 +100,12 @@ void SerialConsole2::on_main_loop(void * argument) {
                 		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
                        }
             	   }
-        	   } else if (received[0] == 'A' && received.length() > 4) {
+        	   } else if (received[0] == 'A' && received.length() > 2) {
         		   // get wireless probe address
-        		   uint16_t board_addr = ((uint16_t)received[2] << 8) | received[1];
-        		   uint16_t probe_addr = ((uint16_t)received[4] << 8) | received[3];
-        		   THEKERNEL->streams->printf("WP: [%1.2fV], boardID: [%04x], probeID: [%04x]\n", this->wp_voltage, board_addr, probe_addr);
+        		   uint16_t probe_addr = ((uint16_t)received[2] << 8) | received[1];
+        		   THEKERNEL->streams->printf("WP power: [%1.2fv], addr: [%0d]\n", this->wp_voltage, probe_addr);
+        	   } else if (received[0] == 'P' && received.length() > 1) {
+        		   THEKERNEL->streams->printf("WP PAIR %s!\n", received[1] ? "SUCCESS" : "TIMEOUT");
         	   }
                return;
             } else {
@@ -180,3 +182,26 @@ void SerialConsole2::on_set_public_data(void *argument) {
     }
 }
 
+void SerialConsole2::on_gcode_received(void *argument)
+{
+    Gcode *gcode = static_cast<Gcode*>(argument);
+
+    if (gcode->has_m) {
+    	if (gcode->m == 470) {
+    		if (gcode->has_letter('S')) {
+        		uint16_t new_addr = gcode->get_value('S');
+        		THEKERNEL->streams->printf("Change WP address to: [%d]\n", new_addr);
+        		this->_putc('S');
+                this->_putc(new_addr & 0xff);
+                this->_putc(new_addr >> 8);
+                this->_putc('#');
+    		}
+    	} else if (gcode->m == 471) {
+    		THEKERNEL->streams->printf("Set WP into pairing mode...\n");
+    		this->_putc('P');
+    	} else if (gcode->m == 472) {
+    		THEKERNEL->streams->printf("Open WP Laser...\n");
+    		this->_putc('L');
+    	}
+    }
+}

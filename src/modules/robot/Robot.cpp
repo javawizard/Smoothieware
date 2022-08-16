@@ -30,7 +30,6 @@
 #include "ConfigValue.h"
 #include "libs/StreamOutput.h"
 #include "StreamOutputPool.h"
-#include "ExtruderPublicAccess.h"
 #include "GcodeDispatch.h"
 #include "ActuatorCoordinates.h"
 #include "EndstopsPublicAccess.h"
@@ -197,7 +196,7 @@ void Robot::load_config()
 
     this->feed_rate           = THEKERNEL->config->value(default_feed_rate_checksum   )->by_default(  100.0F)->as_number();
     this->seek_rate           = THEKERNEL->config->value(default_seek_rate_checksum   )->by_default(  100.0F)->as_number();
-    this->mm_per_line_segment = THEKERNEL->config->value(mm_per_line_segment_checksum )->by_default(    0.0F)->as_number();
+    this->mm_per_line_segment = THEKERNEL->config->value(mm_per_line_segment_checksum )->by_default(    5.0F)->as_number();
     this->delta_segments_per_second = THEKERNEL->config->value(delta_segments_per_second_checksum )->by_default(0.0f   )->as_number();
     this->mm_per_arc_segment  = THEKERNEL->config->value(mm_per_arc_segment_checksum  )->by_default(    0.0f)->as_number();
     this->mm_max_arc_error    = THEKERNEL->config->value(mm_max_arc_error_checksum    )->by_default(   0.002f)->as_number();
@@ -230,7 +229,7 @@ void Robot::load_config()
 	this->laser_module_offset_z = THEKERNEL->config->value(laser_module_offset_z_checksum)->by_default(-40.0f)->as_number() ;
 
 
-     // Make our Primary XYZ StepperMotors, and potentially A B C
+    // Make our Primary XYZ StepperMotors, and potentially A B C
     uint16_t const motor_checksums[][6] = {
         ACTUATOR_CHECKSUMS("alpha"), // X
         ACTUATOR_CHECKSUMS("beta"),  // Y
@@ -1551,12 +1550,13 @@ bool Robot::append_line(Gcode *gcode, const float target[], float rate_mm_s, flo
         We ask Extruder to do all the work but we need to pass in the relevant data.
         NOTE we need to do this before we segment the line (for deltas)
     */
+    /*
     if(!isnan(delta_e) && gcode->has_g && gcode->g == 1) {
         float data[2]= {delta_e, rate_mm_s / millimeters_of_travel};
         if(PublicData::set_value(extruder_checksum, target_checksum, data)) {
             rate_mm_s *= data[1]; // adjust the feedrate
         }
-    }
+    }*/
 
     // We cut the line into smaller segments. This is only needed on a cartesian robot for zgrid, but always necessary for robots with rotational axes like Deltas.
     // In delta robots either mm_per_line_segment can be used OR delta_segments_per_second

@@ -4,6 +4,7 @@
 // addresses used for public data access
 #define switch_checksum              CHECKSUM("switch")
 #define state_checksum               CHECKSUM("state")
+#define state_value_checksum         CHECKSUM("state_value")
 #define spindlefan_checksum          CHECKSUM("spindlefan")
 #define vacuum_checksum              CHECKSUM("vacuum")
 #define light_checksum               CHECKSUM("light")

@@ -81,7 +81,7 @@ private:
     void fill_margin_scripts(float x_pos, float y_pos, float x_pos_max, float y_pos_max);
     void fill_zprobe_scripts(float x_pos, float y_pos, float x_offset, float y_offset);
     void fill_zprobe_abs_scripts();
-    void fill_xyzprobe_scripts(float dia, bool set_origin);
+    void fill_xyzprobe_scripts(float tool_dia, float probe_height);
     void fill_autolevel_scripts(float x_pos, float y_pos, float x_size, float y_size, int x_grids, int y_grids, float height);
     void fill_goto_origin_scripts(float x_pos, float y_pos);
 
@@ -141,15 +141,20 @@ private:
 
     float anchor1_x;
     float anchor1_y;
-    float anchor2_x;
-    float anchor2_y;
-    float rotation_x;
-    float rotation_y;
-    float rotation_z_offset;
+    float anchor2_offset_x;
+    float anchor2_offset_y;
+
+    float rotation_offset_x;
+    float rotation_offset_y;
+    float rotation_offset_z;
+
+    float toolrack_offset_x;
+    float toolrack_offset_y;
+    float toolrack_z;
+
     float clearance_x;
     float clearance_y;
     float clearance_z;
-
 
     struct atc_tool {
     	int num;

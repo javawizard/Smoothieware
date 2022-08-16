@@ -55,7 +55,8 @@ class MainButton : public Module {
 
         bool sd_ok;
 
-        void switch_power_supply(int state);
+        void switch_power_12(int state);
+        void switch_power_24(int state);
 };
 
 #endif

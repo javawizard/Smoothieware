@@ -34,8 +34,8 @@ class SerialConsole : public Module, public StreamOutput {
 
         int _putc(int c);
         int _getc(void);
-        int puts(const char*);
-        int gets(char** buf);
+        int puts(const char*, int size = 0);
+        int gets(char** buf, int size = 0);
         bool ready();
         char getc_result;
 

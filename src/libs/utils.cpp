@@ -283,3 +283,22 @@ void safe_delay_us(uint32_t dus)
         THEKERNEL->call_event(ON_IDLE);
     }
 }
+
+struct tm *get_fftime(unsigned short t_date, unsigned short t_time, struct tm *timeinfo) {
+
+	// uint16_t mask = (1 << (end - begin + 1)) - 1;
+	// return (value >> begin) & mask;
+
+    // Setup a tm structure based on the RTC
+
+    timeinfo->tm_sec = (t_time >> 0) & ((1 << 5) - 1);	// 0..4
+    timeinfo->tm_min = (t_time >> 5) & ((1 << 6) - 1);	// 5..10
+    timeinfo->tm_hour = (t_time >> 11) & ((1 << 5) - 1);	// 11..15
+    timeinfo->tm_mday = (t_date >> 0) & ((1 << 5) - 1);	// 0..4
+    timeinfo->tm_mon = (t_date >> 5) & ((1 << 4) - 1);	// 5..8
+    timeinfo->tm_year = (t_date >> 9) & ((1 << 7) - 1);	// 9..15
+
+    // Convert to timestamp
+
+    return timeinfo;
+}

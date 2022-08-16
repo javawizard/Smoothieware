@@ -18,6 +18,7 @@ using std::string;
 #include "libs/StreamOutput.h"
 
 
+
 #define baud_rate2_setting_checksum CHECKSUM("baud_rate2")
 
 class SerialConsole2 : public Module {
@@ -29,6 +30,7 @@ class SerialConsole2 : public Module {
         void on_main_loop(void * argument);
         void on_get_public_data(void *argument);
         void on_set_public_data(void *argument);
+        void on_gcode_received(void *argument);
 
         float wp_voltage;
         float min_voltage;

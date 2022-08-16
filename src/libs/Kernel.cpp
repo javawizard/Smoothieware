@@ -117,6 +117,9 @@ Kernel::Kernel()
     }
 #endif*/
 
+    // init FT232
+
+
     // default
     if(this->serial == NULL) {
         // this->serial = new(AHB0) SerialConsole(P2_8, P2_9, this->config->value(uart_checksum, baud_rate_setting_checksum)->by_default(DEFAULT_SERIAL_BAUD_RATE)->as_number());

@@ -8,6 +8,7 @@
 
 #include "SimpleShell.h"
 
+#include "rtc_time.h"
 #include "../mainbutton/MainButtonPublicAccess.h"
 #include "libs/Kernel.h"
 #include "libs/nuts_bolts.h"
@@ -38,7 +39,7 @@
 #include "TemperatureControlPublicAccess.h"
 #include "EndstopsPublicAccess.h"
 #include "ATCHandlerPublicAccess.h"
-#include "NetworkPublicAccess.h"
+// #include "NetworkPublicAccess.h"
 #include "platform_memory.h"
 #include "SwitchPublicAccess.h"
 #include "SDFAT.h"
@@ -49,6 +50,8 @@
 #include "MainButtonPublicAccess.h"
 #include "system_LPC17xx.h"
 #include "LPC17xx.h"
+#include "MSCFileSystemPublicAccess.h"
+#include "WifiPublicAccess.h"
 
 #include "mbed.h" // for wait_ms()
 
@@ -74,7 +77,7 @@ extern "C" uint32_t  _sbrk(int size);
 #define CTRLZ 0x1A
 
 #define MAXRETRANS 10
-#define TIMEOUT_MS 100
+#define TIMEOUT_MS 300
 
 // command lookup table
 const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
@@ -99,16 +102,18 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"set_temp", SimpleShell::set_temp_command},
     {"switch",   SimpleShell::switch_command},
     {"net",      SimpleShell::net_command},
-	// {"ap",     SimpleShell::ap_command},
-	// {"wlan",     SimpleShell::wlan_command},
+	{"ap",     SimpleShell::ap_command},
+	{"wlan",     SimpleShell::wlan_command},
 	{"diagnose",   SimpleShell::diagnose_command},
 	{"sleep",   SimpleShell::sleep_command},
+	{"power",   SimpleShell::power_command},
     {"load",     SimpleShell::load_command},
     {"save",     SimpleShell::save_command},
     {"remount",  SimpleShell::remount_command},
     {"calc_thermistor", SimpleShell::calc_thermistor_command},
     {"thermistors", SimpleShell::print_thermistors_command},
     {"md5sum",   SimpleShell::md5sum_command},
+	{"time",   SimpleShell::time_command},
     {"test",     SimpleShell::test_command},
 
     // unknown command
@@ -379,20 +384,29 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
 
     DIR *d;
     struct dirent *p;
+    struct tm timeinfo;
     d = opendir(path.c_str());
     if (d != NULL) {
         while ((p = readdir(d)) != NULL) {
-        	if (!p->d_isdir && opts.find("-s", 0, 2) != string::npos) {
-                stream->printf("%s %d\r\n", string(p->d_name).c_str(), p->d_fsize);
+        	if (opts.find("-s", 0, 2) != string::npos) {
+        	    get_fftime(p->d_date, p->d_time, &timeinfo);
+        		// name size date
+                stream->printf("%s%s %d %04d%02d%02d%02d%02d%02d\r\n", string(p->d_name).c_str(),  p->d_isdir ? "/" : "",
+                		p->d_isdir ? 0 : p->d_fsize, timeinfo.tm_year + 1980, timeinfo.tm_mon, timeinfo.tm_mday,
+                				timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
         	} else {
+        		// only name
                 stream->printf("%s%s\r\n", string(p->d_name).c_str(), p->d_isdir ? "/" : "");
         	}
         }
         closedir(d);
         if(opts.find("-e", 0, 2) != string::npos) {
-            stream->puts("\004\004\004"); // ^D terminates the upload
+            stream->_putc(EOT);
         }
     } else {
+        if(opts.find("-e", 0, 2) != string::npos) {
+            stream->_putc(CAN);
+        }
         stream->printf("Could not open directory %s\r\n", path.c_str());
     }
 }
@@ -419,7 +433,7 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
     int s = remove(fn);
     if (s != 0) {
         if(send_eof) {
-            stream->puts("\032\032\032"); // ^Z terminates error
+            stream->_putc(CAN);
         }
     	stream->printf("Could not delete %s \r\n", fn);
     } else {
@@ -427,12 +441,12 @@ void SimpleShell::rm_command( string parameters, StreamOutput *stream )
     	s = remove(fn_md5);
 		if (s != 0) {
 			if(send_eof) {
-				stream->puts("\032\032\032"); // ^Z terminates error
+				stream->_putc(CAN);
 			}
 			stream->printf("Could not delete %s \r\n", fn_md5);
 		} else {
 	        if(send_eof) {
-	            stream->puts("\004\004\004"); // ^D terminates the upload
+	            stream->_putc(EOT);
 	        }
 		}
     }
@@ -452,20 +466,20 @@ void SimpleShell::mv_command( string parameters, StreamOutput *stream )
     int s = rename(from.c_str(), to.c_str());
     if (s != 0)  {
     	if (send_eof) {
-    		stream->puts("\032\032\032"); // ^Z terminates error
+    		stream->_putc(CAN);
     	}
     	stream->printf("Could not rename %s to %s\r\n", from.c_str(), to.c_str());
     } else  {
     	s = rename(md5_from.c_str(), md5_to.c_str());
         if (s != 0)  {
         	if (send_eof) {
-        		stream->puts("\032\032\032"); // ^Z terminates error
+        		stream->_putc(CAN);
         	}
         	stream->printf("Could not rename %s to %s\r\n", md5_from.c_str(), md5_to.c_str());
         }
         else {
 			if (send_eof) {
-				stream->puts("\004\004\004"); // ^D terminates the upload
+				stream->_putc(EOT);
 			}
 			stream->printf("renamed %s to %s\r\n", from.c_str(), to.c_str());
         }
@@ -483,22 +497,22 @@ void SimpleShell::mkdir_command( string parameters, StreamOutput *stream )
     }
     int result = mkdir(path.c_str(), 0);
     if (result != 0) {
-    	stream->printf("could not create directory %s\r\n", path.c_str());
     	if (send_eof) {
-    		stream->puts("\032\032\032"); // ^Z terminates error
+    		stream->_putc(CAN); // ^Z terminates error
     	}
+    	stream->printf("could not create directory %s\r\n", path.c_str());
     } else {
     	result = mkdir(md5_path.c_str(), 0);
         if (result != 0) {
+        	if (send_eof) {
+        		stream->_putc(CAN); // ^Z terminates error
+        	}
         	stream->printf("could not create md5 directory %s\r\n", md5_path.c_str());
-        	if (send_eof) {
-        		stream->puts("\032\032\032"); // ^Z terminates error
-        	}
         } else {
-        	stream->printf("created directory %s\r\n", path.c_str());
         	if (send_eof) {
-            	stream->puts("\004\004\004"); // ^D terminates the upload
+            	stream->_putc(EOT); // ^D terminates the upload
         	}
+        	stream->printf("created directory %s\r\n", path.c_str());
         }
     }
 }
@@ -531,7 +545,6 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     string filename = absolute_from_relative(shift_parameter(parameters));
     int limit = -1;
     int delay= 0;
-    bool send_eof = false;
     // parse parameters
     while (parameters != "") {
     	string s = shift_parameter(parameters);
@@ -543,8 +556,6 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
                 delay = 0;
 
             }
-        } else if (s == "-e") {
-            send_eof = true; // we need to terminate file send with an eof
         } else if (s != "") {
             char *e = NULL;
             limit = strtol(s.c_str(), &e, 10);
@@ -562,11 +573,7 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     // Open file
     FILE *lp = fopen(filename.c_str(), "r");
     if (lp == NULL) {
-        if(send_eof) {
-            stream->puts("\032\032\032"); // 3 ^Z terminates the cat
-        } else {
-            stream->printf("File not found: %s\r\n", filename.c_str());
-        }
+        stream->printf("File not found: %s\r\n", filename.c_str());
         return;
     }
     // string buffer;
@@ -576,7 +583,6 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     int newlines = 0;
     int charcnt = 0;
     int sentcnt = 0;
-    int cancelcnt = 0;
 
     while ((c = fgetc (lp)) != EOF) {
     	buffer[charcnt] = c;
@@ -584,30 +590,10 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
         // buffer.append((char *)&c, 1);
         charcnt ++;
         if (charcnt > 190) {
-        	// check if cancel cmd received
-            if (send_eof) {
-            	while (stream->ready()) {
-            		c = stream->_getc();
-                    if (c == 26) {
-                    	cancelcnt ++;
-                    	if (cancelcnt > 2) {
-                        	fclose(lp);
-                        	stream->puts("\032\032\032");
-                        	return;
-                    	}
-                    } else {
-                    	cancelcnt = 0;
-                    	if (c == 0) {
-                    		break;
-                    	}
-                    }
-            	}
-            }
             sentcnt = stream->puts(buffer);
             // if (sentcnt < strlen()(int)buffer.size()) {
             if (sentcnt < (int)strlen(buffer)) {
             	fclose(lp);
-            	stream->puts("\032\032\032");
             	stream->printf("Caching error, line: %d, size: %d, sent: %d", newlines, strlen(buffer), sentcnt);
             	return;
             }
@@ -629,15 +615,7 @@ void SimpleShell::cat_command( string parameters, StreamOutput *stream )
     if (strlen(buffer) > 0) {
     	// stream->puts(buffer.c_str());
     	stream->puts(buffer);
-    	if (!send_eof) {
-    		stream->printf("\n");
-    	}
     }
-
-    if (send_eof) {
-        stream->puts("\004\004\004"); // ^Z terminates the cat
-    }
-
 }
 
 // echo commands
@@ -879,9 +857,21 @@ int SimpleShell::check_crc(int crc, unsigned char *data, unsigned int len)
 
 int SimpleShell::inbyte(StreamOutput *stream, unsigned int timeout_ms)
 {
-    while (timeout_ms--) {
+	uint32_t tick_us = us_ticker_read();
+    while (us_ticker_read() - tick_us < timeout_ms * 1000) {
         if (stream->ready())
             return stream->_getc();
+        safe_delay_ms(1);
+    }
+    return -1;
+}
+
+int SimpleShell::inbytes(StreamOutput *stream, char **buf, int size, unsigned int timeout_ms)
+{
+	uint32_t tick_us = us_ticker_read();
+    while (us_ticker_read() - tick_us < timeout_ms * 1000) {
+        if (stream->ready())
+            return stream->gets(buf, size);
         safe_delay_ms(1);
     }
     return -1;
@@ -912,24 +902,37 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 {
 	unsigned char xbuff[135]; /* 1 for data length, 128 for XModem + 3 head chars + 2 crc + nul */
     unsigned char *p;
+    char *recv_buff;
     int bufsz, crc = 0;
     unsigned char trychar = 'C';
     unsigned char packetno = 1;
-    int i, c, len = 0;
+    int c, len = 0;
     int retry = 0;
     int retrans = MAXRETRANS;
+    int recv_count = 0;
     bool md5_received = false;
 
     // open file
 	char error_msg[64];
+	memset(error_msg, 0, sizeof(error_msg));
+	sprintf(error_msg, "Nothing!");
     string filename = absolute_from_relative(parameters);
     string md5_filename = change_to_md5_path(filename);
 
-	// diasble serial rx irq
-	set_serial_rx_irq(false);
+	// diasble serial rx irq in case of serial stream, and internal process in case of wifi
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(false);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(true);
+    }
+
     if (!THECONVEYOR->is_idle()) {
         stream->_putc(EOT);
-        set_serial_rx_irq(true);
+        if (stream->type() == 0) {
+        	set_serial_rx_irq(true);
+        } else if (stream->type() == 1) {
+        	THEKERNEL->set_uploading(false);
+        }
         return;
     }
 
@@ -943,10 +946,11 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     for (;;) {
-        for (retry = 0; retry < MAXRETRANS; ++retry) {  // approx 10 seconds allowed to make connection
+        for (retry = 0; retry < MAXRETRANS; ++retry) {  // approx 3 seconds allowed to make connection
             if (trychar)
             	stream->_putc(trychar);
             if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {
+            	sprintf(error_msg, "[%d]", c);
                 switch (c) {
                 case SOH:
                     bufsz = 128;
@@ -965,8 +969,10 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
                     	sprintf(error_msg, "Info: Upload canceled by remote!\r\n");
                         goto upload_error;
                     }
+                    goto upload_error;
                     break;
                 default:
+                    goto upload_error;
                     break;
                 }
             }
@@ -977,7 +983,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             continue;
         }
         cancel_transfer(stream);
-		sprintf(error_msg, "Error: upload sync error! get char [%02X], retry [%d]!\r\n", c, retry);
+		sprintf(error_msg, "Error: upload sync error! get char [%d], retry [%d]!\r\n", c, retry);
         goto upload_error;
 
     start_recv:
@@ -986,11 +992,24 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         trychar = 0;
         p = xbuff;
         *p++ = c;
-        for (i = 0;  i < (1 + bufsz + (crc ? 1 : 0) + 3); ++i) {
-            if ((c = inbyte(stream, TIMEOUT_MS)) < 0)
-                goto reject;
-            *p++ = c;
+
+        recv_count = 1 + bufsz + (crc ? 1 : 0) + 3;
+
+        while (recv_count > 0) {
+        	c = inbytes(stream, &recv_buff, recv_count, TIMEOUT_MS);
+        	if (c < 0) goto reject;
+        	for (int i = 0; i < c; i ++) {
+        		*p++ = recv_buff[i];
+        	}
+        	recv_count -= c;
         }
+
+//        for (int i = 0;  i < (1 + bufsz + (crc ? 1 : 0) + 3); ++i) {
+//            if ((c = inbyte(stream, TIMEOUT_MS)) < 0) {
+//            	goto reject;
+//            }
+//            *p++ = c;
+//        }
 
         if (!md5_received && xbuff[1] == 0 && xbuff[1] == (unsigned char)(~xbuff[2])
         		&& check_crc(crc, &xbuff[3], bufsz + 1) && xbuff[3] == 32) {
@@ -1034,7 +1053,11 @@ upload_error:
 		remove(md5_filename.c_str());
 	}
 	flush_input(stream);
-	set_serial_rx_irq(true);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(false);
+    }
 	stream->printf(error_msg);
 	return;
 upload_success:
@@ -1043,7 +1066,11 @@ upload_success:
 	fclose(fd_md5);
 	fd_md5 = NULL;
 	flush_input(stream);
-	set_serial_rx_irq(true);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(false);
+    }
 	stream->printf("Info: upload success: %s.\r\n", filename.c_str());
 }
 
@@ -1061,12 +1088,20 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     string filename = absolute_from_relative(parameters);
     string md5_filename = change_to_md5_path(filename);
 
-	// diasble serial rx irq
-	set_serial_rx_irq(false);
+	// diasble irq
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(false);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(true);
+    }
 
     if (!THECONVEYOR->is_idle()) {
         cancel_transfer(stream);
-        set_serial_rx_irq(true);
+        if (stream->type() == 0) {
+        	set_serial_rx_irq(true);
+        } else if (stream->type() == 1) {
+        	THEKERNEL->set_uploading(false);
+        }
         return;
     }
 
@@ -1146,9 +1181,10 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 				xbuff[bufsz + 4] = ccks;
 			}
 			for (retry = 0; retry < MAXRETRANS; ++retry) {
-				for (i = 0; i < bufsz + 5 + (crc ? 1:0); ++i) {
-					stream->_putc(xbuff[i]);
-				}
+				stream->puts((char *)xbuff, bufsz + 5 + (crc ? 1:0));
+//				for (i = 0; i < bufsz + 5 + (crc ? 1:0); ++i) {
+//					stream->_putc(xbuff[i]);
+//				}
 				if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {
 					switch (c) {
 					case ACK:
@@ -1184,7 +1220,11 @@ download_error:
 		fd_md5 = NULL;
 	}
 	flush_input(stream);
-	set_serial_rx_irq(true);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(false);
+    }
 	stream->printf(error_msg);
 	return;
 download_success:
@@ -1193,8 +1233,13 @@ download_success:
 	fclose(fd_md5);
 	fd_md5 = NULL;
 	flush_input(stream);
-	set_serial_rx_irq(true);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    } else if (stream->type() == 1) {
+    	THEKERNEL->set_uploading(false);
+    }
 	stream->printf("Info: download success: %s.\r\n", filename.c_str());
+	return;
 }
 
 
@@ -1302,9 +1347,25 @@ static uint32_t getDeviceType()
     return result[1];
 }
 
+
+// get network config
+void SimpleShell::time_command( string parameters, StreamOutput *stream)
+{
+    if (!parameters.empty() ) {
+    	time_t new_time = strtol(parameters.c_str(), NULL, 10);
+    	set_time(new_time);
+    } else {
+    	time_t old_time = time(NULL);
+    	stream->printf("time = %ld\n", old_time);
+    }
+}
+
+
+
 // get network config
 void SimpleShell::net_command( string parameters, StreamOutput *stream)
 {
+	/*
     void *returned_data;
     bool ok = PublicData::get_value( network_checksum, get_ipconfig_checksum, &returned_data );
     if(ok) {
@@ -1314,11 +1375,10 @@ void SimpleShell::net_command( string parameters, StreamOutput *stream)
 
     } else {
         stream->printf("No network detected\n");
-    }
+    }*/
 }
 
 // get or set ap channel config
-/*
 void SimpleShell::ap_command( string parameters, StreamOutput *stream)
 {
 	uint8_t channel;
@@ -1370,12 +1430,12 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
             stream->printf("%s", str);
             free(str);
         	if (send_eof) {
-            	stream->puts("\004\004\004"); // ^D terminates the upload
+            	stream->_putc(EOT);
         	}
 
         } else {
         	if (send_eof) {
-        		stream->puts("\032\032\032"); // ^Z terminates error
+        		stream->_putc(CAN);
         	} else {
                 stream->printf("No wlan detected\n");
         	}
@@ -1399,7 +1459,7 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
         	if (t.has_error) {
                 stream->printf("Error: %s\n", t.error_info);
             	if (send_eof) {
-            		stream->puts("\032\032\032"); // ^Z terminates error
+            		stream->_putc(CAN);
             	}
         	} else {
         		if (t.disconnect) {
@@ -1408,18 +1468,17 @@ void SimpleShell::wlan_command( string parameters, StreamOutput *stream)
             		stream->printf("Wifi connected, ip: %s\n", t.ip_address);
         		}
             	if (send_eof) {
-                	stream->puts("\004\004\004"); // ^D terminates the complete
+                	stream->_putc(EOT);
             	}
         	}
         } else {
             stream->printf("%s\n", "Parameter error when setting wlan!");
         	if (send_eof) {
-        		stream->puts("\032\032\032"); // ^Z terminates error
+        		stream->_putc(CAN);
         	}
         }
     }
 }
-*/
 
 // wlan config
 void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
@@ -1531,13 +1590,39 @@ void SimpleShell::diagnose_command( string parameters, StreamOutput *stream)
 // sleep command
 void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
 {
+	char power_off = 0;
 	// turn off 12V/24V power supply
-	PublicData::set_value( main_button_checksum, set_power_supply_checksum, nullptr );
+	PublicData::set_value( main_button_checksum, switch_power_12_checksum, &power_off );
 	THEKERNEL->set_sleeping(true);
 	THEKERNEL->call_event(ON_HALT, nullptr);
-
 }
 
+// sleep command
+void SimpleShell::power_command(string parameters, StreamOutput *stream)
+{
+	char power_on = 1;
+	char power_off = 0;
+	if (!parameters.empty()) {
+		string s1 = shift_parameter( parameters );
+		string s2 = "";
+		if (!parameters.empty()) {
+			s2 = shift_parameter( parameters );
+		}
+		if (s1 == "on" ) {
+			if (s2 == "12") {
+				PublicData::set_value( main_button_checksum, switch_power_12_checksum, &power_on );
+			} else if (s2 == "24") {
+				PublicData::set_value( main_button_checksum, switch_power_24_checksum, &power_on );
+			}
+		} else if (s1 == "off") {
+			if (s2 == "12") {
+				PublicData::set_value( main_button_checksum, switch_power_12_checksum, &power_off );
+			} else if (s2 == "24") {
+				PublicData::set_value( main_button_checksum, switch_power_24_checksum, &power_off );
+			}
+		}
+	}
+}
 
 // print out build version
 void SimpleShell::version_command( string parameters, StreamOutput *stream)
@@ -1791,8 +1876,10 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
 		stream->printf("Current z: %1.4f, compensation z: %1.4f\n", old_z, mpos[Z_AXIS]);
     } else if (what == "wp" || what == "wp_state") {
     	PublicData::get_value(atc_handler_checksum, show_wp_state_checksum, NULL);
+    } else if (what == "msc") {
+    	PublicData::get_value(msc_file_system_checksum, check_usb_host_checksum, NULL);
     } else {
-        stream->printf("error:unknown option %s\n", what.c_str());
+        stream->printf("error: unknown option %s\n", what.c_str());
     }
 }
 
@@ -1911,26 +1998,15 @@ void SimpleShell::switch_command( string parameters, StreamOutput *stream)
 
 void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
 {
-	bool send_eof = false;
-
     string filename = absolute_from_relative(shift_parameter(parameters));
     string md5_filename = change_to_md5_path(filename);
-
-    if(!parameters.empty() && shift_parameter(parameters) == "-e") {
-    	send_eof = true;
-    }
 
     FILE *fd_md5 = fopen(md5_filename.c_str(), "r");
     if (fd_md5) {
     	char local_md5[33];
     	local_md5[32] = 0;
     	fread(local_md5, 1, 32, fd_md5);
-        if(send_eof) {
-        	stream->puts(local_md5);
-            stream->puts("\004\004\004"); // ^D terminates the upload
-        } else {
-            stream->printf("%s %s\n", local_md5, filename.c_str());
-        }
+        stream->printf("%s %s\n", local_md5, filename.c_str());
         fclose(fd_md5);
         fd_md5 = NULL;
         return;
@@ -1952,12 +2028,7 @@ void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
         THEKERNEL->call_event(ON_IDLE);
     } while(!feof(lp));
 
-    if(send_eof) {
-    	stream->printf("%s", md5.finalize().hexdigest().c_str());
-        stream->puts("\004\004\004"); // ^D terminates the upload
-    } else {
-        stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
-    }
+	stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
 
     fclose(lp);
 }
@@ -2246,7 +2317,7 @@ void SimpleShell::config_get_all_command( string parameters, StreamOutput *strea
     	string s = shift_parameter(parameters);
     	if (s == "-e") {
             send_eof = true; // we need to terminate file send with an eof
-        } else if (s != "" ){
+        } else if (s != "" ) {
         	filename = s;
         }
     }
@@ -2302,7 +2373,7 @@ void SimpleShell::config_get_all_command( string parameters, StreamOutput *strea
     fclose(lp);
 
     if(send_eof) {
-        stream->puts("\004\004\004"); // ^Z terminates the cat
+        stream->_putc(EOT);
     }
 }
 

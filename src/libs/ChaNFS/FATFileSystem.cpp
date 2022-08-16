@@ -6,6 +6,7 @@
 
 #include "mbed.h"
 
+#include "rtc_time.h"
 #include "FileSystemLike.h"
 #include "FATFileHandle.h"
 #include "FATDirHandle.h"
@@ -15,7 +16,8 @@
 #include <stdlib.h>
 
 DWORD get_fattime (void) {
-    return 999;
+    // return 999;
+    return time(NULL);
 }
 
 namespace mbed {

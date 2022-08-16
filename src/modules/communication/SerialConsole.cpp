@@ -88,16 +88,16 @@ void SerialConsole::on_idle(void * argument)
 {
     if (query_flag) {
         query_flag = false;
-        puts(THEKERNEL->get_query_string().c_str());
+        puts(THEKERNEL->get_query_string().c_str(), 0);
     }
     if (halt_flag) {
         halt_flag= false;
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(MANUAL);
         if(THEKERNEL->is_grbl_mode()) {
-            puts("ALARM: Abort during cycle\r\n");
+            puts("ALARM: Abort during cycle\r\n", 0);
         } else {
-            puts("HALTED, M999 or $X to exit HALT state\r\n");
+            puts("HALTED, M999 or $X to exit HALT state\r\n", 0);
         }
     }
 }
@@ -125,17 +125,16 @@ void SerialConsole::on_main_loop(void * argument){
     }
 }
 
-int SerialConsole::puts(const char* s)
+int SerialConsole::puts(const char* s, int size)
 {
-    //return fwrite(s, strlen(s), 1, (FILE*)(*this->serial));
-    size_t n= strlen(s);
+    size_t n = size == 0 ? strlen(s) : size;
     for (size_t i = 0; i < n; ++i) {
         this->_putc(s[i]);
     }
     return n;
 }
 
-int SerialConsole::gets(char** buf)
+int SerialConsole::gets(char** buf, int size)
 {
 	getc_result = this->_getc();
 	*buf = &getc_result;

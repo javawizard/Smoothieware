@@ -58,10 +58,11 @@ private:
     static void mem_command(string parameters, StreamOutput *stream );
 
     static void net_command( string parameters, StreamOutput *stream);
-    // static void ap_command( string parameters, StreamOutput *stream);
-    // static void wlan_command( string parameters, StreamOutput *stream);
+    static void ap_command( string parameters, StreamOutput *stream);
+    static void wlan_command( string parameters, StreamOutput *stream);
     static void diagnose_command( string parameters, StreamOutput *stream);
     static void sleep_command( string parameters, StreamOutput *stream);
+    static void power_command( string parameters, StreamOutput *stream);
 
     static void load_command( string parameters, StreamOutput *stream);
     static void save_command( string parameters, StreamOutput *stream);
@@ -69,6 +70,8 @@ private:
     static void remount_command( string parameters, StreamOutput *stream);
 
     static void test_command( string parameters, StreamOutput *stream);
+
+    static void time_command( string parameters, StreamOutput *stream);
 
     static void config_get_all_command(string parameters, StreamOutput *stream );
 
@@ -84,6 +87,7 @@ private:
 
     static void set_serial_rx_irq(bool enable);
     static int inbyte(StreamOutput *stream, unsigned int timeout_ms);
+    static int inbytes(StreamOutput *stream, char **buf, int size, unsigned int timeout_ms);
     static void flush_input(StreamOutput *stream);
     static void cancel_transfer(StreamOutput *stream);
     static unsigned int crc16_ccitt(unsigned char *data, unsigned int len);

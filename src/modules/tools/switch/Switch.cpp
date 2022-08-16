@@ -117,7 +117,7 @@ void Switch::on_config_reload(void *argument)
     }else{
         delete this->input_pin;
         this->input_pin= nullptr;
-        is_input= false;
+        is_input = false;
     }
 
 
@@ -241,7 +241,7 @@ void Switch::on_config_reload(void *argument)
             }
 
         } else if(this->output_type == HWPWM) {
-            // default is 50Hz
+            // default is 20Hz
             float p= THEKERNEL->config->value(switch_checksum, this->name_checksum, pwm_period_ms_checksum )->by_default(20)->as_number() * 1000.0F; // ms but fractions are allowed
             this->pwm_pin->period_us(p);
 
@@ -281,7 +281,7 @@ void Switch::on_config_reload(void *argument)
             this->pwm_pin->period_us(p);
             // default is 0% duty cycle
             this->switch_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, startup_value_checksum )->by_default(0)->as_number();
-            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(50)->as_number();
+            this->default_on_value = THEKERNEL->config->value(switch_checksum, this->name_checksum, default_on_value_checksum )->by_default(100)->as_number();
             if(this->switch_state) {
                 this->pwm_pin->write(confine(this->default_on_value, this->min_pwm, this->max_pwm) / 100.0F);
                 this->switch_value = this->default_on_value;
@@ -342,6 +342,95 @@ bool Switch::match_input_off_gcode(const Gcode *gcode) const
     return (b && gcode->subcode == this->subcode);
 }
 
+void Switch::turn_on_switch(float value)
+{
+    if (this->output_type == SIGMADELTA) {
+        // SIGMADELTA output pin turn on (or off if S0)
+        if (value >= 0) {
+            int v = roundf(value * sigmadelta_pin->max_pwm() / 255.0F); // scale by max_pwm so input of 255 and max_pwm of 128 would set value to 128
+            if(v != this->sigmadelta_pin->get_pwm()){ // optimize... ignore if already set to the same pwm
+                this->sigmadelta_pin->pwm(v);
+                this->switch_state = (v > 0);
+            }
+        } else {
+            this->sigmadelta_pin->pwm(this->switch_value);
+            this->switch_state = (this->switch_value > 0);
+        }
+
+    } else if (this->output_type == HWPWM) {
+        // PWM output pin set duty cycle 0 - 100
+        if (value >= 0) {
+            float v = value;
+            if(v > 100) v= 100;
+            else if(v < 0) v= 0;
+            this->pwm_pin->write(v/100.0F);
+            this->switch_value = v;
+            this->switch_state = v > 0;
+            // this->switch_state = (ROUND2DP(v) != ROUND2DP(this->switch_value));
+        } else {
+            this->pwm_pin->write(this->default_on_value / 100.0F);
+            this->switch_value = this->default_on_value;
+            this->switch_state= true;
+        }
+
+   } else if (this->output_type == SWPWM) {
+        // PWM output pin set duty cycle 0 - 100
+        if (value >= 0) {
+            float v = value;
+            if(v > 100) v= 100;
+            else if(v < 0) v= 0;
+            this->switch_value = v;
+            this->swpwm_pin->write(v/100.0F);
+            // this->switch_state= (ROUND2DP(v) != ROUND2DP(this->switch_value));
+            this->switch_state = v > 0;
+        } else {
+            this->swpwm_pin->write(this->default_on_value/100.0F);
+            this->switch_value = this->default_on_value;
+            this->switch_state= true;
+        }
+
+    } else if (this->output_type == DIGITAL) {
+        // logic pin turn on
+        this->digital_pin->set(true);
+        this->switch_value = 100;
+        this->switch_state = true;
+    } else if (this->output_type == DIGITALPWM) {
+        // logic pin turn on
+        this->digital_pin->set(true);
+        this->switch_state = true;
+        if(value >= 0) {
+            this->switch_value = value;
+        } else {
+        	this->switch_value = this->default_on_value;
+        }
+        this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
+    }
+}
+
+void Switch::turn_off_switch()
+{
+    // drain queue
+    this->switch_value = 0;
+    this->switch_state = false;
+    if (this->output_type == SIGMADELTA) {
+        // SIGMADELTA output pin
+        this->sigmadelta_pin->set(false);
+
+    } else if (this->output_type == HWPWM) {
+        this->pwm_pin->write(this->switch_value/100.0F);
+
+    } else if (this->output_type == SWPWM) {
+        this->swpwm_pin->write(this->switch_value/100.0F);
+    } else if (this->output_type == DIGITAL) {
+        // logic pin turn off
+        this->digital_pin->set(false);
+    } else if (this->output_type == DIGITALPWM) {
+    	this->digital_pin->set(false);
+    	this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
+    }
+
+}
+
 void Switch::on_gcode_received(void *argument)
 {
     Gcode *gcode = static_cast<Gcode *>(argument);
@@ -349,99 +438,13 @@ void Switch::on_gcode_received(void *argument)
     if (!(match_input_on_gcode(gcode) || match_input_off_gcode(gcode))) {
         return;
     }
-
     // we need to sync this with the queue, so we need to wait for queue to empty, however due to certain slicers
     // issuing redundant swicth on calls regularly we need to optimize by making sure the value is actually changing
     // hence we need to do the wait for queue in each case rather than just once at the start
     if(match_input_on_gcode(gcode)) {
-        if (this->output_type == SIGMADELTA) {
-            // SIGMADELTA output pin turn on (or off if S0)
-            if(gcode->has_letter('S')) {
-                int v = roundf(gcode->get_value('S') * sigmadelta_pin->max_pwm() / 255.0F); // scale by max_pwm so input of 255 and max_pwm of 128 would set value to 128
-                if(v != this->sigmadelta_pin->get_pwm()){ // optimize... ignore if already set to the same pwm
-                    // drain queue
-                    THEKERNEL->conveyor->wait_for_idle();
-                    this->sigmadelta_pin->pwm(v);
-                    this->switch_state= (v > 0);
-                }
-            } else {
-                // drain queue
-                THEKERNEL->conveyor->wait_for_idle();
-                this->sigmadelta_pin->pwm(this->switch_value);
-                this->switch_state= (this->switch_value > 0);
-            }
-
-        } else if (this->output_type == HWPWM) {
-            // drain queue
-            THEKERNEL->conveyor->wait_for_idle();
-            // PWM output pin set duty cycle 0 - 100
-            if(gcode->has_letter('S')) {
-                float v = gcode->get_value('S');
-                if(v > 100) v= 100;
-                else if(v < 0) v= 0;
-                this->pwm_pin->write(v/100.0F);
-                this->switch_state= (ROUND2DP(v) != ROUND2DP(this->switch_value));
-            } else {
-                this->pwm_pin->write(this->default_on_value/100.0F);
-                this->switch_state= true;
-            }
-
-       } else if (this->output_type == SWPWM) {
-            // drain queue
-            THEKERNEL->conveyor->wait_for_idle();
-            // PWM output pin set duty cycle 0 - 100
-            if(gcode->has_letter('S')) {
-                float v = gcode->get_value('S');
-                if(v > 100) v= 100;
-                else if(v < 0) v= 0;
-                this->swpwm_pin->write(v/100.0F);
-                this->switch_state= (ROUND2DP(v) != ROUND2DP(this->switch_value));
-            } else {
-                this->swpwm_pin->write(this->default_on_value/100.0F);
-                this->switch_state= true;
-            }
-
-        } else if (this->output_type == DIGITAL) {
-            // drain queue
-            THEKERNEL->conveyor->wait_for_idle();
-            // logic pin turn on
-            this->digital_pin->set(true);
-            this->switch_state = true;
-        } else if (this->output_type == DIGITALPWM) {
-            // drain queue
-            THEKERNEL->conveyor->wait_for_idle();
-            // logic pin turn on
-            this->digital_pin->set(true);
-            this->switch_state = true;
-            if(gcode->has_letter('S')) {
-                this->switch_value = gcode->get_value('S');
-            } else {
-            	this->switch_value = this->default_on_value;
-            }
-            this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
-        }
-
-    } else if(match_input_off_gcode(gcode)) {
-        // drain queue
-        THEKERNEL->conveyor->wait_for_idle();
-        this->switch_state = false;
-        if (this->output_type == SIGMADELTA) {
-            // SIGMADELTA output pin
-            this->sigmadelta_pin->set(false);
-
-        } else if (this->output_type == HWPWM) {
-            this->pwm_pin->write(this->switch_value/100.0F);
-
-        } else if (this->output_type == SWPWM) {
-            this->swpwm_pin->write(this->switch_value/100.0F);
-
-        } else if (this->output_type == DIGITAL) {
-            // logic pin turn off
-            this->digital_pin->set(false);
-        } else if (this->output_type == DIGITALPWM) {
-        	this->digital_pin->set(false);
-        	this->pwm_pin->write(confine(this->switch_value, this->min_pwm, this->max_pwm) / 100.0F);
-        }
+    	this->turn_on_switch(gcode->has_letter('S') ? gcode->get_value('S') : -1);
+    } else if (match_input_off_gcode(gcode)) {
+    	this->turn_off_switch();
     }
 }
 
@@ -471,15 +474,27 @@ void Switch::on_set_public_data(void *argument)
     if(!pdr->second_element_is(this->name_checksum)) return; // likely fan, but could be anything
 
     // ok this is targeted at us, so set the value
-    if(pdr->third_element_is(state_checksum)) {
+    if (pdr->third_element_is(state_checksum)) {
         bool t = *static_cast<bool *>(pdr->get_data_ptr());
-        this->switch_state = t;
-        this->switch_changed = true;
+        if (t) {
+        	this->turn_on_switch(-1);
+        } else {
+        	this->turn_off_switch();
+        }
         pdr->set_taken();
 
         // if there is no gcode to be sent then we can do this now (in on_idle)
         // Allows temperature switch to turn on a fan even if main loop is blocked with heat and wait
         if(this->output_on_command.empty() && this->output_off_command.empty()) on_main_loop(nullptr);
+
+    } else if (pdr->third_element_is(state_value_checksum)) {
+    	struct pad_switch *pad = static_cast<struct pad_switch *>(pdr->get_data_ptr());
+    	if (pad->state) {
+    		this->turn_on_switch(pad->value);
+    	} else {
+    		this->turn_off_switch();
+    	}
+        pdr->set_taken();
     }
 }
 
