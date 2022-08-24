@@ -17,6 +17,7 @@
 #include "PublicDataRequest.h"
 #include "MainButtonPublicAccess.h"
 #include "TemperatureControlPublicAccess.h"
+#include "LaserPublicAccess.h"
 
 using namespace std;
 
@@ -31,7 +32,6 @@ using namespace std;
 #define e_stop_pin_checksum							CHECKSUM("e_stop_pin")
 #define ps12_pin_checksum							CHECKSUM("ps12_pin")
 #define ps24_pin_checksum							CHECKSUM("ps24_pin")
-#define power_fan_pin_checksum						CHECKSUM("power_fan_pin")
 #define power_fan_delay_s_checksum					CHECKSUM("power_fan_delay_s")
 
 #define power_checksum								CHECKSUM("power")
@@ -45,6 +45,7 @@ using namespace std;
 MainButton::MainButton()
 {
 	this->sd_ok = false;
+	this->using_12v = false;
 	this->led_update_timer = 0;
 	this->hold_toggle = 0;
     this->button_state = NONE;
@@ -73,8 +74,7 @@ void MainButton::on_module_loaded()
     this->e_stop.from_string( THEKERNEL->config->value( e_stop_pin_checksum )->by_default("0.26^")->as_string())->as_input();
     this->PS12.from_string( THEKERNEL->config->value( ps12_pin_checksum )->by_default("0.22")->as_string())->as_output();
     this->PS24.from_string( THEKERNEL->config->value( ps24_pin_checksum )->by_default("0.10")->as_string())->as_output();
-    this->power_fan.from_string( THEKERNEL->config->value( power_fan_pin_checksum )->by_default("2.11")->as_string())->as_output();
-    this->power_fan_delay_s = THEKERNEL->config->value( power_fan_delay_s_checksum )->by_default(10)->as_int();
+    this->power_fan_delay_s = THEKERNEL->config->value( power_fan_delay_s_checksum )->by_default(30)->as_int();
 
     this->auto_sleep = THEKERNEL->config->value(power_checksum, auto_sleep_checksum )->by_default(true)->as_bool();
     this->auto_sleep_min = THEKERNEL->config->value(power_checksum, auto_sleep_min_checksum )->by_default(30)->as_number();
@@ -120,6 +120,25 @@ void MainButton::on_second_tick(void *)
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(SD_ERROR);
 	}
+
+	bool vacuum_on = false;
+	bool toolsensor_on = false;
+    // get switchs state
+    struct pad_switch pad;
+    if (PublicData::get_value(switch_checksum, get_checksum("vacuum"), 0, &pad)) {
+    	vacuum_on = pad.state;
+    }
+
+    if (PublicData::get_value(switch_checksum, get_checksum("toolsensor"), 0, &pad)) {
+    	toolsensor_on = pad.state;
+    }
+
+	// check if 12v is being used
+	if (THEKERNEL->get_laser_mode() || vacuum_on || toolsensor_on) {
+		using_12v = true;
+	} else {
+		using_12v = false;
+	}
 }
 
 void MainButton::on_idle(void *argument)
@@ -150,16 +169,17 @@ void MainButton::on_idle(void *argument)
             }
 		}
 		// turn on/off power fan with delay
-		if (state == IDLE || state == SLEEP) {
+		if ((state == IDLE || state == SLEEP) && !using_12v) {
     		// reset sleep timer
     		if (us_ticker_read() - this->power_fan_countdown_us > (uint32_t)this->power_fan_delay_s * 1000000) {
-				// turn off power fan
-    			this->power_fan.set(0);
+				// turn off 12v
+    			this->switch_power_12(0);
     		}
 		} else {
-			this->power_fan.set(1);
+			this->switch_power_12(1);
 			this->power_fan_countdown_us = us_ticker_read();
 		}
+		// auto sleep method
     	if (this->auto_sleep && auto_sleep_min > 0) {
         	if (state == IDLE) {
         		// reset sleep timer
@@ -342,7 +362,7 @@ void MainButton::on_get_public_data(void* argument)
     if (pdr->starts_with(main_button_checksum)) {
     	if (pdr->second_element_is(get_e_stop_state_checksum)) {
 			char *data = static_cast<char *>(pdr->get_data_ptr());
-			// cover endstop
+			// e-stop status
 			data[0] = (char)this->e_stop.get();
 			pdr->set_taken();
     	}

@@ -272,6 +272,7 @@ void Switch::on_config_reload(void *argument)
 
         } else if (this->output_type == DIGITAL){
             this->digital_pin->set(this->switch_state);
+
         } else if (this->output_type == DIGITALPWM) {
             this->min_pwm = THEKERNEL->config->value(switch_checksum, this->name_checksum, min_pwm_checksum )->by_default(0)->as_number();
             this->max_pwm = THEKERNEL->config->value(switch_checksum, this->name_checksum, max_pwm_checksum )->by_default(100)->as_number();

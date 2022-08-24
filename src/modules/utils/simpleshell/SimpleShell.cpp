@@ -1593,6 +1593,7 @@ void SimpleShell::sleep_command(string parameters, StreamOutput *stream)
 	char power_off = 0;
 	// turn off 12V/24V power supply
 	PublicData::set_value( main_button_checksum, switch_power_12_checksum, &power_off );
+	PublicData::set_value( main_button_checksum, switch_power_24_checksum, &power_off );
 	THEKERNEL->set_sleeping(true);
 	THEKERNEL->call_event(ON_HALT, nullptr);
 }

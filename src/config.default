@@ -91,9 +91,9 @@ epsilon_steps_per_mm						43200			# 1:27 rate may be steps per degree for exampl
 # atc.homing_debounce_ms						1
 atc.homing_max_travel_mm					8
 #atc.homing_retract_mm						1.5
-#atc.homing_rate_mm_s						0.4
+atc.homing_rate_mm_s						0.4
 #atc.action_mm								2.0
-#atc.action_rate_mm_s						0.25
+atc.action_rate_mm_s						0.25
 
 # atc.detector.detect_pin						0.20^
 # atc.detector.detect_rate_mm_s				20				# Tool detect speed (mm / second)	
@@ -161,6 +161,9 @@ switch.probecharger.output_pin				0.23			# Pin this module controls
 switch.probecharger.output_type				digital			# Digital means this is just an on or off pin
 switch.probecharger.input_on_command		M841			# Command that will turn this switch on
 switch.probecharger.input_off_command		M842			# Command that will turn this switch off
+switch.probecharger.ignore_on_halt			true			# ignore on halt
+switch.probecharger.startup_state			true			# wireless probe startup state
+
 
 switch.extend.enable						true			# Enable this module
 # switch.extend.input_pin						0.21			# Pin this module controls
@@ -292,8 +295,7 @@ main_button_long_press_time					3000			# Long press time
 # Power control
 ps12_pin									0.22				# 12V power pin
 ps24_pin									0.10				# 24V power pin
-power_fan_pin								nc				# power fan pin
-power_fan_delay_s							10				# power fan turn on/off delay
+power_fan_delay_s							30				# power fan turn on/off delay
 e_stop_pin									0.26!^			# Emergency stop pin
 
 
@@ -356,18 +358,18 @@ power.auto_sleep_min 5					# Enter sleep mode after these minutes (1 - 30)
 ## Advanced Settings ##
 
 # Coordinates
-coordinate.anchor1_x -360.7 			# X Machine coordinates of anchor1
-coordinate.anchor1_y -234.5 			# Y Machine coordinates of anchor1
+coordinate.anchor1_x -360.158 			# X Machine coordinates of anchor1
+coordinate.anchor1_y -234.568 			# Y Machine coordinates of anchor1
 
 coordinate.anchor2_offset_x 90.0		# Anchor2 X Offset relative to anchor1
-coordinate.anchor2_offset_y 45.65		# Anchor2 Y Offset relative to anchor1
+coordinate.anchor2_offset_y 45.0		# Anchor2 Y Offset relative to anchor1
 
 coordinate.toolrack_offset_x 356		# Tool 6 X Offset relative to anchor1
 coordinate.toolrack_offset_y 0.0		# Tool 6 Y Offset relative to anchor1
-coordinate.toolrack_z -105.0			# ATC Z axis machine coordinates
+coordinate.toolrack_z -112.5			# ATC Z axis machine coordinates
 
-coordinate.rotation_offset_x -10.0		# Rotation module X Offset relative to anchor1
-coordinate.rotation_offset_y 30.0		# Rotation module Y Offset relative to anchor1
+coordinate.rotation_offset_x -8.0		# Rotation module X Offset relative to anchor1
+coordinate.rotation_offset_y 37.5		# Rotation module Y Offset relative to anchor1
 coordinate.rotation_offset_z 22.5		# Rotation module Z Offset relative to chuck center
 
 coordinate.anchor_width 15.0			# Width of two anchors

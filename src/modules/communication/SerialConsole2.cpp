@@ -47,8 +47,8 @@ void SerialConsole2::on_module_loaded() {
     // We want to be called every time a new char is received
     this->serial->attach(this, &SerialConsole2::on_serial_char_received, mbed::Serial::RxIrq);
 
-    this->min_voltage = THEKERNEL->config->value(wp_checksum, min_voltage_checksum)->by_default(3.5F)->as_number();
-    this->max_voltage = THEKERNEL->config->value(wp_checksum, max_voltage_checksum)->by_default(4.2F)->as_number();
+    this->min_voltage = THEKERNEL->config->value(wp_checksum, min_voltage_checksum)->by_default(3.6F)->as_number();
+    this->max_voltage = THEKERNEL->config->value(wp_checksum, max_voltage_checksum)->by_default(4.1F)->as_number();
 
     // We only call the command dispatcher in the main loop, nowhere else
     this->register_for_event(ON_MAIN_LOOP);
@@ -81,24 +81,26 @@ void SerialConsole2::on_main_loop(void * argument) {
         	   if (received[0] == 'V') {
             	   // get wireless probe voltage
             	   Gcode gc(received, &StreamOutput::NullStream);
-            	   this->wp_voltage = gc.get_value('V');
-            	   // compare voltage value and switch probe charger
-            	   if (this->wp_voltage <= this->min_voltage) {
-            		   struct pad_switch pad;
-                       bool ok = PublicData::get_value(switch_checksum, probecharger_checksum, 0, &pad);
-                       if (!ok || !pad.state) {
-                		   THEKERNEL->streams->printf("WP voltage: [%1.2fV], start charging\n", this->wp_voltage);
-                		   bool b = true;
-                		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
-                       }
-            	   } else if (this->wp_voltage >= this->max_voltage) {
-            		   struct pad_switch pad;
-                       bool ok = PublicData::get_value(switch_checksum, probecharger_checksum, 0, &pad);
-                       if (!ok || pad.state) {
-                		   THEKERNEL->streams->printf("WP voltage: [%1.2fV], end charging\n", this->wp_voltage);
-                		   bool b = false;
-                		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
-                       }
+            	   if (gc.get_value('V') <= 4.2) {
+                	   this->wp_voltage = gc.get_value('V');
+                	   // compare voltage value and switch probe charger
+                	   if (this->wp_voltage <= this->min_voltage) {
+                		   struct pad_switch pad;
+                           bool ok = PublicData::get_value(switch_checksum, probecharger_checksum, 0, &pad);
+                           if (!ok || !pad.state) {
+                    		   THEKERNEL->streams->printf("WP voltage: [%1.2fV], start charging\n", this->wp_voltage);
+                    		   bool b = true;
+                    		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
+                           }
+                	   } else if (this->wp_voltage >= this->max_voltage) {
+                		   struct pad_switch pad;
+                           bool ok = PublicData::get_value(switch_checksum, probecharger_checksum, 0, &pad);
+                           if (!ok || pad.state) {
+                    		   THEKERNEL->streams->printf("WP voltage: [%1.2fV], end charging\n", this->wp_voltage);
+                    		   bool b = false;
+                    		   PublicData::set_value( switch_checksum, probecharger_checksum, state_checksum, &b );
+                           }
+                	   }
             	   }
         	   } else if (received[0] == 'A' && received.length() > 2) {
         		   // get wireless probe address

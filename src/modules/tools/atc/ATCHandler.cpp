@@ -100,6 +100,7 @@ ATCHandler::ATCHandler()
     last_pos[2] = 0.0;
     probe_laser_last = 9999;
     playing_file = false;
+    tool_number = 6;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -304,7 +305,7 @@ void ATCHandler::fill_zprobe_abs_scripts() {
 	this->script_queue.push(buff);
 
 	// goto z probe position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", anchor1_x + rotation_offset_x, anchor1_y + rotation_offset_y);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", anchor1_x + rotation_offset_x - 5, anchor1_y + rotation_offset_y);
 	this->script_queue.push(buff);
 
 	// do probe with fast speed
@@ -466,7 +467,7 @@ void ATCHandler::on_config_reload(void *argument)
 	    // lift z axis to atc start position
 		snprintf(buff, sizeof(buff), "tool%d", i);
 		tool.mx_mm = this->anchor1_x + this->toolrack_offset_x;
-		tool.my_mm = this->anchor1_y + this->toolrack_offset_y + i == 0 ? 210 : (6 - i) * 30;
+		tool.my_mm = this->anchor1_y + this->toolrack_offset_y + (i == 0 ? 210 : (6 - i) * 30);
 		tool.mz_mm = this->toolrack_z;
 		atc_tools.push_back(tool);
 	}
@@ -474,8 +475,8 @@ void ATCHandler::on_config_reload(void *argument)
 	probe_my_mm = this->anchor1_y + this->toolrack_offset_y + 180;
 	probe_mz_mm = this->toolrack_z;
 
-	this->rotation_offset_x = THEKERNEL->config->value(coordinate_checksum, rotation_offset_x_checksum)->by_default(-10  )->as_number();
-	this->rotation_offset_y = THEKERNEL->config->value(coordinate_checksum, rotation_offset_y_checksum)->by_default(30  )->as_number();
+	this->rotation_offset_x = THEKERNEL->config->value(coordinate_checksum, rotation_offset_x_checksum)->by_default(-8  )->as_number();
+	this->rotation_offset_y = THEKERNEL->config->value(coordinate_checksum, rotation_offset_y_checksum)->by_default(37.5F  )->as_number();
 	this->rotation_offset_z = THEKERNEL->config->value(coordinate_checksum, rotation_offset_z_checksum)->by_default(22.5F  )->as_number();
 
 	this->clearance_x = THEKERNEL->config->value(coordinate_checksum, clearance_x_checksum)->by_default(-75  )->as_number();

@@ -29,7 +29,6 @@ class MainButton : public Module {
         Pin PS12;
         Pin PS24;
 
-        Pin power_fan;
         uint16_t power_fan_delay_s;
         uint32_t power_fan_countdown_us;
 
@@ -54,6 +53,7 @@ class MainButton : public Module {
         uint32_t poll_frequency;
 
         bool sd_ok;
+        bool using_12v;
 
         void switch_power_12(int state);
         void switch_power_24(int state);

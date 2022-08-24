@@ -348,7 +348,7 @@ std::string Kernel::get_query_string()
         str.append(buf, n);
     }
 
-    // current tool number and tool offset
+    // wireless probe current voltage
     float wp_voltage;
     ok = PublicData::get_value( atc_handler_checksum, get_wp_voltage_checksum, &wp_voltage );
     if (ok) {
