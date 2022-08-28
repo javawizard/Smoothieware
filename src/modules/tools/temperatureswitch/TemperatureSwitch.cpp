@@ -128,7 +128,7 @@ void TemperatureSwitch::on_second_tick(void *argument)
 	} else {
 	    float current_temp = this->get_highest_temperature();
 	    if (current_temp >= this->temperatureswitch_threshold_temp) {
-	    	if (cooldown_delay_counter != -99)
+	    	if (cooldown_delay_counter != -99 && !THEKERNEL->is_uploading())
 	    		THEKERNEL->streams->printf("Spindle temp: [%.2f], Turn on spindle fan...\r\n", current_temp);
 	    	struct pad_switch pad;
 	    	pad.state = true;
@@ -144,7 +144,8 @@ void TemperatureSwitch::on_second_tick(void *argument)
 	    	} else if (cooldown_delay_counter >= 0) {
 	    		cooldown_delay_counter ++;
 	    		if (cooldown_delay_counter > temperatureswitch_cooldown_delay) {
-	    			THEKERNEL->streams->printf("Spindle temp: [%.2f], Turn off spindle fan...\r\n", current_temp);
+	    			if (!THEKERNEL->is_uploading())
+	    				THEKERNEL->streams->printf("Spindle temp: [%.2f], Turn off spindle fan...\r\n", current_temp);
 	    			bool switch_state = false;
 	    		    ok = PublicData::set_value(switch_checksum, this->temperatureswitch_switch_cs, state_checksum, &switch_state);
 	    		    if (!ok) {

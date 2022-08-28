@@ -77,7 +77,7 @@ extern "C" uint32_t  _sbrk(int size);
 #define CTRLZ 0x1A
 
 #define MAXRETRANS 10
-#define TIMEOUT_MS 300
+#define TIMEOUT_MS 100
 
 // command lookup table
 const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
@@ -922,17 +922,15 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 	// diasble serial rx irq in case of serial stream, and internal process in case of wifi
     if (stream->type() == 0) {
     	set_serial_rx_irq(false);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(true);
     }
+    THEKERNEL->set_uploading(true);
 
     if (!THECONVEYOR->is_idle()) {
         stream->_putc(EOT);
         if (stream->type() == 0) {
         	set_serial_rx_irq(true);
-        } else if (stream->type() == 1) {
-        	THEKERNEL->set_uploading(false);
         }
+        THEKERNEL->set_uploading(false);
         return;
     }
 
@@ -997,7 +995,9 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 
         while (recv_count > 0) {
         	c = inbytes(stream, &recv_buff, recv_count, TIMEOUT_MS);
-        	if (c < 0) goto reject;
+        	if (c < 0) {
+        		goto reject;
+        	}
         	for (int i = 0; i < c; i ++) {
         		*p++ = recv_buff[i];
         	}
@@ -1020,26 +1020,23 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
             md5_received = true;
             continue;
         } else if (xbuff[1] == (unsigned char)(~xbuff[2]) &&
-            (xbuff[1] == packetno || xbuff[1] == (unsigned char)packetno - 1) &&
-                check_crc(crc, &xbuff[3], bufsz + 1)) {
-            if (xbuff[1] == packetno)    {
-            	len = xbuff[3];
-				fwrite(&xbuff[4], sizeof(char), len, fd);
-                ++ packetno;
-                retrans = MAXRETRANS + 1;
-                THEKERNEL->call_event(ON_IDLE);
-            }
-            if (--retrans <= 0) {
-                cancel_transfer(stream);
-            	sprintf(error_msg, "Error: too many retry error!\r\n");
-                goto upload_error; /* too many retry error */
-            }
+        		xbuff[1] == packetno && check_crc(crc, &xbuff[3], bufsz + 1)) {
+            // (xbuff[1] == packetno || xbuff[1] == (unsigned char)packetno - 1) &&
+			len = xbuff[3];
+			fwrite(&xbuff[4], sizeof(char), len, fd);
+			++ packetno;
+			retrans = MAXRETRANS + 1;
+			THEKERNEL->call_event(ON_IDLE);
             stream->_putc(ACK);
             continue;
         }
     reject:
 		stream->_putc(NAK);
-		flush_input(stream);
+		if (-- retrans <= 0) {
+            cancel_transfer(stream);
+        	sprintf(error_msg, "Error: too many retry error!\r\n");
+            goto upload_error; /* too many retry error */
+		}
     }
 upload_error:
 	if (fd != NULL) {
@@ -1055,9 +1052,8 @@ upload_error:
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(false);
     }
+    THEKERNEL->set_uploading(false);
 	stream->printf(error_msg);
 	return;
 upload_success:
@@ -1068,9 +1064,8 @@ upload_success:
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(false);
     }
+    THEKERNEL->set_uploading(false);
 	stream->printf("Info: upload success: %s.\r\n", filename.c_str());
 }
 
@@ -1091,17 +1086,15 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 	// diasble irq
     if (stream->type() == 0) {
     	set_serial_rx_irq(false);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(true);
     }
+    THEKERNEL->set_uploading(true);
 
     if (!THECONVEYOR->is_idle()) {
         cancel_transfer(stream);
         if (stream->type() == 0) {
         	set_serial_rx_irq(true);
-        } else if (stream->type() == 1) {
-        	THEKERNEL->set_uploading(false);
         }
+        THEKERNEL->set_uploading(false);
         return;
     }
 
@@ -1222,9 +1215,8 @@ download_error:
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(false);
     }
+    THEKERNEL->set_uploading(false);
 	stream->printf(error_msg);
 	return;
 download_success:
@@ -1235,9 +1227,8 @@ download_success:
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
-    } else if (stream->type() == 1) {
-    	THEKERNEL->set_uploading(false);
     }
+    THEKERNEL->set_uploading(false);
 	stream->printf("Info: download success: %s.\r\n", filename.c_str());
 	return;
 }

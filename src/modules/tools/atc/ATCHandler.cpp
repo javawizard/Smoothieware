@@ -473,7 +473,7 @@ void ATCHandler::on_config_reload(void *argument)
 	}
 	probe_mx_mm = this->anchor1_x + this->toolrack_offset_x;
 	probe_my_mm = this->anchor1_y + this->toolrack_offset_y + 180;
-	probe_mz_mm = this->toolrack_z;
+	probe_mz_mm = this->toolrack_z - 40;
 
 	this->rotation_offset_x = THEKERNEL->config->value(coordinate_checksum, rotation_offset_x_checksum)->by_default(-8  )->as_number();
 	this->rotation_offset_y = THEKERNEL->config->value(coordinate_checksum, rotation_offset_y_checksum)->by_default(37.5F  )->as_number();
