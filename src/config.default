@@ -337,7 +337,7 @@ spindle.stall_alarm_rpm						1500			# consider as stall alarm if lower than this
 user_setting_start true				# Indicate user settings start
 
 ## fixed Settings ##
-sd_ok true								# Indicate SD card is corrected read
+sd_ok false								# Indicate SD card is corrected read
 
 ## Basic Settings ##
 # Vacuum
@@ -397,7 +397,7 @@ delta_acceleration 360.0 				# Acceleration for rotation axis (degree/second/sec
 epsilon_acceleration 10.0				# Acceleration for auto tool changer (mm/second/second)
 
 # WIFI
-wifi.machine_name Carvera_01001	    	# Machine name that is shown in the WiFi list
+wifi.machine_name CARVERA_01001	    	# Machine name that is shown in the WiFi list
 
 # ATC Motion
 atc.homing_retract_mm 1.5 				# Retract distance after homing (mm)

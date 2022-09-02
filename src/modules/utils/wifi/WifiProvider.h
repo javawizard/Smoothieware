@@ -77,7 +77,6 @@ private:
 	int udp_recv_port;
 	int tcp_timeout_s;
 	string machine_name;
-	u8 ap_channel;
 	char ap_address[16];
 	char ap_netmask[16];
 	char sta_address[16];

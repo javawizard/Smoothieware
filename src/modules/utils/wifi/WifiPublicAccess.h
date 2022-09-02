@@ -4,8 +4,9 @@
 #define wlan_checksum       CHECKSUM("wlan")
 #define get_wlan_checksum   CHECKSUM("get_wlan")
 #define set_wlan_checksum   CHECKSUM("set_wlan")
-#define set_ap_channel_checksum   CHECKSUM("set_ap_channel")
-#define get_ap_channel_checksum   CHECKSUM("get_ap_channel")
+#define ap_set_channel_checksum   CHECKSUM("ap_set_channel")
+#define ap_set_ssid_checksum   CHECKSUM("ap_set_ssid")
+#define ap_set_password_checksum   CHECKSUM("ap_set_password")
 
 struct ap_conn_info {
     char ssid[32];

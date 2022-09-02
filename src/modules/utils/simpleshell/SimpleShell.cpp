@@ -1101,12 +1101,30 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     FILE *fd = fopen(filename.c_str(), "rb");
     FILE *fd_md5 = fopen(md5_filename.c_str(), "rb");
 
-    if (fd == NULL || fd_md5 == NULL) {
+    if (fd == NULL) {
         cancel_transfer(stream);
-    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", fd == NULL ? filename.substr(0, 30).c_str() : md5_filename.substr(0, 30).c_str() );
+    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", filename.substr(0, 30).c_str());
     	goto download_error;
     }
 
+    char md5_str[64];
+    memset(md5_str, 0, sizeof(md5_str));
+    if (fd_md5 == NULL) {
+        MD5 md5;
+        uint8_t md5_buf[64];
+        do {
+            size_t n = fread(md5_buf, 1, sizeof(md5_buf), fd);
+            if (n > 0) md5.update(md5_buf, n);
+            THEKERNEL->call_event(ON_IDLE);
+        } while (!feof(fd));
+        strcpy(md5_str, md5.finalize().hexdigest().c_str());
+		fclose(fd);
+		fd = fopen(filename.c_str(), "rb");
+    } else {
+    	c = fread(md5_str, sizeof(char), 64, fd_md5);
+    	fclose(fd_md5);
+    	fd_md5 = NULL;
+    }
 
 	for(;;) {
 		for (retry = 0; retry < MAXRETRANS; ++retry) {
@@ -1138,7 +1156,9 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 		for(;;) {
 		start_trans:
 			if (packetno == 0) {
-				c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
+				c  = strlen(md5_str);
+				memcpy(&xbuff[4], md5_str, c);
+				// c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
 			} else {
 				c = fread(&xbuff[4], sizeof(char), bufsz, fd);
 				if (c <= 0) {
@@ -1208,10 +1228,6 @@ download_error:
 		fclose(fd);
 		fd = NULL;
 	}
-	if (fd_md5 != NULL) {
-		fclose(fd_md5);
-		fd_md5 = NULL;
-	}
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
@@ -1222,8 +1238,6 @@ download_error:
 download_success:
 	fclose(fd);
 	fd = NULL;
-	fclose(fd_md5);
-	fd_md5 = NULL;
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
@@ -1373,18 +1387,39 @@ void SimpleShell::net_command( string parameters, StreamOutput *stream)
 void SimpleShell::ap_command( string parameters, StreamOutput *stream)
 {
 	uint8_t channel;
+	char buff[32];
+	memset(buff, 0, sizeof(buff));
     if (!parameters.empty() ) {
-    	channel = strtol(parameters.c_str(), NULL, 10);
-    	if (channel < 1 || channel > 14) {
-    		stream->printf("AP Channel should between 1 to 14\n");
-    	} else {
-            PublicData::set_value( wlan_checksum, set_ap_channel_checksum, &channel );
+    	string s = shift_parameter( parameters );
+    	if (s == "channel") {
+    		if (!parameters.empty()) {
+    			channel = strtol(parameters.c_str(), NULL, 10);
+    	    	if (channel < 1 || channel > 14) {
+    	    		stream->printf("WiFi AP Channel should between 1 to 14\n");
+    	    	} else {
+    	            PublicData::set_value( wlan_checksum, ap_set_channel_checksum, &channel );
+    	    	}
+    		}
+    	} else if (s == "ssid") {
+    		if (!parameters.empty()) {
+    	    	if (parameters.length() > 27) {
+    	    		stream->printf("WiFi AP SSID length should between 1 to 27\n");
+    	    	} else {
+    	    		strcpy(buff, parameters.c_str());
+    	            PublicData::set_value( wlan_checksum, ap_set_ssid_checksum, buff );
+    	    	}
+    		}
+    	} else if (s == "password") {
+    		if (!parameters.empty()) {
+    	    	if (parameters.length() > 27) {
+    	    		stream->printf("WiFi AP password length should less than 27\n");
+    	    		return;
+    	    	} else {
+    	    		strcpy(buff, parameters.c_str());
+    	    	}
+    		}
+	        PublicData::set_value( wlan_checksum, ap_set_password_checksum, buff );
     	}
-    } else {
-        bool ok = PublicData::get_value( wlan_checksum, get_ap_channel_checksum, &channel );
-        if (ok) {
-            stream->printf("Current AP channel: %d\r\n", channel);
-        }
     }
 }
 
