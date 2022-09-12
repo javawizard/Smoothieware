@@ -112,6 +112,10 @@
 // The Robot converts GCodes into actual movements, and then adds them to the Planner, which passes them to the Conveyor so they can be added to the queue
 // It takes care of cutting arcs into segments, same thing for line that are too long
 
+float ROUND_NEAR_HALF(float x) {
+	return roundf(x * 200.0) / 200.0;
+}
+
 Robot::Robot()
 {
     this->inch_mode = false;
@@ -1051,31 +1055,31 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
     memcpy(target, machine_position, n_motors*sizeof(float));
 
     if(!next_command_is_MCS) {
-        if(this->absolute_mode) {
+        if (this->absolute_mode) {
             // apply wcs offsets and g92 offset and tool offset
             if(!isnan(param[X_AXIS])) {
-                target[X_AXIS]= param[X_AXIS] + std::get<X_AXIS>(wcs_offsets[current_wcs]) - std::get<X_AXIS>(g92_offset) + std::get<X_AXIS>(tool_offset);
+                target[X_AXIS]= ROUND_NEAR_HALF(param[X_AXIS] + std::get<X_AXIS>(wcs_offsets[current_wcs]) - std::get<X_AXIS>(g92_offset) + std::get<X_AXIS>(tool_offset));
             }
 
             if(!isnan(param[Y_AXIS])) {
-                target[Y_AXIS]= param[Y_AXIS] + std::get<Y_AXIS>(wcs_offsets[current_wcs]) - std::get<Y_AXIS>(g92_offset) + std::get<Y_AXIS>(tool_offset);
+                target[Y_AXIS]= ROUND_NEAR_HALF(param[Y_AXIS] + std::get<Y_AXIS>(wcs_offsets[current_wcs]) - std::get<Y_AXIS>(g92_offset) + std::get<Y_AXIS>(tool_offset));
             }
 
             if(!isnan(param[Z_AXIS])) {
-                target[Z_AXIS]= param[Z_AXIS] + std::get<Z_AXIS>(wcs_offsets[current_wcs]) - std::get<Z_AXIS>(g92_offset) + std::get<Z_AXIS>(tool_offset);
+                target[Z_AXIS]= ROUND_NEAR_HALF(param[Z_AXIS] + std::get<Z_AXIS>(wcs_offsets[current_wcs]) - std::get<Z_AXIS>(g92_offset) + std::get<Z_AXIS>(tool_offset));
             }
 
-        }else{
+        } else {
             // they are deltas from the machine_position if specified
             for(int i= X_AXIS; i <= Z_AXIS; ++i) {
-                if(!isnan(param[i])) target[i] = param[i] + machine_position[i];
+                if(!isnan(param[i])) target[i] = ROUND_NEAR_HALF(param[i] + machine_position[i]);
             }
         }
 
     }else{
         // already in machine coordinates, we do not add wcs or tool offset for that
         for(int i= X_AXIS; i <= Z_AXIS; ++i) {
-            if(!isnan(param[i])) target[i] = param[i];
+            if(!isnan(param[i])) target[i] = ROUND_NEAR_HALF(param[i]);
         }
     }
 
@@ -1133,17 +1137,17 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
         case NONE: break;
 
         case SEEK:
-            moved= this->append_line(gcode, target, this->seek_rate / seconds_per_minute, delta_e );
+            moved = this->append_line(gcode, target, this->seek_rate / seconds_per_minute, delta_e );
             break;
 
         case LINEAR:
-            moved= this->append_line(gcode, target, this->feed_rate / seconds_per_minute, delta_e );
+            moved = this->append_line(gcode, target, this->feed_rate / seconds_per_minute, delta_e );
             break;
 
         case CW_ARC:
         case CCW_ARC:
             // Note arcs are not currently supported by extruder based machines, as 3D slicers do not use arcs (G2/G3)
-            moved= this->compute_arc(gcode, offset, target, motion_mode);
+            moved = this->compute_arc(gcode, offset, target, motion_mode);
             break;
     }
 
@@ -1152,7 +1156,7 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
 
     if(moved) {
         // set machine_position to the calculated target
-        memcpy(machine_position, target, n_motors*sizeof(float));
+        memcpy(machine_position, target, n_motors * sizeof(float));
     }
 }
 
@@ -1217,11 +1221,18 @@ void Robot::reset_position_from_current_actuator_position()
     for (size_t i = X_AXIS; i < n_motors; i++) {
         // NOTE actuator::current_position is curently NOT the same as actuator::machine_position after an abrupt abort
         actuator_pos[i] = actuators[i]->get_current_position();
+//		if (fabsf(actuator_pos[i] - machine_position[i]) > 0.01F)  {
+//			THEKERNEL->streams->printf("Reset %c position from %1.3f to %1.3f\n", 'X' + i, machine_position[i], actuator_pos[i]);
+//		}
+
     }
 
     // discover machine position from where actuators actually are
     arm_solution->actuator_to_cartesian(actuator_pos, compensated_machine_position);
     memcpy(machine_position, compensated_machine_position, sizeof machine_position);
+//    THEKERNEL->streams->printf("[%1.3f,%1.3f,%1.3f][%1.3f,%1.3f,%1.3f][%1.3f,%1.3f,%1.3f]\n",
+//    		actuator_pos[0], actuator_pos[1], actuator_pos[2], machine_position[0], machine_position[1], machine_position[2], compensated_machine_position[0], compensated_machine_position[1], compensated_machine_position[2]);
+
 
     // compensated_machine_position includes the compensation transform so we need to get the inverse to get actual machine_position
     if(compensationTransform) compensationTransform(machine_position, true, false); // get inverse compensation transform
@@ -1233,6 +1244,10 @@ void Robot::reset_position_from_current_actuator_position()
     for (size_t i = X_AXIS; i <= Z_AXIS; i++) {
         actuators[i]->change_last_milestone(actuator_pos[i]);
     }
+
+
+//    THEKERNEL->streams->printf("[%1.3f,%1.3f,%1.3f][%1.3f,%1.3f,%1.3f][%1.3f,%1.3f,%1.3f]\n",
+//    		actuator_pos[0], actuator_pos[1], actuator_pos[2], machine_position[0], machine_position[1], machine_position[2], compensated_machine_position[0], compensated_machine_position[1], compensated_machine_position[2]);
 
     // Handle extruders and/or ABC axis
     #if MAX_ROBOT_ACTUATORS > 3

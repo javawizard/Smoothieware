@@ -354,6 +354,9 @@ void Player::play_command( string parameters, StreamOutput *stream )
     // force into absolute mode
     THEROBOT->absolute_mode = true;
     THEROBOT->e_absolute_mode = true;
+
+    // reset current position;
+    THEROBOT->reset_position_from_current_actuator_position();
 }
 
 void Player::progress_command( string parameters, StreamOutput *stream )

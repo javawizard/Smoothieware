@@ -1897,10 +1897,11 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
     } else if (what == "compensation") {
     	float mpos[3];
     	THEROBOT->get_current_machine_position(mpos);
-    	float old_z = mpos[Z_AXIS];
+    	float old_mpos[3];
+    	memcpy(old_mpos, mpos, sizeof(mpos));
 		// current_position/mpos includes the compensation transform so we need to get the inverse to get actual position
 		if(THEROBOT->compensationTransform) THEROBOT->compensationTransform(mpos, true, true); // get inverse compensation transform
-		stream->printf("Current z: %1.4f, compensation z: %1.4f\n", old_z, mpos[Z_AXIS]);
+		stream->printf("Curr: %1.3f,%1.3f,%1.3f, Comp: %1.3f,%1.3f,%1.3f\n", old_mpos[0], old_mpos[1], old_mpos[2], mpos[0], mpos[1], mpos[2]);
     } else if (what == "wp" || what == "wp_state") {
     	PublicData::get_value(atc_handler_checksum, show_wp_state_checksum, NULL);
     } else if (what == "msc") {

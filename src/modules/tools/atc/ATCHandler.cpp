@@ -122,6 +122,9 @@ void ATCHandler::fill_drop_scripts(int old_tool) {
 	this->script_queue.push(buff);
 	// move around to see if tool rack is empty
 	this->script_queue.push("M492.2");
+    // move x and y to reseted tool position
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
+	this->script_queue.push(buff);
     // drop z axis to z position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
@@ -154,6 +157,9 @@ void ATCHandler::fill_pick_scripts(int new_tool, bool clear_z) {
 	this->script_queue.push("M492.1");
 	// loose tool
 	this->script_queue.push("M490.2");
+	// move x and y to reseted tool position
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", current_tool->mx_mm, current_tool->my_mm);
+	this->script_queue.push(buff);
     // drop z axis to z position with fast speed
 	snprintf(buff, sizeof(buff), "G53 G1 Z%.3f F%.3f", current_tool->mz_mm + safe_z_offset_mm, fast_z_rate);
 	this->script_queue.push(buff);
@@ -590,7 +596,8 @@ bool ATCHandler::laser_detect() {
         return false;
     }
 
-    // THEROBOT->reset_position_from_current_actuator_position();
+    // reset position
+    THEROBOT->reset_position_from_current_actuator_position();
 
     return detector_info.triggered;
 }

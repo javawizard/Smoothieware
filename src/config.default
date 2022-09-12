@@ -370,7 +370,7 @@ coordinate.toolrack_z -112.5			# ATC Z axis machine coordinates
 
 coordinate.rotation_offset_x -8.0		# Rotation module X Offset relative to anchor1
 coordinate.rotation_offset_y 37.5		# Rotation module Y Offset relative to anchor1
-coordinate.rotation_offset_z 22.5		# Rotation module Z Offset relative to chuck center
+coordinate.rotation_offset_z 22.35		# Rotation module Z Offset relative to chuck center
 
 coordinate.anchor_width 15.0			# Width of two anchors
 coordinate.anchor_length 100.0			# Length of two anchors
@@ -400,7 +400,7 @@ epsilon_acceleration 10.0				# Acceleration for auto tool changer (mm/second/sec
 wifi.machine_name CARVERA_01001	    	# Machine name that is shown in the WiFi list
 
 # ATC Motion
-atc.homing_retract_mm 1.5 				# Retract distance after homing (mm)
+atc.homing_retract_mm 1.0 				# Retract distance after homing (mm)
 atc.action_mm 2.0					 	# Action distance when drop tool (mm)
 atc.detector.detect_rate_mm_s 20		# Tool detect speed (mm / second)	
 atc.detector.detect_travel_mm 5	        # Tool detect back and forth distance (mm)
@@ -437,7 +437,7 @@ spindle.default_rpm 10000				# Default RPM value in case no RPM is provided
 temperatureswitch.spindle.threshold_temp 35.0	# Temperature to turn on or off spindle fan
 temperatureswitch.spindle.cooldown_power_init  50.0			# Cooldown fan start power percentage (50 - 100) 
 temperatureswitch.spindle.cooldown_power_step  10.0			# Cooldown fan start power increase step per degree
-temperatureswitch.spindle.cooldown_delay       60			# Stop cooldown after these seconds
+temperatureswitch.spindle.cooldown_delay       180			# Stop cooldown after these seconds
 temperature_control.spindle.max_temp		60				# Alarm and halt machine when overheated
 
 # wireless probe
