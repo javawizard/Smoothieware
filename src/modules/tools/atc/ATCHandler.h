@@ -96,6 +96,7 @@ private:
     bool detecting;
 
     bool playing_file;
+    bool g28_triggered;
 
     uint16_t probe_laser_last;
 

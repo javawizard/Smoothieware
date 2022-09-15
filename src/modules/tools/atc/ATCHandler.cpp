@@ -101,6 +101,7 @@ ATCHandler::ATCHandler()
     probe_laser_last = 9999;
     playing_file = false;
     tool_number = 6;
+    g28_triggered = false;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -311,7 +312,7 @@ void ATCHandler::fill_zprobe_abs_scripts() {
 	this->script_queue.push(buff);
 
 	// goto z probe position
-	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", anchor1_x + rotation_offset_x - 5, anchor1_y + rotation_offset_y);
+	snprintf(buff, sizeof(buff), "G53 G0 X%.3f Y%.3f", anchor1_x + rotation_offset_x - 3, anchor1_y + rotation_offset_y);
 	this->script_queue.push(buff);
 
 	// do probe with fast speed
@@ -1041,15 +1042,8 @@ void ATCHandler::on_gcode_received(void *argument)
 				}
 			}
 		}
-    } else if (gcode->has_g && gcode->g == 28 && (gcode->subcode == 0 || gcode->subcode == 1)) {
-        THEROBOT->push_state();
-        THEKERNEL->streams->printf("G28 means goto clearance position on CARVERA\n");
-        // goto z clearance
-        rapid_move(true, NAN, NAN, this->clearance_z);
-		// goto x and y clearance
-	    rapid_move(true, this->clearance_x, this->clearance_y, NAN);
-	    THECONVEYOR->wait_for_idle();
-	    THEROBOT->pop_state();
+    } else if (gcode->has_g && gcode->g == 28 && gcode->subcode == 0) {
+    	g28_triggered = true;
     }
 }
 
@@ -1118,6 +1112,18 @@ void ATCHandler::on_main_loop(void *argument)
 
 		// if we were printing from an M command from pronterface we need to send this back
 		THEKERNEL->streams->printf("Done ATC\r\n");
+    } else {
+    	if (g28_triggered) {
+            THEKERNEL->streams->printf("G28 means goto clearance position on CARVERA\n");
+            THEROBOT->push_state();
+            // goto z clearance
+            rapid_move(true, NAN, NAN, this->clearance_z);
+    		// goto x and y clearance
+    	    rapid_move(true, this->clearance_x, this->clearance_y, NAN);
+    	    THECONVEYOR->wait_for_idle();
+    	    THEROBOT->pop_state();
+    	    g28_triggered = false;
+    	}
     }
 }
 
