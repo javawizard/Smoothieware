@@ -78,6 +78,16 @@ void SerialConsole::on_serial_char_received() {
 			halt_flag = true;
 			continue;
 		}
+        if(THEKERNEL->is_feed_hold_enabled()) {
+            if(received == '!') { // safe pause
+                THEKERNEL->set_feed_hold(true);
+                continue;
+            }
+            if(received == '~') { // safe resume
+                THEKERNEL->set_feed_hold(false);
+                continue;
+            }
+        }
 		// convert CR to NL (for host OSs that don't send NL)
 		if ( received == '\r' ) { received = '\n'; }
 		this->buffer.push_back(received);
@@ -86,7 +96,9 @@ void SerialConsole::on_serial_char_received() {
 
 void SerialConsole::on_idle(void * argument)
 {
-    if (query_flag) {
+	if (THEKERNEL->is_uploading()) return;
+
+    if (query_flag ) {
         query_flag = false;
         puts(THEKERNEL->get_query_string().c_str(), 0);
     }

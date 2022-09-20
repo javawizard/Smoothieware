@@ -114,10 +114,10 @@ void init() {
 
     Kernel* kernel = new Kernel();
 
-    kernel->streams->printf("Smoothie Running @%ldMHz\r\n", SystemCoreClock / 1000000);
+    // kernel->streams->printf("Smoothie Running @%ldMHz\r\n", SystemCoreClock / 1000000);
     SimpleShell::version_command("", kernel->streams);
 
-    bool sdok= (sd.disk_initialize() == 0);
+    bool sdok = (sd.disk_initialize() == 0);
     if(!sdok) kernel->streams->printf("SDCard failed to initialize\r\n");
 
     #ifdef NONETWORK
@@ -246,8 +246,8 @@ void init() {
     float t= kernel->config->value( watchdog_timeout_checksum )->by_default(10.0F)->as_number();
     if(t > 0.1F) {
         // NOTE setting WDT_RESET with the current bootloader would leave it in DFU mode which would be suboptimal
-        kernel->add_module( new Watchdog(t*1000000, WDT_MRI)); // WDT_RESET));
-        kernel->streams->printf("Watchdog enabled for %f seconds\n", t);
+        kernel->add_module( new Watchdog(t * 1000000, WDT_RESET )); // WDT_RESET));
+        kernel->streams->printf("Watchdog enabled for %1.3f seconds\n", t);
     }else{
         kernel->streams->printf("WARNING Watchdog is disabled\n");
     }

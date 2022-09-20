@@ -67,6 +67,9 @@ extern "C" uint32_t  __end__;
 extern "C" uint32_t  __malloc_free_list;
 extern "C" uint32_t  _sbrk(int size);
 
+// version definition
+#define VERSION "0.9.0"
+
 // used for XMODEM
 #define SOH  0x01
 #define STX  0x02
@@ -90,7 +93,7 @@ const SimpleShell::ptentry_t SimpleShell::commands_table[] = {
     {"mv",       SimpleShell::mv_command},
     {"mkdir",    SimpleShell::mkdir_command},
     {"upload",   SimpleShell::upload_command},
-	{"download", SimpleShell::download_command},
+	// {"download", SimpleShell::download_command},
     {"reset",    SimpleShell::reset_command},
     {"dfu",      SimpleShell::dfu_command},
     {"break",    SimpleShell::break_command},
@@ -345,7 +348,8 @@ void SimpleShell::on_console_line_received( void *argument )
         } else if (cmd == "config-default"){
             config_default_command(  possible_command, new_message.stream );
 
-        } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend" || cmd == "resume" || cmd == "buffer") {
+        } else if (cmd == "play" || cmd == "progress" || cmd == "abort" || cmd == "suspend"
+        		|| cmd == "resume" || cmd == "buffer" || cmd == "download") {
             // these are handled by Player module
 
         } else if (cmd == "laser") {
@@ -388,6 +392,9 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
     d = opendir(path.c_str());
     if (d != NULL) {
         while ((p = readdir(d)) != NULL) {
+        	for (int i = 0; i < NAME_MAX; i ++) {
+        		if (p->d_name[i] == ' ') p->d_name[i] = '?';
+        	}
         	if (opts.find("-s", 0, 2) != string::npos) {
         	    get_fftime(p->d_date, p->d_time, &timeinfo);
         		// name size date
@@ -935,9 +942,12 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
     }
 
     FILE *fd = fopen(filename.c_str(), "wb");
-    FILE *fd_md5 = fopen(md5_filename.c_str(), "wb");
+    FILE *fd_md5 = NULL;
+    if (filename.find("firmware.bin") == string::npos) {
+    	fd_md5 = fopen(md5_filename.c_str(), "wb");
+    }
 
-    if (fd == NULL || fd_md5 == NULL) {
+    if (fd == NULL || (filename.find("firmware.bin") == string::npos && fd_md5 == NULL)) {
         stream->_putc(EOT);
     	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", fd == NULL ? filename.substr(0, 30).c_str() : md5_filename.substr(0, 30).c_str() );
     	goto upload_error;
@@ -1004,17 +1014,12 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         	recv_count -= c;
         }
 
-//        for (int i = 0;  i < (1 + bufsz + (crc ? 1 : 0) + 3); ++i) {
-//            if ((c = inbyte(stream, TIMEOUT_MS)) < 0) {
-//            	goto reject;
-//            }
-//            *p++ = c;
-//        }
-
         if (!md5_received && xbuff[1] == 0 && xbuff[1] == (unsigned char)(~xbuff[2])
         		&& check_crc(crc, &xbuff[3], bufsz + 1) && xbuff[3] == 32) {
         	// received md5
-			fwrite(&xbuff[4], sizeof(char), 32, fd_md5);
+        	if (NULL != fd_md5) {
+    			fwrite(&xbuff[4], sizeof(char), 32, fd_md5);
+        	}
             THEKERNEL->call_event(ON_IDLE);
             stream->_putc(ACK);
             md5_received = true;
@@ -1057,10 +1062,14 @@ upload_error:
 	stream->printf(error_msg);
 	return;
 upload_success:
-	fclose(fd);
-	fd = NULL;
-	fclose(fd_md5);
-	fd_md5 = NULL;
+	if (fd != NULL) {
+		fclose(fd);
+		fd = NULL;
+	}
+	if (fd_md5 != NULL) {
+		fclose(fd_md5);
+		fd_md5 = NULL;
+	}
 	flush_input(stream);
     if (stream->type() == 0) {
     	set_serial_rx_irq(true);
@@ -1080,6 +1089,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 
     // open file
 	char error_msg[64];
+	memset(error_msg, 0, sizeof(error_msg));
     string filename = absolute_from_relative(parameters);
     string md5_filename = change_to_md5_path(filename);
 
@@ -1099,14 +1109,13 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     }
 
     FILE *fd = fopen(filename.c_str(), "rb");
-    FILE *fd_md5 = fopen(md5_filename.c_str(), "rb");
-
     if (fd == NULL) {
         cancel_transfer(stream);
     	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", filename.substr(0, 30).c_str());
     	goto download_error;
     }
 
+    /*
     char md5_str[64];
     memset(md5_str, 0, sizeof(md5_str));
     if (fd_md5 == NULL) {
@@ -1124,7 +1133,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     	c = fread(md5_str, sizeof(char), 64, fd_md5);
     	fclose(fd_md5);
     	fd_md5 = NULL;
-    }
+    }*/
 
 	for(;;) {
 		for (retry = 0; retry < MAXRETRANS; ++retry) {
@@ -1156,8 +1165,16 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 		for(;;) {
 		start_trans:
 			if (packetno == 0) {
-				c  = strlen(md5_str);
-				memcpy(&xbuff[4], md5_str, c);
+				FILE *fd_md5 = fopen(md5_filename.c_str(), "rb");
+				if (NULL != fd_md5) {
+					c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
+				} else {
+					cancel_transfer(stream);
+					sprintf(error_msg, "Error: get MD5 error!\r\n");
+			        goto download_error;
+				}
+				// c  = strlen(md5_str);
+				// memcpy(&xbuff[4], md5_str, c);
 				// c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
 			} else {
 				c = fread(&xbuff[4], sizeof(char), bufsz, fd);
@@ -1195,9 +1212,6 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 			}
 			for (retry = 0; retry < MAXRETRANS; ++retry) {
 				stream->puts((char *)xbuff, bufsz + 5 + (crc ? 1:0));
-//				for (i = 0; i < bufsz + 5 + (crc ? 1:0); ++i) {
-//					stream->_putc(xbuff[i]);
-//				}
 				if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {
 					switch (c) {
 					case ACK:
@@ -1652,27 +1666,9 @@ void SimpleShell::power_command(string parameters, StreamOutput *stream)
 }
 
 // print out build version
-void SimpleShell::version_command( string parameters, StreamOutput *stream)
+void SimpleShell::version_command( string parameters, StreamOutput *stream )
 {
-    Version vers;
-    uint32_t dev = getDeviceType();
-    const char *mcu = (dev & 0x00100000) ? "LPC1769" : "LPC1768";
-    stream->printf("Build version: %s, Build date: %s, MCU: %s, System Clock: %ldMHz\r\n", vers.get_build(), vers.get_build_date(), mcu, SystemCoreClock / 1000000);
-    #ifdef CNC
-    stream->printf("  CNC Build ");
-    #endif
-    #ifdef DISABLEMSD
-    stream->printf("  NOMSD Build\r\n");
-    #endif
-    stream->printf("%d axis\n", MAX_ROBOT_ACTUATORS);
-    THEKERNEL->set_bad_mcu(false);
-    /*
-    if(!(dev & 0x00100000)) {
-        stream->printf("WARNING: This is not a sanctioned board and may be unreliable and even dangerous.\nThis MCU is deprecated, and cannot guarantee proper function\n");
-        THEKERNEL->set_bad_mcu(true);
-    }else{
-        THEKERNEL->set_bad_mcu(false);
-    }*/
+	stream->printf("version = %s\n", VERSION);
 }
 
 // Reset the system
@@ -2026,39 +2022,25 @@ void SimpleShell::switch_command( string parameters, StreamOutput *stream)
 
 void SimpleShell::md5sum_command( string parameters, StreamOutput *stream )
 {
-    string filename = absolute_from_relative(shift_parameter(parameters));
-    string md5_filename = change_to_md5_path(filename);
+	string filename = absolute_from_relative(parameters);
 
-    FILE *fd_md5 = fopen(md5_filename.c_str(), "r");
-    if (fd_md5) {
-    	char local_md5[33];
-    	local_md5[32] = 0;
-    	fread(local_md5, 1, 32, fd_md5);
-        stream->printf("%s %s\n", local_md5, filename.c_str());
-        fclose(fd_md5);
-        fd_md5 = NULL;
-        return;
-    }
-    fclose(fd_md5);
-    fd_md5 = NULL;
-
-    // Open file
-    FILE *lp = fopen(filename.c_str(), "r");
-    if (lp == NULL) {
-        stream->printf("File not found: %s\r\n", filename.c_str());
-        return;
-    }
-    MD5 md5;
-    uint8_t buf[64];
-    do {
-        size_t n= fread(buf, 1, sizeof buf, lp);
-        if(n > 0) md5.update(buf, n);
-        THEKERNEL->call_event(ON_IDLE);
-    } while(!feof(lp));
+	// Open file
+	FILE *lp = fopen(filename.c_str(), "r");
+	if (lp == NULL) {
+		stream->printf("File not found: %s\r\n", filename.c_str());
+		return;
+	}
+	MD5 md5;
+	uint8_t buf[64];
+	do {
+		size_t n= fread(buf, 1, sizeof buf, lp);
+		if(n > 0) md5.update(buf, n);
+		THEKERNEL->call_event(ON_IDLE);
+	} while(!feof(lp));
 
 	stream->printf("%s %s\n", md5.finalize().hexdigest().c_str(), filename.c_str());
+	fclose(lp);
 
-    fclose(lp);
 }
 
 // runs several types of test on the mechanisms

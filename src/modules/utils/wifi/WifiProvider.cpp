@@ -219,11 +219,11 @@ void WifiProvider::on_second_tick(void *)
 
 void WifiProvider::on_idle(void *argument)
  {
-	if (!THEKERNEL->is_uploading()) {
-		if (has_data_flag || M8266WIFI_SPI_Has_DataReceived()) {
-			has_data_flag = false;
-			receive_wifi_data();
-		}
+	if (THEKERNEL->is_uploading()) return;
+
+	if (has_data_flag || M8266WIFI_SPI_Has_DataReceived()) {
+		has_data_flag = false;
+		receive_wifi_data();
 	}
 
     if (query_flag) {
@@ -694,7 +694,7 @@ void WifiProvider::init_wifi_module(bool reset) {
 	}
 
 
-	THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI...\n");
+	// THEKERNEL->streams->printf("M8266WIFI_Module_Init_Via_SPI...\n");
 
 	M8266HostIf_Init();
 
@@ -703,7 +703,7 @@ void WifiProvider::init_wifi_module(bool reset) {
 	}
 
 	// init udp and tcp server connection
-	THEKERNEL->streams->printf("Init UDP and TCP connection...\n");
+	// THEKERNEL->streams->printf("Init UDP and TCP connection...\n");
 	// setup TCP Connection
 	snprintf(address, sizeof(address), "192.168.4.10");
 	if (M8266WIFI_SPI_Setup_Connection(2, this->tcp_port, address, 0, tcp_link_no, 3, &status) == 0) {
