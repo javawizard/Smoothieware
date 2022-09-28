@@ -95,6 +95,7 @@ void WifiProvider::on_module_loaded()
     THEKERNEL->streams->append_stream(this);
 
     query_flag = false;
+    diagnose_flag = false;
     halt_flag = false;
 
 	this->register_for_event(ON_IDLE);
@@ -127,6 +128,10 @@ void WifiProvider::receive_wifi_data() {
 	            query_flag = true;
 	            continue;
 	        }
+			if (RecvData[i] == '*') {
+				diagnose_flag = true;
+				continue;
+			}
 	        if(RecvData[i] == 'X' - 'A' + 1) { // ^X
 	            halt_flag = true;
 	            continue;
@@ -229,6 +234,11 @@ void WifiProvider::on_idle(void *argument)
     if (query_flag) {
         query_flag = false;
         puts(THEKERNEL->get_query_string().c_str());
+    }
+
+    if (diagnose_flag) {
+    	diagnose_flag = false;
+    	puts(THEKERNEL->get_diagnose_string().c_str(), 0);
     }
 
     if (halt_flag) {

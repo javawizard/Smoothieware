@@ -729,21 +729,19 @@ void Player::resume_command(string parameters, StreamOutput *stream )
 
     // Restore position
     stream->printf("Restoring saved XYZ positions and state...\n");
-    THEROBOT->pop_state();
-    bool abs_mode = THEROBOT->absolute_mode; // what mode we were in
     // force absolute mode for restoring position, then set to the saved relative/absolute mode
     THEROBOT->absolute_mode = true;
     {
         // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
         char buf[128];
-        snprintf(buf, sizeof(buf), "G0 X%.3f Y%.3f Z%.3f", saved_position[0], saved_position[1], saved_position[2]);
+        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F1000", saved_position[0], saved_position[1], saved_position[2]);
         struct SerialMessage message;
         message.message = buf;
         message.stream = &(StreamOutput::NullStream);
         message.line = 0;
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
-    THEROBOT->absolute_mode = abs_mode;
+    THEROBOT->pop_state();
 
     if(THEKERNEL->is_halted()) {
         THEKERNEL->streams->printf("Resume aborted by kill\n");
@@ -896,6 +894,7 @@ void Player::download_command( string parameters, StreamOutput *stream )
 
     // open file
 	char error_msg[64];
+	unsigned char md5_sent = 0;
 	memset(error_msg, 0, sizeof(error_msg));
     string filename = absolute_from_relative(parameters);
     string md5_filename = change_to_md5_path(filename);
@@ -963,9 +962,10 @@ void Player::download_command( string parameters, StreamOutput *stream )
 
 		for(;;) {
 		start_trans:
-			if (packetno == 0) {
+			if (packetno == 0 && md5_sent == 0) {
 				c = strlen(md5);
 				memcpy(&xbuff[4], md5, c);
+				md5_sent = 1;
 			} else {
 				c = fread(&xbuff[4], sizeof(char), bufsz, fd);
 				if (c <= 0) {

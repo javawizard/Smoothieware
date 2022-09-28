@@ -157,18 +157,18 @@ void ZProbe::config_load()
 
 uint32_t ZProbe::read_probe(uint32_t dummy)
 {
-    if(!probing || probe_detected) return 0;
+    if (!probing || probe_detected) return 0;
 
     // we check all axis as it maybe a G38.2 X10 for instance, not just a probe in Z
     if(STEPPER[X_AXIS]->is_moving() || STEPPER[Y_AXIS]->is_moving() || STEPPER[Z_AXIS]->is_moving()) {
         // if it is moving then we check the probe, and debounce it
-        if(this->pin.get() != invert_probe) {
-            if(debounce < debounce_ms) {
-                debounce++;
+        if (this->pin.get() != invert_probe) {
+            if (debounce < debounce_ms) {
+                debounce ++;
             } else {
                 // we signal the motors to stop, which will preempt any moves on that axis
                 // we do all motors as it may be a delta
-                for(auto &a : THEROBOT->actuators) a->stop_moving();
+                for (auto &a : THEROBOT->actuators) a->stop_moving();
                 probe_detected = true;
                 debounce = 0;
             }
@@ -198,7 +198,7 @@ uint32_t ZProbe::read_calibrate(uint32_t dummy)
             } else {
                 // we signal the motors to stop, which will preempt any moves on that axis
                 // we do all motors as it may be a delta
-                for(auto &a : THEROBOT->actuators) a->stop_moving();
+                for (auto &a : THEROBOT->actuators) a->stop_moving();
                 calibrate_detected = true;
                 cali_debounce = 0;
             }
@@ -219,14 +219,15 @@ bool ZProbe::run_probe(float& mm, float feedrate, float max_dist, bool reverse)
     if(dwell_before_probing > .0001F) safe_delay_ms(dwell_before_probing*1000);
 
     if(this->pin.get()) {
+    	THEKERNEL->streams->printf("Error: Probe already triggered so aborts\r\n");
         // probe already triggered so abort
         return false;
     }
     float maxz= max_dist < 0 ? this->max_z*2 : max_dist;
 
-    probing= true;
-    probe_detected= false;
-    debounce= 0;
+    probing = true;
+    probe_detected = false;
+    debounce = 0;
     cali_debounce = 0;
 
     // save current actuator position so we can report how far we moved
@@ -244,10 +245,10 @@ bool ZProbe::run_probe(float& mm, float feedrate, float max_dist, bool reverse)
 
     // now see how far we moved, get delta in z we moved
     // NOTE this works for deltas as well as all three actuators move the same amount in Z
-    mm= z_start_pos - THEROBOT->actuators[2]->get_current_position();
+    mm = z_start_pos - THEROBOT->actuators[2]->get_current_position();
 
     // set the last probe position to the actuator units moved during this home
-    THEROBOT->set_last_probe_position(std::make_tuple(0, 0, mm, probe_detected?1:0));
+    THEROBOT->set_last_probe_position(std::make_tuple(0, 0, mm, probe_detected ? 1:0));
 
     probing= false;
 
@@ -366,13 +367,13 @@ void ZProbe::on_gcode_received(void *argument)
     } else if(gcode->has_g && gcode->g == 38 ) { // G38.2 Straight Probe with error, G38.3 straight probe without error
         // linuxcnc/grbl style probe http://www.linuxcnc.org/docs/2.5/html/gcode/gcode.html#sec:G38-probe
         if(gcode->subcode < 2 || gcode->subcode > 6) {
-            gcode->stream->printf("error:Only G38.2 to G38.5 are supported\n");
+            gcode->stream->printf("Error :Only G38.2 to G38.5 are supported\n");
             return;
         }
 
         // make sure the probe is defined and not already triggered before moving motors
         if(!this->pin.connected()) {
-            gcode->stream->printf("error:ZProbe not connected.\n");
+            gcode->stream->printf("Error :ZProbe not connected.\n");
             return;
         }
 
@@ -461,13 +462,13 @@ void ZProbe::probe_XYZ(Gcode *gcode)
     THEKERNEL->conveyor->wait_for_idle();
 
     if(this->pin.get() != invert_probe) {
-        gcode->stream->printf("error:ZProbe triggered before move, aborting command.\n");
+        gcode->stream->printf("Error:ZProbe triggered before move, aborting command.\n");
         return;
     }
 
     // enable the probe checking in the timer
-    probing= true;
-    probe_detected= false;
+    probing = true;
+    probe_detected = false;
     debounce = 0;
     cali_debounce = 0;
 
@@ -477,14 +478,14 @@ void ZProbe::probe_XYZ(Gcode *gcode)
     	gcode->stream->printf("ERROR: Move too small,  %1.3f, %1.3f, %1.3f\n", x, y, z);
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(PROBE_FAIL);
-        probing= false;
+        probing = false;
         return;
     }
 
     THEKERNEL->conveyor->wait_for_idle();
 
     // disable probe checking
-    probing= false;
+    probing = false;
 
     // if the probe stopped the move we need to correct the last_milestone as it did not reach where it thought
     // this also sets last_milestone to the machine coordinates it stopped at

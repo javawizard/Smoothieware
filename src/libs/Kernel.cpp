@@ -33,7 +33,11 @@
 #include "ATCHandlerPublicAccess.h"
 #include "PlayerPublicAccess.h"
 #include "SpindlePublicAccess.h"
+#include "SwitchPublicAccess.h"
+#include "ZProbePublicAccess.h"
+#include "MainButtonPublicAccess.h"
 #include "mbed.h"
+#include "utils.h"
 
 #ifndef NO_TOOLS_LASER
 #include "Laser.h"
@@ -406,6 +410,112 @@ std::string Kernel::get_query_string()
     }
 
     str.append(">\n");
+    return str;
+}
+
+
+// return a Diagnose string
+std::string Kernel::get_diagnose_string()
+{
+	std::string str;
+    size_t n;
+    char buf[128];
+    bool ok = false;
+
+    str.append("{");
+
+    // get spindle state
+    struct spindle_status ss;
+    ok = PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "S:%d,%d", (int)ss.state, (int)ss.target_rpm);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get laser state
+    struct laser_status ls;
+    ok = PublicData::get_value(laser_checksum, get_laser_status_checksum, &ls);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|L:%d,%d", (int)ls.state, (int)ls.power);
+        if(n > sizeof(buf)) n= sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get switchs state
+    struct pad_switch pad;
+    ok = PublicData::get_value(switch_checksum, get_checksum("vacuum"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|V:%d,%d", (int)pad.state, (int)pad.value);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("spindlefan"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|F:%d,%d", (int)pad.state, (int)pad.value);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("light"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|G:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("toolsensor"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|T:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("air"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|R:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+    ok = PublicData::get_value(switch_checksum, get_checksum("probecharger"), 0, &pad);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|C:%d", (int)pad.state);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+
+    // get states
+    char data[11];
+    ok = PublicData::get_value(endstops_checksum, get_endstop_states_checksum, 0, data);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|E:%d,%d,%d,%d,%d,%d", data[0], data[1], data[2], data[3], data[4], data[5]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get probe and calibrate states
+    ok = PublicData::get_value(zprobe_checksum, get_zprobe_pin_states_checksum, 0, &data[6]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|P:%d,%d", data[6], data[7]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get atc endstop and tool senser states
+    ok = PublicData::get_value(atc_handler_checksum, get_atc_pin_status_checksum, 0, &data[8]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|A:%d,%d", data[8], data[9]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    // get e-stop states
+    ok = PublicData::get_value(main_button_checksum, get_e_stop_state_checksum, 0, &data[10]);
+    if (ok) {
+        n = snprintf(buf, sizeof(buf), "|I:%d", data[10]);
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
+    str.append("}\n");
     return str;
 }
 

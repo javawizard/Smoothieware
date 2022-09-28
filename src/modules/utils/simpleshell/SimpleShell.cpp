@@ -1084,6 +1084,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     int bufsz = 128;
     int crc = 0;
     unsigned char packetno = 0;
+    unsigned char md5_sent = 0;
     int i, c, len = 0;
     int retry = 0;
 
@@ -1164,7 +1165,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 
 		for(;;) {
 		start_trans:
-			if (packetno == 0) {
+			if (packetno == 0 && md5_sent == 0) {
 				FILE *fd_md5 = fopen(md5_filename.c_str(), "rb");
 				if (NULL != fd_md5) {
 					c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);
@@ -1173,6 +1174,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
 					sprintf(error_msg, "Error: get MD5 error!\r\n");
 			        goto download_error;
 				}
+				md5_sent = 1;
 				// c  = strlen(md5_str);
 				// memcpy(&xbuff[4], md5_str, c);
 				// c = fread(&xbuff[4], sizeof(char), bufsz, fd_md5);

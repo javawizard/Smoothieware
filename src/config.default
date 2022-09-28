@@ -400,8 +400,8 @@ epsilon_acceleration 10.0				# Acceleration for auto tool changer (mm/second/sec
 wifi.machine_name CARVERA_01001	    	# Machine name that is shown in the WiFi list
 
 # ATC Motion
-atc.homing_retract_mm 1.0 				# Retract distance after homing (mm)
-atc.action_mm 2.0					 	# Action distance when drop tool (mm)
+atc.homing_retract_mm 0.4 				# Retract distance after homing (mm)
+atc.action_mm 1.6					 	# Action distance when drop tool (mm)
 atc.detector.detect_rate_mm_s 20		# Tool detect speed (mm / second)	
 atc.detector.detect_travel_mm 5	        # Tool detect back and forth distance (mm)
 

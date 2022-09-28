@@ -168,6 +168,9 @@ private:
 
     int active_tool;
     int tool_number;
+    int goto_position;
+    float position_x;
+    float position_y;
 
     float ref_tool_mz;
     float cur_tool_mz;

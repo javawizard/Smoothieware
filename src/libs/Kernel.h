@@ -155,6 +155,8 @@ class Kernel {
 
         std::string get_query_string();
 
+        std::string get_diagnose_string();
+
         // These modules are available to all other modules
         SerialConsole*    serial;
         StreamOutputPool* streams;

@@ -34,6 +34,7 @@ void SerialConsole::on_module_loaded() {
     // We want to be called every time a new char is received
     query_flag = false;
     halt_flag = false;
+    diagnose_flag = false;
 	this->attach_irq(true);
 
     // We only call the command dispatcher in the main loop, nowhere else
@@ -74,6 +75,10 @@ void SerialConsole::on_serial_char_received() {
 			query_flag = true;
 			continue;
 		}
+		if (received == '*') {
+			diagnose_flag = true;
+			continue;
+		}
 		if (received == 'X'-'A'+1) { // ^X
 			halt_flag = true;
 			continue;
@@ -102,6 +107,12 @@ void SerialConsole::on_idle(void * argument)
         query_flag = false;
         puts(THEKERNEL->get_query_string().c_str(), 0);
     }
+
+    if (diagnose_flag) {
+    	diagnose_flag = false;
+    	puts(THEKERNEL->get_diagnose_string().c_str(), 0);
+    }
+
     if (halt_flag) {
         halt_flag= false;
         THEKERNEL->call_event(ON_HALT, nullptr);

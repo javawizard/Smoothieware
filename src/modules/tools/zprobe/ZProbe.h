@@ -63,20 +63,22 @@ private:
     Pin pin;
     Pin calibrate_pin;
     std::vector<LevelingStrategy*> strategies;
-    uint16_t debounce_ms, debounce, cali_debounce;
+    uint16_t debounce_ms;
+	volatile uint16_t debounce, cali_debounce;
 
     uint32_t probe_trigger_time;
 
-    volatile struct {
+    volatile bool probing;
+    volatile bool calibrating;
+    volatile bool probe_detected;
+    volatile bool calibrate_detected;
+
+    struct {
         bool is_delta:1;
         bool is_rdelta:1;
-        bool probing:1;
-        bool calibrating:1;
         bool reverse_z:1;
         bool invert_override:1;
         bool invert_probe:1;
-        volatile bool probe_detected:1;
-        volatile bool calibrate_detected:1;
     };
 };
 

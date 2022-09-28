@@ -102,6 +102,9 @@ ATCHandler::ATCHandler()
     playing_file = false;
     tool_number = 6;
     g28_triggered = false;
+    goto_position = -1;
+    position_x = 8888;
+    position_y = 8888;
 }
 
 void ATCHandler::clear_script_queue(){
@@ -993,30 +996,13 @@ void ATCHandler::on_gcode_received(void *argument)
 				}
 			}
 		} else if (gcode->m == 496) {
-	        rapid_move(true, NAN, NAN, this->clearance_z);
-			if (gcode->subcode == 0 || gcode->subcode == 1) {
-				// goto clearance
-		        rapid_move(true, this->clearance_x, this->clearance_y, NAN);
-			} else if (gcode->subcode == 2) {
-				// goto work origin
-				rapid_move(false, 0, 0, NAN);
-			} else if (gcode->subcode == 3) {
-				// goto anchor 1
-				rapid_move(true, this->anchor1_x, this->anchor1_y, NAN);
-			} else if (gcode->subcode == 4) {
-				// goto anchor 2
-				rapid_move(true, this->anchor1_x + this->anchor2_offset_x, this->anchor1_y + this->anchor2_offset_y, NAN);
-			} else if (gcode->subcode == 5) {
-				// goto designative work position
-				if (gcode->has_letter('X') && gcode->has_letter('Y')) {
-					rapid_move(false, gcode->get_value('X'), gcode->get_value('Y'), NAN);
-				}
-			} else if (gcode->subcode == 6) {
-				// goto designative machine position
-				if (gcode->has_letter('X') && gcode->has_letter('Y')) {
-					rapid_move(true, gcode->get_value('X'), gcode->get_value('Y'), NAN);
-				}
+			goto_position = gcode->subcode;
+			// goto designative work position
+			if (gcode->has_letter('X') && gcode->has_letter('Y')) {
+				position_x = gcode->get_value('X');
+				position_y = gcode->get_value('Y');
 			}
+
 		} else if (gcode->m == 497) {
 		    // wait for the queue to be empty
 		    THECONVEYOR->wait_for_idle();
@@ -1112,18 +1098,44 @@ void ATCHandler::on_main_loop(void *argument)
 
 		// if we were printing from an M command from pronterface we need to send this back
 		THEKERNEL->streams->printf("Done ATC\r\n");
-    } else {
-    	if (g28_triggered) {
-            THEKERNEL->streams->printf("G28 means goto clearance position on CARVERA\n");
-            THEROBOT->push_state();
-            // goto z clearance
-            rapid_move(true, NAN, NAN, this->clearance_z);
-    		// goto x and y clearance
-    	    rapid_move(true, this->clearance_x, this->clearance_y, NAN);
-    	    THECONVEYOR->wait_for_idle();
-    	    THEROBOT->pop_state();
-    	    g28_triggered = false;
-    	}
+    } else if (g28_triggered) {
+		THEKERNEL->streams->printf("G28 means goto clearance position on CARVERA\n");
+		THEROBOT->push_state();
+		// goto z clearance
+		rapid_move(true, NAN, NAN, this->clearance_z);
+		// goto x and y clearance
+		rapid_move(true, this->clearance_x, this->clearance_y, NAN);
+		THECONVEYOR->wait_for_idle();
+		THEROBOT->pop_state();
+		g28_triggered = false;
+    } else if (goto_position > -1) {
+        rapid_move(true, NAN, NAN, this->clearance_z);
+		if (goto_position == 0 || goto_position == 1) {
+			// goto clearance
+	        rapid_move(true, this->clearance_x, this->clearance_y, NAN);
+		} else if (goto_position == 2) {
+			// goto work origin
+			rapid_move(false, 0, 0, NAN);
+		} else if (goto_position == 3) {
+			// goto anchor 1
+			rapid_move(true, this->anchor1_x, this->anchor1_y, NAN);
+		} else if (goto_position == 4) {
+			// goto anchor 2
+			rapid_move(true, this->anchor1_x + this->anchor2_offset_x, this->anchor1_y + this->anchor2_offset_y, NAN);
+		} else if (goto_position == 5) {
+			// goto designative work position
+			if (position_x < 8888 && position_y < 8888) {
+				rapid_move(false, position_x, position_y, NAN);
+			}
+		} else if (goto_position == 6) {
+			// goto designative machine position
+			if (position_x < 8888 && position_y < 8888) {
+				rapid_move(true, position_x, position_y, NAN);
+			}
+		}
+		position_x = 8888;
+		position_y = 8888;
+		goto_position = -1;
     }
 }
 
