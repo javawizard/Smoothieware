@@ -68,7 +68,7 @@ extern "C" uint32_t  __malloc_free_list;
 extern "C" uint32_t  _sbrk(int size);
 
 // version definition
-#define VERSION "0.9.0"
+#define VERSION "0.9.1"
 
 // used for XMODEM
 #define SOH  0x01
@@ -868,7 +868,7 @@ int SimpleShell::inbyte(StreamOutput *stream, unsigned int timeout_ms)
     while (us_ticker_read() - tick_us < timeout_ms * 1000) {
         if (stream->ready())
             return stream->_getc();
-        safe_delay_ms(1);
+        safe_delay_us(100);
     }
     return -1;
 }
@@ -879,7 +879,7 @@ int SimpleShell::inbytes(StreamOutput *stream, char **buf, int size, unsigned in
     while (us_ticker_read() - tick_us < timeout_ms * 1000) {
         if (stream->ready())
             return stream->gets(buf, size);
-        safe_delay_ms(1);
+        safe_delay_us(100);
     }
     return -1;
 }
@@ -957,9 +957,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         for (retry = 0; retry < MAXRETRANS; ++retry) {  // approx 3 seconds allowed to make connection
             if (trychar)
             	stream->_putc(trychar);
-            if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {
-            	sprintf(error_msg, "[%d]", c);
-                switch (c) {
+            if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {                switch (c) {
                 case SOH:
                     bufsz = 128;
                     goto start_recv;
@@ -980,6 +978,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
                     goto upload_error;
                     break;
                 default:
+                	sprintf(error_msg, "Info: unexpected char received [%d]", c);
                     goto upload_error;
                     break;
                 }

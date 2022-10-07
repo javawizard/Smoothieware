@@ -828,7 +828,7 @@ int Player::inbyte(StreamOutput *stream, unsigned int timeout_ms)
     while (us_ticker_read() - tick_us < timeout_ms * 1000) {
         if (stream->ready())
             return stream->_getc();
-        safe_delay_ms(1);
+        safe_delay_us(100);
     }
     return -1;
 }
@@ -839,7 +839,7 @@ int Player::inbytes(StreamOutput *stream, char **buf, int size, unsigned int tim
     while (us_ticker_read() - tick_us < timeout_ms * 1000) {
         if (stream->ready())
             return stream->gets(buf, size);
-        safe_delay_ms(1);
+        safe_delay_us(100);
     }
     return -1;
 }
@@ -889,8 +889,9 @@ void Player::download_command( string parameters, StreamOutput *stream )
     int bufsz = 128;
     int crc = 0;
     unsigned char packetno = 0;
-    int i, c, len = 0;
+    int i, c = 0;
     int retry = 0;
+    bool resend = true;
 
     // open file
 	char error_msg[64];
@@ -1002,13 +1003,16 @@ void Player::download_command( string parameters, StreamOutput *stream )
 				xbuff[bufsz + 4] = ccks;
 			}
 
+			resend = true;
 			for (retry = 0; retry < MAXRETRANS; ++retry) {
-				stream->puts((char *)xbuff, bufsz + 5 + (crc ? 1:0));
+				if (resend) {
+					stream->puts((char *)xbuff, bufsz + 5 + (crc ? 1:0));
+					resend = false;
+				}
 				if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {
 					switch (c) {
 					case ACK:
 						++packetno;
-						len += bufsz;
 						goto start_trans;
 					case CAN:
 						if ((c = inbyte(stream, TIMEOUT_MS)) == CAN) {
@@ -1019,6 +1023,7 @@ void Player::download_command( string parameters, StreamOutput *stream )
 						}
 						break;
 					case NAK:
+						resend = true;
 					default:
 						break;
 					}
@@ -1026,7 +1031,7 @@ void Player::download_command( string parameters, StreamOutput *stream )
 			}
 
 	        cancel_transfer(stream);
-			sprintf(error_msg, "Error: xmit error!\r\n");
+			sprintf(error_msg, "Error: transmit error, char: [%d], retry: [%d]!\r\n", c, retry);
 	        goto download_error;
 		}
 	}

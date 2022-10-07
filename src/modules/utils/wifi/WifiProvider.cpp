@@ -293,7 +293,7 @@ int WifiProvider::puts(const char* s, int size)
 		// 	0x1F: Other errors
     	sent = M8266WIFI_SPI_Send_BlockData(SendData, to_send, 5000, tcp_link_no, NULL, 0, &status);
     	sent_index += sent;
-		if ((sent == to_send)) {
+		if (sent == to_send) {
 			continue;
 		} else {
     		break;
