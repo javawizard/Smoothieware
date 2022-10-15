@@ -17,7 +17,19 @@
 
 DWORD get_fattime (void) {
     // return 999;
-    return time(NULL);
+    time_t t_time = time(NULL);
+
+    struct tm *timeinfo = localtime(&t_time);
+
+    DWORD fat_time = ((timeinfo->tm_year - 80) << 25) |
+                            ((timeinfo->tm_mon + 1) << 21) |
+                            (timeinfo->tm_mday << 16) |
+                            (timeinfo->tm_hour << 11) |
+                            (timeinfo->tm_min << 5) |
+                            (timeinfo->tm_sec >> 1);
+
+    return fat_time;
+
 }
 
 namespace mbed {

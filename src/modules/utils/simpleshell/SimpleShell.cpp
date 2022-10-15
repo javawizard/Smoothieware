@@ -957,7 +957,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
         for (retry = 0; retry < MAXRETRANS; ++retry) {  // approx 3 seconds allowed to make connection
             if (trychar)
             	stream->_putc(trychar);
-            if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {                switch (c) {
+            if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {
+            	switch (c) {
                 case SOH:
                     bufsz = 128;
                     goto start_recv;
@@ -978,8 +979,8 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
                     goto upload_error;
                     break;
                 default:
-                	sprintf(error_msg, "Info: unexpected char received [%d]", c);
-                    goto upload_error;
+//                	sprintf(error_msg, "Info: unexpected char received [%d]", c);
+//                    goto upload_error;
                     break;
                 }
             }
@@ -1847,7 +1848,7 @@ void SimpleShell::get_command( string parameters, StreamOutput *stream)
         if(move) {
             // move to the calculated, or given, XYZ
             char cmd[64];
-            snprintf(cmd, sizeof(cmd), "G53 G0 X%f Y%f Z%f", x, y, z);
+            snprintf(cmd, sizeof(cmd), "G53 G0 X%f Y%f Z%f", THEROBOT->from_millimeters(x), THEROBOT->from_millimeters(y), THEROBOT->from_millimeters(z));
             struct SerialMessage message;
             message.message = cmd;
             message.stream = &(StreamOutput::NullStream);

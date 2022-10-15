@@ -734,7 +734,7 @@ void Player::resume_command(string parameters, StreamOutput *stream )
     {
         // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
         char buf[128];
-        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F1000", saved_position[0], saved_position[1], saved_position[2]);
+        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f", saved_position[0], saved_position[1], saved_position[2], THEROBOT->from_millimeters(1000));
         struct SerialMessage message;
         message.message = buf;
         message.stream = &(StreamOutput::NullStream);
@@ -886,7 +886,7 @@ void Player::test_command( string parameters, StreamOutput* stream ) {
 void Player::download_command( string parameters, StreamOutput *stream )
 {
 	unsigned char xbuff[135]; /* 1 for data length + 128 for XModem + 3 head chars + 2 crc + nul */
-    int bufsz = 128;
+	int bufsz = 128;
     int crc = 0;
     unsigned char packetno = 0;
     int i, c = 0;

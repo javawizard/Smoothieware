@@ -591,15 +591,15 @@ void ZProbe::coordinated_move(float x, float y, float z, float feedrate, bool re
 
     if(!isnan(x)) {
         size_t n= strlen(cmd);
-        snprintf(&cmd[n], CMDLEN-n, " X%1.3f", x);
+        snprintf(&cmd[n], CMDLEN-n, " X%1.3f", THEROBOT->from_millimeters(x));
     }
     if(!isnan(y)) {
         size_t n= strlen(cmd);
-        snprintf(&cmd[n], CMDLEN-n, " Y%1.3f", y);
+        snprintf(&cmd[n], CMDLEN-n, " Y%1.3f", THEROBOT->from_millimeters(y));
     }
     if(!isnan(z)) {
         size_t n= strlen(cmd);
-        snprintf(&cmd[n], CMDLEN-n, " Z%1.3f", z);
+        snprintf(&cmd[n], CMDLEN-n, " Z%1.3f", THEROBOT->from_millimeters(z));
     }
 
     {

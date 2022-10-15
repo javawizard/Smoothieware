@@ -177,6 +177,26 @@ uint32_t PWMSpindleControl::on_update_speed(uint32_t dummy)
             current_pwm_value = new_pwm;
     	}
     	update_count ++;
+
+    	/*
+		float error = target_rpm * (factor / 100) - current_rpm;
+		current_I_value += control_I_term * error * 1.0f / UPDATE_FREQ;
+		current_I_value = confine(current_I_value, -1.0f, 1.0f);
+
+        float new_pwm = 0.1f;
+        new_pwm += control_P_term * error;
+        new_pwm += current_I_value;
+        new_pwm += control_D_term * UPDATE_FREQ * (error - prev_error);
+        new_pwm = confine(new_pwm, 0.0f, 1.0f);
+        prev_error = error;
+
+        current_pwm_value = new_pwm;
+
+        */
+
+		if (current_pwm_value > max_pwm) {
+			current_pwm_value = max_pwm;
+		}
     } else {
         current_I_value = 0;
         current_pwm_value = 0;
@@ -266,6 +286,18 @@ void PWMSpindleControl::on_get_public_data(void* argument)
 		pdr->set_taken();
     }
 }
+
+void PWMSpindleControl::on_set_public_data(void* argument)
+{
+    PublicDataRequest* pdr = static_cast<PublicDataRequest*>(argument);
+
+    if(!pdr->starts_with(pwm_spindle_control_checksum)) return;
+    if(pdr->second_element_is(turn_off_spindle_checksum)) {
+        this->turn_off();
+        pdr->set_taken();
+    }
+}
+
 
 // returns spindle status
 bool PWMSpindleControl::get_alarm(void)

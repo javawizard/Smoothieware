@@ -310,7 +310,7 @@ spindle.pwm_period							1000			# default 1000, sets the PWM frequency
 spindle.feedback_pin						2.7				# Pin must be interrupt capable. 
 spindle.pulses_per_rev						12				# default 1. Defines the number of pulses occur for each rotation 
 # spindle.default_rpm							10000			# default 10000. Defines a default RPM value in case no RPM value is provided.
-spindle.control_P							0.00005			# default 0.0001. P value for the PID controller              
+spindle.control_P							0.00001			# default 0.0001. P value for the PID controller              
 spindle.control_I							0.00005			# default 0.0001. I value for the PID controller
 spindle.control_D							0.00005			# default 0.0001. D value for the PID controller
 spindle.control_smoothing					0.1				# default 0.1. This value is low pass filter time constant in seconds.

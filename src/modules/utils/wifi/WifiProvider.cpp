@@ -621,7 +621,7 @@ void WifiProvider::on_set_public_data(void *argument)
     				if (connection_status == 0) {
     					snprintf(s->error_info, sizeof(s->error_info), "No connecting started!");
     				} else if (connection_status == 2) {
-    					snprintf(s->error_info, sizeof(s->error_info), "Wifi password incorrect: %s!", s->password);
+    					snprintf(s->error_info, sizeof(s->error_info), "Wifi password incorrect!");
     				} else if (connection_status == 3) {
     					snprintf(s->error_info, sizeof(s->error_info), "No wifi ssid found: %s!", s->ssid);
     				} else if (connection_status == 4) {

@@ -24,6 +24,7 @@ class PWMSpindleControl: public SpindleControl {
         virtual ~PWMSpindleControl() {};
         void on_module_loaded();
         void on_get_public_data(void* argument);
+        void on_set_public_data(void *argument);
         void on_idle(void* argument);
 
     private:
