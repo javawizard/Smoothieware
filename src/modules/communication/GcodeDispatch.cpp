@@ -63,6 +63,9 @@ void GcodeDispatch::on_console_line_received(void *line)
         return;
     }
 
+    // get rid of spaces
+    ltrim(possible_command);
+
 try_again:
 
     char first_char = possible_command[0];
@@ -448,7 +451,7 @@ try_again:
         // Ignore comments and blank lines
         new_message.stream->printf("ok\n");
 
-    } else if( (n=possible_command.find_first_of("XYZF")) == 0 || (first_char == ' ' && n != string::npos) ) {
+    } else if( (n=possible_command.find_first_of("XYZAF")) == 0 || (first_char == ' ' && n != string::npos) ) {
         // handle pycam syntax, use last modal group 1 command and resubmit if an X Y Z or F is found on its own line
         char buf[6];
         if(possible_command[n] == 'F') {
@@ -463,8 +466,8 @@ try_again:
 
 
     } else {
-        // an uppercase non command word on its own (except XYZF) just returns ok, we could add an error but no hosts expect that.
-        new_message.stream->printf("ok - ignore\n");
+        // an uppercase non command word on its own (except XYZAF) just returns ok, we could add an error but no hosts expect that.
+        new_message.stream->printf("ok - ignore: [%s]\n", possible_command.c_str());
     }
 }
 

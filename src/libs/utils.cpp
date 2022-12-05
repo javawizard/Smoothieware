@@ -122,13 +122,23 @@ string remove_non_number( string str )
 string shift_parameter( string &parameters )
 {
     size_t beginning = parameters.find_first_of(" ");
-    if( beginning == string::npos ) {
+    if ( beginning == string::npos ) {
         string temp = parameters;
         parameters = "";
+        for (int i = 0; i < temp.length(); i ++) {
+        	if (temp[i] == '%') {
+        		temp[i] = ' ';
+        	}
+        }
         return temp;
     }
     string temp = parameters.substr( 0, beginning );
     parameters = parameters.substr(beginning + 1, parameters.size());
+    for (int i = 0; i < temp.length(); i ++) {
+    	if (temp[i] == '%') {
+    		temp[i] = ' ';
+    	}
+    }
     return temp;
 }
 
@@ -301,4 +311,11 @@ struct tm *get_fftime(unsigned short t_date, unsigned short t_time, struct tm *t
     // Convert to timestamp
 
     return timeinfo;
+}
+
+
+// trim from left
+void ltrim(std::string& s, const char* t)
+{
+    s.erase(0, s.find_first_not_of(t));
 }

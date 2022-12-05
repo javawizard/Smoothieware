@@ -56,6 +56,7 @@ WifiProvider::WifiProvider()
 	udp_link_no = 1;
 	wifi_init_ok = false;
 	has_data_flag = false;
+	connection_fail_count = 0;
 }
 
 void WifiProvider::on_module_loaded()
@@ -201,6 +202,7 @@ void WifiProvider::on_second_tick(void *)
 	M8266WIFI_SPI_List_Clients_On_A_TCP_Server(tcp_link_no, &client_num, RemoteClients, &status);
 
 	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+	// THEKERNEL->streams->printf("M8266WIFI_SPI_Get_STA_Connection_Status: [%d]!\n", connection_status);
 	if (connection_status == 5) {
 		// get ip and netmask
 		M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_IP_ADDR, (u8 *)this->sta_address, &param_len, &status);
@@ -210,7 +212,22 @@ void WifiProvider::on_second_tick(void *)
 		snprintf(udp_buff, sizeof(udp_buff), "%s,%s,%d,%d", this->machine_name.c_str(), this->sta_address, this->tcp_port, client_num > 0 ? 1 : 0);
 		if (M8266WIFI_SPI_Send_Udp_Data((u8 *)udp_buff, strlen(udp_buff), udp_link_no, address, this->udp_send_port, &status) < strlen(udp_buff)) {
 			// THEKERNEL->streams->printf("Send UDP through STA ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+		} else {
+			// THEKERNEL->streams->printf("Send UDP through STA Success!\n");
 		}
+		connection_fail_count = 0;
+	} else if (connection_status == 2 || connection_status == 3 || connection_status == 4) {
+		// wrong password or can not find STA or fail to connect
+		connection_fail_count ++;
+		if (connection_fail_count > 10) {
+			// disconnect Wifi
+			if (M8266WIFI_SPI_STA_DisConnect_Ap(&status)) {
+				THEKERNEL->streams->printf("STA connection timeout, disconnected!\n");
+			}
+			connection_fail_count = 0;
+		}
+	} else {
+		connection_fail_count = 0;
 	}
 
 	// send ap info through UDP
@@ -220,6 +237,18 @@ void WifiProvider::on_second_tick(void *)
 	if (M8266WIFI_SPI_Send_Udp_Data((u8 *)udp_buff, strlen(udp_buff), udp_link_no, address, this->udp_send_port, &status) < strlen(udp_buff)) {
 		// THEKERNEL->streams->printf("Send UDP through AP ERROR, status: %d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 	}
+
+	// check AP and disconnect every 5 seconds
+	/*
+	M8266WIFI_SPI_Query_STA_Param(STA_PARAM_TYPE_SSID, (u8 *)ssid, &ssid_len, &status);
+
+	M8266WIFI_SPI_Get_STA_Connection_Status(&connection_status, &status);
+
+	if (M8266WIFI_SPI_STA_DisConnect_Ap(&status) == 0) {
+		s->has_error = true;
+		snprintf(s->error_info, sizeof(s->error_info), "Disconnect error!");
+	}*/
+
 }
 
 void WifiProvider::on_idle(void *argument)
@@ -555,7 +584,9 @@ void WifiProvider::on_get_public_data(void* argument) {
 			std::string str;
 			char buf[10];
 			for (int i = 0; i < signals; i ++) {
-				str.append(wlans[i].ssid);
+				for (size_t j = 0; j < strlen(wlans[i].ssid); j ++ ) {
+					str += wlans[i].ssid[j] == ' ' ? '%' : wlans[i].ssid[j];
+				}
 				str.append(",");
 				str.append(wlans[i].authmode == 0 ? "0" : "1");
 				str.append(",");

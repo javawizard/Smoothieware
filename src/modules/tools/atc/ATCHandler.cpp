@@ -748,6 +748,8 @@ void ATCHandler::on_gcode_received(void *argument)
     			return;
     		}
 
+    		THECONVEYOR->wait_for_idle();
+
     	    struct spindle_status ss;
     	    if (PublicData::get_value(pwm_spindle_control_checksum, get_spindle_status_checksum, &ss)) {
     	    	if (ss.state) {

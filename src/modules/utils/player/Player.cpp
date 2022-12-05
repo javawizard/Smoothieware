@@ -327,7 +327,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
     // extract any options from the line and terminate the line there
     string options= extract_options(parameters);
     // Get filename which is the entire parameter line upto any options found or entire line
-    this->filename = absolute_from_relative(parameters);
+    this->filename = absolute_from_relative(shift_parameter(parameters));
 
     if(this->playing_file || THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
         stream->printf("Currently printing, abort print first\r\n");
@@ -866,8 +866,7 @@ void Player::set_serial_rx_irq(bool enable)
 }
 
 void Player::test_command( string parameters, StreamOutput* stream ) {
-	string test = parameters;
-    string filename = absolute_from_relative(parameters);
+    string filename = absolute_from_relative(shift_parameter(parameters));
 	FILE *fd = fopen(filename.c_str(), "rb");
 	if (NULL != fd) {
         MD5 md5;
@@ -897,7 +896,7 @@ void Player::download_command( string parameters, StreamOutput *stream )
 	char error_msg[64];
 	unsigned char md5_sent = 0;
 	memset(error_msg, 0, sizeof(error_msg));
-    string filename = absolute_from_relative(parameters);
+    string filename = absolute_from_relative(shift_parameter(parameters));
     string md5_filename = change_to_md5_path(filename);
 
 	// diasble irq

@@ -206,6 +206,15 @@ void SerialConsole2::on_gcode_received(void *argument)
     	} else if (gcode->m == 472) {
     		THEKERNEL->streams->printf("Open WP Laser...\n");
     		this->_putc('L');
+    	} else if (gcode->m == 881) {
+    		if (gcode->has_letter('S')) {
+        		uint16_t channel = gcode->get_value('S');
+        		THEKERNEL->streams->printf("Set 2.4G Channel to: [%d] and start trans...\n", channel);
+        		this->_putc(channel);
+    		}
+    	} else if (gcode->m == 882) {
+    		THEKERNEL->streams->printf("Stop 2.4G transmission...\n");
+    		this->_putc(27);
     	}
     }
 }

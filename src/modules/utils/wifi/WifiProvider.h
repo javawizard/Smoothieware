@@ -76,6 +76,7 @@ private:
 	int udp_send_port;
 	int udp_recv_port;
 	int tcp_timeout_s;
+	int connection_fail_count;
 	string machine_name;
 	char ap_address[16];
 	char ap_netmask[16];

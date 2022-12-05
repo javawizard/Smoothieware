@@ -359,7 +359,7 @@ void SimpleShell::on_console_line_received( void *argument )
             // probably an echo so ignore the whole line
             //new_message.stream->printf("ok\n");
 
-        }else if(!parse_command(cmd.c_str(), possible_command, new_message.stream)) {
+        } else if(!parse_command(cmd.c_str(), possible_command, new_message.stream)) {
             new_message.stream->printf("error:Unsupported command - %s\n", cmd.c_str());
         }
     }
@@ -392,8 +392,11 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
     d = opendir(path.c_str());
     if (d != NULL) {
         while ((p = readdir(d)) != NULL) {
+        	if (p->d_name[0] == '.') {
+        		continue;
+        	}
         	for (int i = 0; i < NAME_MAX; i ++) {
-        		if (p->d_name[i] == ' ') p->d_name[i] = '?';
+        		if (p->d_name[i] == ' ') p->d_name[i] = '%';
         	}
         	if (opts.find("-s", 0, 2) != string::npos) {
         	    get_fftime(p->d_date, p->d_time, &timeinfo);
@@ -408,7 +411,8 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
         }
         closedir(d);
         if(opts.find("-e", 0, 2) != string::npos) {
-            stream->_putc(EOT);
+        	char eot = EOT;
+            stream->puts(&eot, 1);
         }
     } else {
         if(opts.find("-e", 0, 2) != string::npos) {
@@ -923,7 +927,7 @@ void SimpleShell::upload_command( string parameters, StreamOutput *stream )
 	char error_msg[64];
 	memset(error_msg, 0, sizeof(error_msg));
 	sprintf(error_msg, "Nothing!");
-    string filename = absolute_from_relative(parameters);
+    string filename = absolute_from_relative(shift_parameter(parameters));
     string md5_filename = change_to_md5_path(filename);
 
 	// diasble serial rx irq in case of serial stream, and internal process in case of wifi
@@ -1091,7 +1095,7 @@ void SimpleShell::download_command( string parameters, StreamOutput *stream )
     // open file
 	char error_msg[64];
 	memset(error_msg, 0, sizeof(error_msg));
-    string filename = absolute_from_relative(parameters);
+    string filename = absolute_from_relative(shift_parameter(parameters));
     string md5_filename = change_to_md5_path(filename);
 
 	// diasble irq
