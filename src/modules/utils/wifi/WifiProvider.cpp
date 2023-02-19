@@ -582,12 +582,19 @@ void WifiProvider::on_get_public_data(void* argument) {
 			// NOTE caller must free the returned string when done
 			size_t n;
 			std::string str;
+			std::string ssid_str;
 			char buf[10];
 			for (int i = 0; i < signals; i ++) {
+				ssid_str = "";
 				for (size_t j = 0; j < strlen(wlans[i].ssid); j ++ ) {
-					str += wlans[i].ssid[j] == ' ' ? '%' : wlans[i].ssid[j];
+					ssid_str += wlans[i].ssid[j] == ' ' ? 0x01 : wlans[i].ssid[j];
 				}
-				str.append(",");
+				ssid_str.append(",");
+				// ignore same ssid
+			    if (str.find(ssid_str) != string::npos) {
+			    	continue;
+			    }
+				str.append(ssid_str);
 				str.append(wlans[i].authmode == 0 ? "0" : "1");
 				str.append(",");
 				n = snprintf(buf, sizeof(buf), "%d", wlans[i].rssi);

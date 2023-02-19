@@ -68,7 +68,7 @@ extern "C" uint32_t  __malloc_free_list;
 extern "C" uint32_t  _sbrk(int size);
 
 // version definition
-#define VERSION "0.9.1"
+#define VERSION "0.9.3"
 
 // used for XMODEM
 #define SOH  0x01
@@ -396,7 +396,7 @@ void SimpleShell::ls_command( string parameters, StreamOutput *stream )
         		continue;
         	}
         	for (int i = 0; i < NAME_MAX; i ++) {
-        		if (p->d_name[i] == ' ') p->d_name[i] = '%';
+        		if (p->d_name[i] == ' ') p->d_name[i] = 0x01;
         	}
         	if (opts.find("-s", 0, 2) != string::npos) {
         	    get_fftime(p->d_date, p->d_time, &timeinfo);

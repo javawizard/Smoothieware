@@ -126,8 +126,16 @@ string shift_parameter( string &parameters )
         string temp = parameters;
         parameters = "";
         for (int i = 0; i < temp.length(); i ++) {
-        	if (temp[i] == '%') {
+        	if (temp[i] == 0x01) {
         		temp[i] = ' ';
+        	} else if (temp[i] == 0x02) {
+        		temp[i] = '?';
+        	} else if (temp[i] == 0x03) {
+        		temp[i] = '*';
+        	} else if (temp[i] == 0x04) {
+        		temp[i] = '!';
+        	} else if (temp[i] == 0x05) {
+        		temp[i] = '~';
         	}
         }
         return temp;
@@ -135,8 +143,16 @@ string shift_parameter( string &parameters )
     string temp = parameters.substr( 0, beginning );
     parameters = parameters.substr(beginning + 1, parameters.size());
     for (int i = 0; i < temp.length(); i ++) {
-    	if (temp[i] == '%') {
+    	if (temp[i] == 0x01) {
     		temp[i] = ' ';
+    	} else if (temp[i] == 0x02) {
+    		temp[i] = '?';
+    	} else if (temp[i] == 0x03) {
+    		temp[i] = '*';
+    	} else if (temp[i] == 0x04) {
+    		temp[i] = '!';
+    	} else if (temp[i] == 0x05) {
+    		temp[i] = '~';
     	}
     }
     return temp;
