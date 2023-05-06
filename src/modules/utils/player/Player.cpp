@@ -48,6 +48,8 @@
 
 extern SDFAT mounter;
 
+static unsigned char xbuff[8200] __attribute__((section("AHBSRAM1"))); /* 2 for data length, 8192 for XModem + 3 head chars + 2 crc + nul */
+
 // used for XMODEM
 #define SOH  0x01
 #define STX  0x02
@@ -171,6 +173,7 @@ void Player::on_gcode_received(void *argument)
             this->played_lines = 0;
             this->elapsed_secs = 0;
             this->playing_lines = 0;
+            this->goto_line = 0;
 
         } else if (gcode->m == 24) { // start print
             if (this->current_file_handler != NULL) {
@@ -241,6 +244,7 @@ void Player::on_gcode_received(void *argument)
             this->played_lines = 0;
             this->elapsed_secs = 0;
             this->playing_lines = 0;
+            this->goto_line = 0;
 
         } else if (gcode->m == 600) { // suspend print, Not entirely Marlin compliant, M600.1 will leave the heaters on
             this->suspend_command((gcode->subcode == 1)?"h":"", gcode->stream);
@@ -289,8 +293,12 @@ void Player::on_console_line_received( void *argument )
         this->suspend_command( possible_command, new_message.stream );
     }else if (cmd == "resume") {
         this->resume_command( possible_command, new_message.stream );
+    }else if (cmd == "goto") {
+    	this->goto_command( possible_command, new_message.stream );
     }else if (cmd == "buffer") {
     	this->buffer_command( possible_command, new_message.stream );
+    }else if (cmd == "upload") {
+    	this->upload_command( possible_command, new_message.stream );
     }else if (cmd == "download") {
         memset(md5_str, 0, sizeof(md5_str));
     	if (possible_command.find("config.txt") != string::npos) {
@@ -329,12 +337,12 @@ void Player::play_command( string parameters, StreamOutput *stream )
     // Get filename which is the entire parameter line upto any options found or entire line
     this->filename = absolute_from_relative(shift_parameter(parameters));
 
-    if(this->playing_file || THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
+    if (this->playing_file || THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
         stream->printf("Currently printing, abort print first\r\n");
         return;
     }
 
-    if(this->current_file_handler != NULL) { // must have been a paused print
+    if (this->current_file_handler != NULL) { // must have been a paused print
         fclose(this->current_file_handler);
     }
 
@@ -370,6 +378,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
     this->played_lines = 0;
     this->elapsed_secs = 0;
     this->playing_lines = 0;
+    this->goto_line = 0;
 
     // force into absolute mode
     THEROBOT->absolute_mode = true;
@@ -377,6 +386,49 @@ void Player::play_command( string parameters, StreamOutput *stream )
 
     // reset current position;
     THEROBOT->reset_position_from_current_actuator_position();
+}
+
+// Goto a certain line when playing a file
+void Player::goto_command( string parameters, StreamOutput *stream )
+{
+    if (!THEKERNEL->is_suspending()) {
+        stream->printf("Can only jump when pausing!\r\n");
+        return;
+    }
+
+    if (this->current_file_handler == NULL) {
+    	stream->printf("Missing file handle!\r\n");
+    	return;
+    }
+
+    string line_str = shift_parameter(parameters);
+    if (!line_str.empty()) {
+        char *ptr = NULL;
+        this->goto_line = strtol(line_str.c_str(), &ptr, 10);
+        this->goto_line = this->goto_line < 1 ? 1 : this->goto_line;
+        stream->printf("Goto line %lu...\r\n", this->goto_line);
+        // goto line
+        char buf[130]; // lines upto 128 characters are allowed, anything longer is discarded
+
+        // goto file begin
+        fseek(this->current_file_handler, 0, SEEK_SET);
+        played_lines = 0;
+        played_cnt   = 0;
+
+        while (fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
+        	if (played_lines % 100 == 0) {
+                THEKERNEL->call_event(ON_IDLE);
+        	}
+        	int len = strlen(buf);
+            if (len == 0) continue; // empty line? should not be possible
+
+            played_lines += 1;
+            played_cnt += len;
+            if (played_lines >= this->goto_line) {
+            	break;
+            }
+        }
+    }
 }
 
 void Player::progress_command( string parameters, StreamOutput *stream )
@@ -434,6 +486,7 @@ void Player::abort_command( string parameters, StreamOutput *stream )
     this->played_cnt = 0;
     this->played_lines = 0;
     this->playing_lines = 0;
+    this->goto_line = 0;
     this->file_size = 0;
     this->clear_buffered_queue();
     this->filename = "";
@@ -560,6 +613,7 @@ void Player::on_main_loop(void *argument)
         played_cnt = 0;
         played_lines = 0;
         playing_lines = 0;
+        goto_line = 0;
         file_size = 0;
         fclose(this->current_file_handler);
         current_file_handler = NULL;
@@ -727,20 +781,24 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
-    // Restore position
-    stream->printf("Restoring saved XYZ positions and state...\n");
-    // force absolute mode for restoring position, then set to the saved relative/absolute mode
-    THEROBOT->absolute_mode = true;
-    {
-        // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
-        char buf[128];
-        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f", saved_position[0], saved_position[1], saved_position[2], THEROBOT->from_millimeters(1000));
-        struct SerialMessage message;
-        message.message = buf;
-        message.stream = &(StreamOutput::NullStream);
-        message.line = 0;
-        THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
+    if (this->goto_line == 0) {
+        // Restore position
+        stream->printf("Restoring saved XYZ positions and state...\n");
+        // force absolute mode for restoring position, then set to the saved relative/absolute mode
+        THEROBOT->absolute_mode = true;
+        {
+            // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
+            char buf[128];
+            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f", saved_position[0], saved_position[1], saved_position[2], THEROBOT->from_millimeters(1000));
+            struct SerialMessage message;
+            message.message = buf;
+            message.stream = &(StreamOutput::NullStream);
+            message.line = 0;
+            THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
+        }
+
     }
+
     THEROBOT->pop_state();
 
     if(THEKERNEL->is_halted()) {
@@ -865,6 +923,185 @@ void Player::set_serial_rx_irq(bool enable)
     PublicData::set_value( atc_handler_checksum, set_serial_rx_irq_checksum, &enable_irq );
 }
 
+void Player::upload_command( string parameters, StreamOutput *stream )
+{
+    unsigned char *p;
+    char *recv_buff;
+    int bufsz, crc = 0, is_stx = 0;
+    unsigned char trychar = 'C';
+    unsigned char packetno = 1;
+    int c, len = 0;
+    int retry = 0;
+    int retrans = MAXRETRANS;
+    int timeouts = MAXRETRANS;
+    int recv_count = 0;
+    bool md5_received = false;
+
+    // open file
+	char error_msg[64];
+	memset(error_msg, 0, sizeof(error_msg));
+	sprintf(error_msg, "Nothing!");
+    string filename = absolute_from_relative(shift_parameter(parameters));
+    string md5_filename = change_to_md5_path(filename);
+
+	// diasble serial rx irq in case of serial stream, and internal process in case of wifi
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(false);
+    }
+    THEKERNEL->set_uploading(true);
+
+    if (!THECONVEYOR->is_idle()) {
+        stream->_putc(EOT);
+        if (stream->type() == 0) {
+        	set_serial_rx_irq(true);
+        }
+        THEKERNEL->set_uploading(false);
+        return;
+    }
+
+    FILE *fd = fopen(filename.c_str(), "wb");
+    FILE *fd_md5 = NULL;
+    if (filename.find("firmware.bin") == string::npos) {
+    	fd_md5 = fopen(md5_filename.c_str(), "wb");
+    }
+
+    if (fd == NULL || (filename.find("firmware.bin") == string::npos && fd_md5 == NULL)) {
+        stream->_putc(EOT);
+    	sprintf(error_msg, "Error: failed to open file [%s]!\r\n", fd == NULL ? filename.substr(0, 30).c_str() : md5_filename.substr(0, 30).c_str() );
+    	goto upload_error;
+    }
+
+    for (;;) {
+        for (retry = 0; retry < MAXRETRANS; ++retry) {  // approx 3 seconds allowed to make connection
+            if (trychar)
+            	stream->_putc(trychar);
+            if ((c = inbyte(stream, TIMEOUT_MS)) >= 0) {
+            	switch (c) {
+                case SOH:
+                    bufsz = 128;
+                    is_stx = 0;
+                    goto start_recv;
+                case STX:
+                    bufsz = 8192;
+                    is_stx = 1;
+                    goto start_recv;
+                case EOT:
+                    stream->_putc(ACK);
+                    flush_input(stream);
+                    goto upload_success; /* normal end */
+                case CAN:
+                    if ((c = inbyte(stream, TIMEOUT_MS)) == CAN) {
+                        stream->_putc(ACK);
+                        flush_input(stream);
+                    	sprintf(error_msg, "Info: Upload canceled by remote!\r\n");
+                        goto upload_error;
+                    }
+                    goto upload_error;
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+
+        if (trychar == 'C') {
+            trychar = NAK;
+            continue;
+        }
+        cancel_transfer(stream);
+		sprintf(error_msg, "Error: upload sync error! get char [%d], retry [%d]!\r\n", c, retry);
+        goto upload_error;
+
+    start_recv:
+        if (trychar == 'C')
+            crc = 1;
+        trychar = 0;
+        p = xbuff;
+        *p++ = c;
+
+        recv_count = 1 + bufsz + (crc ? 1 : 0) + 3 + is_stx;
+
+        timeouts = MAXRETRANS;
+
+        while (recv_count > 0) {
+        	c = inbytes(stream, &recv_buff, recv_count, TIMEOUT_MS);
+        	if (c < 0) {
+        		timeouts --;
+        		if (timeouts < 0) {
+            		goto reject;
+        		}
+        	} else {
+            	for (int i = 0; i < c; i ++) {
+            		*p++ = recv_buff[i];
+            	}
+            	recv_count -= c;
+        	}
+        }
+
+        len = is_stx ? (xbuff[3] << 8 | xbuff[4]) : xbuff[3];
+        if (!md5_received && xbuff[1] == 0 && xbuff[1] == (unsigned char)(~xbuff[2])
+        		&& check_crc(crc, &xbuff[3], bufsz + 1 + is_stx) && len == 32) {
+        	// received md5
+        	if (NULL != fd_md5) {
+    			fwrite(&xbuff[4 + is_stx], sizeof(char), 32, fd_md5);
+        	}
+            THEKERNEL->call_event(ON_IDLE);
+            stream->_putc(ACK);
+            md5_received = true;
+            continue;
+        } else if (xbuff[1] == (unsigned char)(~xbuff[2]) &&
+        		xbuff[1] == packetno && check_crc(crc, &xbuff[3], bufsz + 1 + is_stx)) {
+			fwrite(&xbuff[4 + is_stx], sizeof(char), len, fd);
+			++ packetno;
+			retrans = MAXRETRANS + 1;
+			THEKERNEL->call_event(ON_IDLE);
+            stream->_putc(ACK);
+            continue;
+        }
+    reject:
+		stream->_putc(NAK);
+		if (-- retrans <= 0) {
+            cancel_transfer(stream);
+        	sprintf(error_msg, "Error: too many retry error!\r\n");
+            goto upload_error; /* too many retry error */
+		}
+    }
+upload_error:
+	if (fd != NULL) {
+		fclose(fd);
+		fd = NULL;
+		remove(filename.c_str());
+	}
+	if (fd_md5 != NULL) {
+		fclose(fd_md5);
+		fd_md5 = NULL;
+		remove(md5_filename.c_str());
+	}
+	flush_input(stream);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    }
+    THEKERNEL->set_uploading(false);
+	stream->printf(error_msg);
+	return;
+upload_success:
+	if (fd != NULL) {
+		fclose(fd);
+		fd = NULL;
+	}
+	if (fd_md5 != NULL) {
+		fclose(fd_md5);
+		fd_md5 = NULL;
+	}
+	flush_input(stream);
+    if (stream->type() == 0) {
+    	set_serial_rx_irq(true);
+    }
+    THEKERNEL->set_uploading(false);
+	stream->printf("Info: upload success: %s.\r\n", filename.c_str());
+}
+
+
 void Player::test_command( string parameters, StreamOutput* stream ) {
     string filename = absolute_from_relative(shift_parameter(parameters));
 	FILE *fd = fopen(filename.c_str(), "rb");
@@ -884,9 +1121,8 @@ void Player::test_command( string parameters, StreamOutput* stream ) {
 
 void Player::download_command( string parameters, StreamOutput *stream )
 {
-	unsigned char xbuff[135]; /* 1 for data length + 128 for XModem + 3 head chars + 2 crc + nul */
-	int bufsz = 128;
-    int crc = 0;
+	int bufsz = 8192;
+    int crc = 0, is_stx = 1;
     unsigned char packetno = 0;
     int i, c = 0;
     int retry = 0;
@@ -901,6 +1137,8 @@ void Player::download_command( string parameters, StreamOutput *stream )
 
 	// diasble irq
     if (stream->type() == 0) {
+    	bufsz = 128;
+    	is_stx = 0;
     	set_serial_rx_irq(false);
     }
     THEKERNEL->set_uploading(true);
@@ -964,10 +1202,10 @@ void Player::download_command( string parameters, StreamOutput *stream )
 		start_trans:
 			if (packetno == 0 && md5_sent == 0) {
 				c = strlen(md5);
-				memcpy(&xbuff[4], md5, c);
+				memcpy(&xbuff[4 + is_stx], md5, c);
 				md5_sent = 1;
 			} else {
-				c = fread(&xbuff[4], sizeof(char), bufsz, fd);
+				c = fread(&xbuff[4 + is_stx], sizeof(char), bufsz, fd);
 				if (c <= 0) {
 					for (retry = 0; retry < MAXRETRANS; ++retry) {
 						stream->_putc(EOT);
@@ -982,30 +1220,33 @@ void Player::download_command( string parameters, StreamOutput *stream )
 					}
 				}
 			}
-			xbuff[0] = SOH;
+			xbuff[0] = is_stx ? STX : SOH;
 			xbuff[1] = packetno;
 			xbuff[2] = ~packetno;
-			xbuff[3] = c;
+			xbuff[3] = is_stx ? c >> 8 : c;
+			if (is_stx) {
+				xbuff[4] = c & 0xff;
+			}
 			if (c < bufsz) {
-				memset(&xbuff[4 + c], CTRLZ, bufsz - c);
+				memset(&xbuff[4 + is_stx + c], CTRLZ, bufsz - c);
 			}
 
 			if (crc) {
-				unsigned short ccrc = crc16_ccitt(&xbuff[3], bufsz + 1);
-				xbuff[bufsz + 4] = (ccrc >> 8) & 0xFF;
-				xbuff[bufsz + 5] = ccrc & 0xFF;
+				unsigned short ccrc = crc16_ccitt(&xbuff[3], bufsz + 1 + is_stx);
+				xbuff[bufsz + 4 + is_stx] = (ccrc >> 8) & 0xFF;
+				xbuff[bufsz + 5 + is_stx] = ccrc & 0xFF;
 			} else {
 				unsigned char ccks = 0;
-				for (i = 4; i < bufsz+4; ++i) {
+				for (i = 3; i < bufsz + 1 + is_stx; ++i) {
 					ccks += xbuff[i];
 				}
-				xbuff[bufsz + 4] = ccks;
+				xbuff[bufsz + 4 + is_stx] = ccks;
 			}
 
 			resend = true;
 			for (retry = 0; retry < MAXRETRANS; ++retry) {
 				if (resend) {
-					stream->puts((char *)xbuff, bufsz + 5 + (crc ? 1:0));
+					stream->puts((char *)xbuff, bufsz + 5 + is_stx + (crc ? 1:0));
 					resend = false;
 				}
 				if ((c = inbyte(stream, TIMEOUT_MS)) >= 0 ) {

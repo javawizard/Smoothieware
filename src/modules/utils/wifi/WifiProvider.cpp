@@ -120,41 +120,41 @@ void WifiProvider::receive_wifi_data() {
 
 	while (true)
 	{
-		received = M8266WIFI_SPI_RecvData(RecvData, WIFI_RECV_DATA_MAX_SIZE, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
+		received = M8266WIFI_SPI_RecvData(WifiData, WIFI_DATA_MAX_SIZE, WIFI_DATA_TIMEOUT_MS, &link_no, &status);
 		if (link_no == udp_link_no) {
 			return;
 		}
 		for (int i = 0; i < received; i ++) {
-	        if(RecvData[i] == '?') {
+	        if(WifiData[i] == '?') {
 	            query_flag = true;
 	            continue;
 	        }
-			if (RecvData[i] == '*') {
+			if (WifiData[i] == '*') {
 				diagnose_flag = true;
 				continue;
 			}
-	        if(RecvData[i] == 'X' - 'A' + 1) { // ^X
+	        if(WifiData[i] == 'X' - 'A' + 1) { // ^X
 	            halt_flag = true;
 	            continue;
 	        }
 	        if(THEKERNEL->is_feed_hold_enabled()) {
-	            if(RecvData[i] == '!') { // safe pause
+	            if(WifiData[i] == '!') { // safe pause
 	                THEKERNEL->set_feed_hold(true);
 	                continue;
 	            }
 
-	            if(RecvData[i] == '~') { // safe resume
+	            if(WifiData[i] == '~') { // safe resume
 	                THEKERNEL->set_feed_hold(false);
 	                continue;
 	            }
 	        }
 	        // convert CR to NL (for host OSs that don't send NL)
-	        if( RecvData[i] == '\r' ) {
+	        if( WifiData[i] == '\r' ) {
 	        	received = '\n';
 	        }
-	        this->buffer.push_back(char(RecvData[i]));
+	        this->buffer.push_back(char(WifiData[i]));
 		}
-		if (received < WIFI_RECV_DATA_MAX_SIZE) {
+		if (received < WIFI_DATA_MAX_SIZE) {
 			return;
 		}
 	}
@@ -311,8 +311,8 @@ int WifiProvider::puts(const char* s, int size)
 	u32 sent = 0;
 	u32 to_send = 0;
     while (sent_index < total_length) {
-    	to_send = total_length - sent_index > WIFI_SEND_DATA_MAX_SIZE ? WIFI_SEND_DATA_MAX_SIZE : total_length - sent_index;
-    	memcpy(SendData, s + sent_index, to_send);
+    	to_send = total_length - sent_index > WIFI_DATA_MAX_SIZE ? WIFI_DATA_MAX_SIZE : total_length - sent_index;
+    	memcpy(WifiData, s + sent_index, to_send);
 		// errcode:
 		// 	0x13: Wrong link_no used
 		// 	0x14: connection by link_no not present
@@ -320,7 +320,7 @@ int WifiProvider::puts(const char* s, int size)
 		// 	0x18: No clients connecting to this TCP server
 		// 	0x1E: too many errors ecountered during sending can not fixed
 		// 	0x1F: Other errors
-    	sent = M8266WIFI_SPI_Send_BlockData(SendData, to_send, 5000, tcp_link_no, NULL, 0, &status);
+    	sent = M8266WIFI_SPI_Send_BlockData(WifiData, to_send, 5000, tcp_link_no, NULL, 0, &status);
     	sent_index += sent;
 		if (sent == to_send) {
 			continue;
@@ -346,7 +346,7 @@ int WifiProvider::_getc()
 {
 	u16 status;
 	u8 to_recv = 0, link_no;
-	M8266WIFI_SPI_RecvData(&to_recv, 1, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
+	M8266WIFI_SPI_RecvData(&to_recv, 1, WIFI_DATA_TIMEOUT_MS, &link_no, &status);
 	return to_recv;
 }
 
@@ -354,8 +354,8 @@ int WifiProvider::gets(char** buf, int size)
 {
 	u16 status;
 	u8 link_no;
-	u16 received = M8266WIFI_SPI_RecvData(RecvData,
-			(size == 0 || size > WIFI_RECV_DATA_MAX_SIZE) ? WIFI_RECV_DATA_MAX_SIZE : size, WIFI_RECV_DATA_TIMEOUT_MS, &link_no, &status);
+	u16 received = M8266WIFI_SPI_RecvData(WifiData,
+			(size == 0 || size > WIFI_DATA_MAX_SIZE) ? WIFI_DATA_MAX_SIZE : size, WIFI_DATA_TIMEOUT_MS, &link_no, &status);
 	if (link_no == udp_link_no) {
 		// THEKERNEL->streams->printf("gets, data from udp");
 		return 0;
@@ -363,7 +363,7 @@ int WifiProvider::gets(char** buf, int size)
 	if (int(status & 0xff) == 32 || int(status & 0xff) == 34 || int(status & 0xff) == 47) {
 		THEKERNEL->streams->printf("gets, received: %d, status:%d, high: %d, low: %d!\n", received, status, int(status >> 8), int(status & 0xff));
 	}
-	*buf = (char *)&RecvData;
+	*buf = (char *)&WifiData;
 	return received;
 }
 
@@ -390,8 +390,8 @@ void WifiProvider::on_gcode_received(void *argument)
 				wifi_init_ok = false;
 				init_wifi_module(true);
 			} else if (gcode->subcode == 2) {
-				// set 8266 op mode
-				set_wifi_op_mode();
+				// set op mode to STA+AP
+				set_wifi_op_mode(3);
 			} else if (gcode->subcode == 3) {
 				// connect to AP
 				u8 connection_state;
@@ -535,11 +535,15 @@ void WifiProvider::on_gcode_received(void *argument)
     }
 }
 
-void WifiProvider::set_wifi_op_mode() {
+void WifiProvider::set_wifi_op_mode(u8 op_mode) {
 	u16 status = 0;
-	THEKERNEL->streams->printf("M8266WIFI_Config_Connection_via_SPI...\n");
-	if (M8266WIFI_SPI_Set_Opmode(3, 1, &status) == 0) {
+	// THEKERNEL->streams->printf("M8266WIFI_Config_Connection_via_SPI...\n");
+	if (M8266WIFI_SPI_Set_Opmode(op_mode, 1, &status) == 0) {
 		THEKERNEL->streams->printf("M8266WIFI_SPI_Set_Opmode, ERROR, status: %d!\n", status);
+	} else if (op_mode == 1) {
+		THEKERNEL->streams->printf("WiFi Access Point Disabled...\n");
+	} else if (op_mode == 3) {
+		THEKERNEL->streams->printf("WiFi Access Point Enabled...\n");
 	}
 }
 
@@ -624,7 +628,8 @@ void WifiProvider::on_set_public_data(void *argument)
     if(!pdr->second_element_is(set_wlan_checksum)
     		&& !pdr->second_element_is(ap_set_channel_checksum)
 			&& !pdr->second_element_is(ap_set_ssid_checksum)
-			&& !pdr->second_element_is(ap_set_password_checksum)) return;
+			&& !pdr->second_element_is(ap_set_password_checksum)
+			&& !pdr->second_element_is(ap_enable_checksum)) return;
 
     if (pdr->second_element_is(set_wlan_checksum)) {
         ap_conn_info *s = static_cast<ap_conn_info *>(pdr->get_data_ptr());
@@ -693,16 +698,32 @@ void WifiProvider::on_set_public_data(void *argument)
 		}
     } else if (pdr->second_element_is(ap_set_password_checksum)) {
     	u16 status = 0;
-    	char *password = static_cast<char *>(pdr->get_data_ptr());
-    	u8 authmode = strlen(password) == 0 ? 0 : 2;
-		if (M8266WIFI_SPI_Config_AP_Param(AP_PARAM_TYPE_PASSWORD, (u8 *)password, strlen(password), 1, &status) == 0) {
-			THEKERNEL->streams->printf("WiFi set AP Password ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+    	u8 op_mode;
+
+    	//Before set AP, ensure module has AP mode
+		if (M8266WIFI_SPI_Get_Opmode(&op_mode, &status) == 0) {
+			THEKERNEL->streams->printf("WiFi get OP mode ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
 		} else {
-			THEKERNEL->streams->printf("WiFi AP Password has been changed to %s\n", password);
+			if (op_mode != 3) {
+				THEKERNEL->streams->printf("WiFi can not set password under none AP mode!\n");
+			} else {
+		    	char *password = static_cast<char *>(pdr->get_data_ptr());
+		    	u8 authmode = strlen(password) == 0 ? 0 : 4;
+				if (M8266WIFI_SPI_Config_AP_Param(AP_PARAM_TYPE_PASSWORD, (u8 *)password, strlen(password), 1, &status) > 0) {
+					THEKERNEL->streams->printf("WiFi AP Password has been changed to %s\n", password);
+				}
+				if (M8266WIFI_SPI_Config_AP_Param(AP_PARAM_TYPE_AUTHMODE, &authmode, 1, 1, &status) == 0) {
+					// THEKERNEL->streams->printf("WiFi set AP Auth Mode ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
+				}
+			}
 		}
-		if (M8266WIFI_SPI_Config_AP_Param(AP_PARAM_TYPE_AUTHMODE, &authmode, 1, 1, &status) == 0) {
-			THEKERNEL->streams->printf("WiFi set AP Auth Mode ERROR, status:%d, high: %d, low: %d!\n", status, int(status >> 8), int(status & 0xff));
-		}
+    } else if (pdr->second_element_is(ap_enable_checksum)) {
+    	bool *enable_op = static_cast<bool *>(pdr->get_data_ptr());
+    	if (*enable_op) {
+        	set_wifi_op_mode(3);
+    	} else {
+        	set_wifi_op_mode(1);
+    	}
     }
 	pdr->set_taken();
 }

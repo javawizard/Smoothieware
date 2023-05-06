@@ -38,7 +38,9 @@ class Player : public Module {
         void abort_command( string parameters, StreamOutput* stream );
         void suspend_command( string parameters, StreamOutput* stream );
         void resume_command( string parameters, StreamOutput* stream );
+        void goto_command( string parameters, StreamOutput* stream );
         void buffer_command( string parameters, StreamOutput* stream );
+        void upload_command( string parameters, StreamOutput* stream );
         void download_command( string parameters, StreamOutput* stream );
         void test_command(string parameters, StreamOutput* stream );
         string extract_options(string& args);
@@ -68,6 +70,7 @@ class Player : public Module {
         unsigned long played_cnt;
         unsigned long elapsed_secs;
         unsigned long played_lines;
+        unsigned long goto_line;
         unsigned int playing_lines;
         float saved_position[3]; // only saves XYZ
         std::map<uint16_t, float> saved_temperatures;

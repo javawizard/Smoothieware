@@ -7,6 +7,7 @@
 #define ap_set_channel_checksum   CHECKSUM("ap_set_channel")
 #define ap_set_ssid_checksum   CHECKSUM("ap_set_ssid")
 #define ap_set_password_checksum   CHECKSUM("ap_set_password")
+#define ap_enable_checksum   CHECKSUM("ap_enable")
 
 struct ap_conn_info {
     char ssid[32];
