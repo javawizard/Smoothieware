@@ -237,7 +237,9 @@ bool ZProbe::run_probe(float& mm, float feedrate, float max_dist, bool reverse)
     bool dir= (!reverse_z != reverse); // xor
     float delta[3]= {0,0,0};
     delta[Z_AXIS]= dir ? -maxz : maxz;
+    THEKERNEL->set_zprobing(true);
     THEROBOT->delta_move(delta, feedrate, 3);
+    THEKERNEL->set_zprobing(false);
 
     // wait until finished
     THECONVEYOR->wait_for_idle();
@@ -474,13 +476,16 @@ void ZProbe::probe_XYZ(Gcode *gcode)
 
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {x, y, z};
+    THEKERNEL->set_zprobing(true);
     if(!THEROBOT->delta_move(delta, rate, 3)) {
     	gcode->stream->printf("ERROR: Move too small,  %1.3f, %1.3f, %1.3f\n", x, y, z);
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(PROBE_FAIL);
         probing = false;
+        THEKERNEL->set_zprobing(false);
         return;
     }
+    THEKERNEL->set_zprobing(false);
 
     THEKERNEL->conveyor->wait_for_idle();
 
@@ -540,13 +545,16 @@ void ZProbe::calibrate_Z(Gcode *gcode)
 
     // do a delta move which will stop as soon as the probe is triggered, or the distance is reached
     float delta[3]= {0, 0, z};
+    THEKERNEL->set_zprobing(true);
     if(!THEROBOT->delta_move(delta, rate, 3)) {
         gcode->stream->printf("ERROR: Move too small,  %1.3f\n", z);
         THEKERNEL->call_event(ON_HALT, nullptr);
         THEKERNEL->set_halt_reason(PROBE_FAIL);
         calibrating = false;
+        THEKERNEL->set_zprobing(false);
         return;
     }
+    THEKERNEL->set_zprobing(false);
 
     THEKERNEL->conveyor->wait_for_idle();
 

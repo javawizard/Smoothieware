@@ -143,6 +143,9 @@ class Kernel {
         void set_aborted(bool f) { aborted = f; }
         bool is_aborted() const { return aborted; }
 
+        void set_zprobing(bool f) { zprobing = f; }
+        bool is_zprobing() const { return zprobing; }
+
         void set_halt_reason(uint8_t reason) { halt_reason = reason; }
         uint8_t get_halt_reason() const { return halt_reason; }
 
@@ -198,6 +201,7 @@ class Kernel {
             bool suspending: 1;
             bool waiting: 1;
             bool aborted: 1;
+            bool zprobing:1;
         };
 
 };
