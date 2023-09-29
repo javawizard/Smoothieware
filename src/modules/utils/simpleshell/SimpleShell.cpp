@@ -71,7 +71,7 @@ extern "C" uint32_t  __malloc_free_list;
 extern "C" uint32_t  _sbrk(int size);
 
 // version definition
-#define VERSION "0.9.5"
+#define VERSION "0.9.6"
 
 // command lookup table
 const SimpleShell::ptentry_t SimpleShell::commands_table[] = {

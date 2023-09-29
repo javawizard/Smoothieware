@@ -62,11 +62,12 @@ gamma_steps_per_mm							200				# Steps per mm for gamma ( Z ) stepper
 
 # A axis
 delta_step_pin								1.18			# Pin for delta stepper step signal
-delta_dir_pin								1.20			# Pin for delta stepper direction
+delta_dir_pin								1.20!			# Pin for delta stepper direction
 delta_en_pin								3.26			# Pin for delta enable
 #delta_max_rate								10800.0			# mm/min transform from degree/min
 #delta_acceleration							360			    # degree/secÂ²
-delta_steps_per_mm							26.667			# may be steps per degree for example (26.67)
+delta_steps_per_mm							26.666667			# may be steps per degree for example (26.67)
+#delta_steps_per_mm							44.444444			# may be steps per degree for example (26.67)
 
 # B axis
 epsilon_step_pin							1.21			# Pin for delta stepper step signal
