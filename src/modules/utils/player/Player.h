@@ -53,7 +53,10 @@ class Player : public Module {
         unsigned int crc16_ccitt(unsigned char *data, unsigned int len);
         int check_crc(int crc, unsigned char *data, unsigned int len);
 
+        bool check_cluster(const char *gcode_str, float *x_value, float *y_value, float *distance, float *slope, float *s_value);
+
         string filename;
+        string last_filename;
         string after_suspend_gcode;
         string before_resume_gcode;
         string on_boot_gcode;
@@ -73,6 +76,7 @@ class Player : public Module {
         unsigned long goto_line;
         unsigned int playing_lines;
         float saved_position[3]; // only saves XYZ
+        float slope;
         std::map<uint16_t, float> saved_temperatures;
         struct {
             bool on_boot_gcode_enable:1;

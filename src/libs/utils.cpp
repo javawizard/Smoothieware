@@ -335,3 +335,4 @@ void ltrim(std::string& s, const char* t)
 {
     s.erase(0, s.find_first_not_of(t));
 }
+

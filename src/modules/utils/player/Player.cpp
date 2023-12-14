@@ -33,6 +33,8 @@
 #include "StepTicker.h"
 #include "Block.h"
 
+#include <math.h>
+
 #include <cstddef>
 #include <cmath>
 #include <algorithm>
@@ -71,6 +73,7 @@ Player::Player()
     this->elapsed_secs = 0;
     this->reply_stream = nullptr;
     this->inner_playing = false;
+    this->slope = 0.0;
 }
 
 void Player::on_module_loaded()
@@ -336,6 +339,7 @@ void Player::play_command( string parameters, StreamOutput *stream )
     string options= extract_options(parameters);
     // Get filename which is the entire parameter line upto any options found or entire line
     this->filename = absolute_from_relative(shift_parameter(parameters));
+    this->last_filename = this->filename;
 
     if (this->playing_file || THEKERNEL->is_suspending() || THEKERNEL->is_waiting()) {
         stream->printf("Currently printing, abort print first\r\n");
@@ -572,10 +576,16 @@ void Player::on_main_loop(void *argument)
             return;
         }
 
-        char buf[130]; // lines upto 128 characters are allowed, anything longer is discarded
+        char buf[130]; // lines up to 128 characters are allowed, anything longer is discarded
         bool discard = false;
+        bool is_cluster = false;
+        int cluster_index = 0;
+        float x_value = 0.0, y_value = 0.0, sum_x_value = 0.0, sum_y_value = 0.0,
+        		s_value = 0.0, distance = 0.0, min_distance = 10000.0, sum_distance = 0.0;
+        string clustered_gcode = "";
 
-        while(fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
+        while (fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
+
             int len = strlen(buf);
             if (len == 0) continue; // empty line? should not be possible
             if (buf[len - 1] == '\n' || feof(this->current_file_handler)) {
@@ -583,9 +593,61 @@ void Player::on_main_loop(void *argument)
                     discard = false;
                     continue;
                 }
-                if(len == 1) continue; // empty line
 
-                if(this->current_stream != nullptr) {
+                if (len == 1) continue; // empty line
+
+            	// Add laser cluster support when in laser mode
+            	if (THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 10000) {
+            		// G1 X0.5 Y 0.8 S1:0:0.5:0.75:0:0.2
+            		is_cluster = this->check_cluster(buf, &x_value, &y_value, &distance, &slope, &s_value);
+            		min_distance = min(min_distance, distance);
+            		sum_x_value += x_value;
+            		sum_y_value += y_value;
+            		sum_distance += distance;
+            		if (is_cluster && (min_distance > 0 && sum_distance * 1.0 / min_distance < 8.1)) {
+						clustered_gcode.append("New Cluster Code");
+						cluster_index ++;
+						played_lines += 1;
+						played_cnt += len;
+						if (cluster_index >= 8 || (min_distance > 0 && sum_distance * 1.0 / min_distance > 7.9)) {
+							// send clustered Gcode
+							if (this->current_stream != nullptr) {
+								this->current_stream->printf("%s", clustered_gcode.c_str());
+							}
+
+							struct SerialMessage message;
+							message.message = clustered_gcode;
+							message.stream = this->current_stream == nullptr ? &(StreamOutput::NullStream) : this->current_stream;
+							message.line = played_lines + 1;
+
+							// waits for the queue to have enough room
+							THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+							return;
+						}
+						continue;
+            		} else {
+            			sum_x_value = 0.0;
+            			sum_y_value = 0.0;
+            			sum_distance = 0.0;
+            			cluster_index = 0;
+                		if (cluster_index > 0) {
+    						// send clustered Gcode
+    						if (this->current_stream != nullptr) {
+    							this->current_stream->printf("%s", clustered_gcode.c_str());
+    						}
+
+    						struct SerialMessage message;
+    						message.message = clustered_gcode;
+    						message.stream = this->current_stream == nullptr ? &(StreamOutput::NullStream) : this->current_stream;
+    						message.line = played_lines + 1;
+
+    						// waits for the queue to have enough room
+    						THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+                		}
+            		}
+            	}
+
+                if (this->current_stream != nullptr) {
                     this->current_stream->printf("%s", buf);
                 }
 
@@ -603,7 +665,7 @@ void Player::on_main_loop(void *argument)
 
             } else {
                 // discard long line
-                if(this->current_stream != nullptr) { this->current_stream->printf("Warning: Discarded long line\n"); }
+                if (this->current_stream != nullptr) { this->current_stream->printf("Warning: Discarded long line\n"); }
                 discard = true;
             }
         }
@@ -625,6 +687,33 @@ void Player::on_main_loop(void *argument)
             this->reply_stream = NULL;
         }
     }
+}
+
+bool Player::check_cluster(const char *gcode_str, float *x_value, float *y_value, float *distance, float *slope, float *s_value)
+{
+	float new_slope = 0.0;
+	bool is_cluster = false;
+	Gcode *gcode = new Gcode(gcode_str, &StreamOutput::NullStream);
+	if (!gcode->has_m && gcode->has_g && gcode->g == 1) {
+		*x_value = gcode->get_value('X');
+		*y_value = gcode->get_value('Y');
+		*s_value = gcode->get_value('S');
+		*distance = sqrtf((*x_value) * (*x_value) + (*y_value) * (*y_value));
+		if (*x_value == 0) {
+			new_slope = *y_value > 0 ? 1000 : -1000;
+		} else if (*y_value == 0) {
+			new_slope = *x_value > 0 ? 0.001 : -0.001;
+		} else {
+			new_slope = *y_value / *x_value;
+		}
+		if (fabs (new_slope - *slope) < 0.01) {
+			is_cluster = true;
+		}
+		*slope = new_slope;
+	}
+	delete gcode;
+
+	return is_cluster;
 }
 
 void Player::on_get_public_data(void *argument)
@@ -682,6 +771,11 @@ void Player::on_set_public_data(void *argument)
     	bool b = *static_cast<bool *>(pdr->get_data_ptr());
     	this->inner_playing = b;
     	if (this->playing_file) pdr->set_taken();
+    } else if (pdr->second_element_is(restart_job_checksum)) {
+    	if (!this->last_filename.empty()) {
+    		THEKERNEL->streams->printf("Job restarted: %s.\r\n", this->last_filename.c_str());
+        	this->play_command(this->last_filename, &(StreamOutput::NullStream));
+    	}
     }
 }
 

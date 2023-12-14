@@ -18,6 +18,7 @@
 #include "MainButtonPublicAccess.h"
 #include "TemperatureControlPublicAccess.h"
 #include "LaserPublicAccess.h"
+#include "PlayerPublicAccess.h"
 
 using namespace std;
 
@@ -235,12 +236,15 @@ void MainButton::on_idle(void *argument)
     	} else if (button_state == BUTTON_LONG_PRESSED) {
     		switch (state) {
     			case IDLE:
-    				// turn off 12V/24V power supply
-    				this->switch_power_12(0);
-    				this->switch_power_24(0);
-    				// sleep
-    				THEKERNEL->set_sleeping(true);
-    				THEKERNEL->call_event(ON_HALT, nullptr);
+    				// restart last job (if there is)
+    			    PublicData::set_value( player_checksum, restart_job_checksum, NULL);
+
+// turn off 12V/24V power supply
+//    				this->switch_power_12(0);
+//    				this->switch_power_24(0);
+//    				// sleep
+//    				THEKERNEL->set_sleeping(true);
+//    				THEKERNEL->call_event(ON_HALT, nullptr);
     				break;
     			case RUN:
     			case HOME:
