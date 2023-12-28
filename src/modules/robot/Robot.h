@@ -142,6 +142,8 @@ class Robot : public Module {
         float seconds_per_minute;                            // for realtime speed change
         float default_acceleration;                          // the defualt accleration if not set for each axis
         float s_value;                                       // modal S value
+        float s_values[8];                                   // block S values
+		int   s_count;
         float arc_milestone[3];                              // used as start of an arc command
 
         float laser_module_offset_x;

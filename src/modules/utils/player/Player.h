@@ -69,6 +69,7 @@ class Player : public Module {
         void clear_buffered_queue();
 
         FILE* current_file_handler;
+        // FILE* temp_file_handler;
         long file_size;
         unsigned long played_cnt;
         unsigned long elapsed_secs;

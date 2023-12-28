@@ -423,8 +423,9 @@ laser_module_maximum_power 1.0			# Max laser power (0 - 1)
 laser_module_minimum_power 0.0			# Min laser power (0 - 1)
 laser_module_offset_x -37.3				# Laser module X offset relative to spindle
 laser_module_offset_y 4.8				# Laser module Y offset relative to spindle
-laser_module_offset_z -45.0 			# Laser module Z offset relative to spindle
+laser_module_offset_z -45.0 			# Laser module Z offset relative to spindle 
 temperatureswitch.spindle.cooldown_power_laser 80.0		# cooldown power for laser module
+laser_module_cluster false				#
 
 # Z-probe
 zprobe.slow_feedrate 1.5				# Z probe slow speed (mm/s)

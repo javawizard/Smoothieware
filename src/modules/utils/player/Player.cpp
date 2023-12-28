@@ -47,6 +47,7 @@
 #define after_suspend_gcode_checksum      CHECKSUM("after_suspend_gcode")
 #define before_resume_gcode_checksum      CHECKSUM("before_resume_gcode")
 #define leave_heaters_on_suspend_checksum CHECKSUM("leave_heaters_on_suspend")
+#define laser_module_cluster_checksum 	  CHECKSUM("laser_module_cluster")
 
 extern SDFAT mounter;
 
@@ -350,6 +351,13 @@ void Player::play_command( string parameters, StreamOutput *stream )
         fclose(this->current_file_handler);
     }
 
+//    this->temp_file_handler = fopen ("/sd/gcodes/temp.nc", "w");
+//    if (this->temp_file_handler == NULL) {
+//        stream->printf("File open error: /sd/gcodes/temp.nc\n");
+//        return;
+//    }
+
+
     this->current_file_handler = fopen( this->filename.c_str(), "r");
     if(this->current_file_handler == NULL) {
         stream->printf("File not found: %s\r\n", this->filename.c_str());
@@ -581,8 +589,11 @@ void Player::on_main_loop(void *argument)
         bool is_cluster = false;
         int cluster_index = 0;
         float x_value = 0.0, y_value = 0.0, sum_x_value = 0.0, sum_y_value = 0.0,
-        		s_value = 0.0, distance = 0.0, min_distance = 10000.0, sum_distance = 0.0;
+        		s_value = 0.0, distance = 0.0, min_distance = 10000.0, min_value = 0.0,
+				sum_distance = 0.0, sum_value = 0.0;
         string clustered_gcode = "";
+        float clustered_s_value[8];
+        float clustered_distance[8];
 
         while (fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
 
@@ -597,23 +608,30 @@ void Player::on_main_loop(void *argument)
                 if (len == 1) continue; // empty line
 
             	// Add laser cluster support when in laser mode
-            	if (THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 10000) {
+            	if (THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 100) {
             		// G1 X0.5 Y 0.8 S1:0:0.5:0.75:0:0.2
             		is_cluster = this->check_cluster(buf, &x_value, &y_value, &distance, &slope, &s_value);
-            		min_distance = min(min_distance, distance);
-            		sum_x_value += x_value;
-            		sum_y_value += y_value;
-            		sum_distance += distance;
-            		if (is_cluster && (min_distance > 0 && sum_distance * 1.0 / min_distance < 8.1)) {
-						clustered_gcode.append("New Cluster Code");
-						cluster_index ++;
-						played_lines += 1;
-						played_cnt += len;
+                    min_value = fmin(min_distance, distance);
+                    sum_value = sum_distance + distance;
+            		if (is_cluster && (min_value > 0 && sum_value * 1.0 / min_value < 8.1)) {
+                        min_distance = min_value;
+                        sum_distance = sum_value;
+                        sum_x_value += x_value;
+                        sum_y_value += y_value;
+                        cluster_index ++;
+                        clustered_s_value[cluster_index - 1] = s_value;
+                        clustered_distance[cluster_index - 1] = distance;
+                        played_lines += 1;
+                        played_cnt += len;
 						if (cluster_index >= 8 || (min_distance > 0 && sum_distance * 1.0 / min_distance > 7.9)) {
-							// send clustered Gcode
-							if (this->current_stream != nullptr) {
-								this->current_stream->printf("%s", clustered_gcode.c_str());
-							}
+	                        sprintf(md5_str, "G1 X%.3f Y%.3f S", sum_x_value, sum_y_value);
+	                        clustered_gcode = md5_str;
+	                        for (int i = 0; i < cluster_index; i ++) {
+	                            for (float j = min_distance; j < clustered_distance[i] + 0.01; j+= min_distance) {
+	                            	sprintf(md5_str, "%s%.2f", (i == 0 ? "" : ":"), clustered_s_value[i]);
+	                                clustered_gcode.append(md5_str);
+	                            }
+	                        }
 
 							struct SerialMessage message;
 							message.message = clustered_gcode;
@@ -622,19 +640,23 @@ void Player::on_main_loop(void *argument)
 
 							// waits for the queue to have enough room
 							THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+							// fputs(clustered_gcode.c_str(), this->temp_file_handler);
+							// fputs("\n", this->temp_file_handler);
+							// THEKERNEL->streams->printf("1-[Line: %d] %s\n", message.line, clustered_gcode.c_str());
 							return;
 						}
 						continue;
             		} else {
-            			sum_x_value = 0.0;
-            			sum_y_value = 0.0;
-            			sum_distance = 0.0;
-            			cluster_index = 0;
                 		if (cluster_index > 0) {
-    						// send clustered Gcode
-    						if (this->current_stream != nullptr) {
-    							this->current_stream->printf("%s", clustered_gcode.c_str());
-    						}
+	                        sprintf(md5_str, "G1 X%.3f Y%.3f S", sum_x_value, sum_y_value);
+	                        clustered_gcode = md5_str;
+	                        for (int i = 0; i < cluster_index; i ++) {
+	                            for (float j = min_distance; j < clustered_distance[i] + 0.01; j+= min_distance) {
+	                            	sprintf(md5_str, "%s%.2f", (i == 0 ? "" : ":"), clustered_s_value[i]);
+	                                clustered_gcode.append(md5_str);
+	                            }
+	                        }
+	                        clustered_gcode.append("\n");
 
     						struct SerialMessage message;
     						message.message = clustered_gcode;
@@ -643,7 +665,15 @@ void Player::on_main_loop(void *argument)
 
     						// waits for the queue to have enough room
     						THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+    						// fputs(clustered_gcode.c_str(), this->temp_file_handler);
+    						// fputs("\n", this->temp_file_handler);
+    						// THEKERNEL->streams->printf("2-[Line: %d] %s\n", message.line, clustered_gcode.c_str());
                 		}
+                        sum_x_value = 0.0;
+                        sum_y_value = 0.0;
+                        sum_distance = 0.0;
+                        cluster_index = 0;
+                        min_distance = 10000.0;
             		}
             	}
 
@@ -659,6 +689,8 @@ void Player::on_main_loop(void *argument)
                 // waits for the queue to have enough room
                 // this->current_stream->printf("Run: %s", buf);
                 THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+                // fputs(buf, this->temp_file_handler);
+                // THEKERNEL->streams->printf("0-[Line: %d] %s\n", message.line, buf);
                 played_lines += 1;
                 played_cnt += len;
                 return; // we feed one line per main loop
@@ -677,8 +709,10 @@ void Player::on_main_loop(void *argument)
         playing_lines = 0;
         goto_line = 0;
         file_size = 0;
+
         fclose(this->current_file_handler);
         current_file_handler = NULL;
+
         this->current_stream = NULL;
 
         if(this->reply_stream != NULL) {
@@ -706,7 +740,7 @@ bool Player::check_cluster(const char *gcode_str, float *x_value, float *y_value
 		} else {
 			new_slope = *y_value / *x_value;
 		}
-		if (fabs (new_slope - *slope) < 0.01) {
+		if ((*distance) < 1.0 && fabs (new_slope - *slope) < 0.1) {
 			is_cluster = true;
 		}
 		*slope = new_slope;
@@ -875,7 +909,8 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
-    if (this->goto_line == 0) {
+    //if (this->goto_line == 0) {
+    if (false) {
         // Restore position
         stream->printf("Restoring saved XYZ positions and state...\n");
         // force absolute mode for restoring position, then set to the saved relative/absolute mode
