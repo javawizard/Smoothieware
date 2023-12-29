@@ -909,8 +909,10 @@ void Player::resume_command(string parameters, StreamOutput *stream )
         THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
     }
 
-    //if (this->goto_line == 0) {
-    if (false) {
+    if (this->goto_line == 0) {
+//    	float delta[Y_AXIS + 1];
+//    	delta[Y_AXIS]= 10;
+//    	THEROBOT->delta_move(delta, 1000, Y_AXIS + 1);
         // Restore position
         stream->printf("Restoring saved XYZ positions and state...\n");
         // force absolute mode for restoring position, then set to the saved relative/absolute mode
@@ -925,7 +927,6 @@ void Player::resume_command(string parameters, StreamOutput *stream )
             message.line = 0;
             THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
         }
-
     }
 
     THEROBOT->pop_state();
