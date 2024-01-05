@@ -141,7 +141,7 @@ try_again:
 
 			if(!uploading || upload_stream != new_message.stream) {
 				// Prepare gcode for dispatch
-				new_message.stream->printf("GCode1: %s!\n", single_command.c_str());
+				// new_message.stream->printf("GCode1: %s!\n", single_command.c_str());
 				Gcode *gcode = new Gcode(single_command, new_message.stream, false, new_message.line);
 
 				if(THEKERNEL->is_halted()) {

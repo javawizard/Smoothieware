@@ -454,7 +454,7 @@ bool CartGridStrategy::handleGcode(Gcode *gcode)
             if(gcode->subcode == 1) {
                 print_bed_level(gcode->stream);
             } else {
-                if(load_grid(gcode->stream)) setAdjustFunction(true);
+                if (load_grid(gcode->stream)) setAdjustFunction(true);
             }
             return true;
 
@@ -704,6 +704,8 @@ bool CartGridStrategy::doProbe(Gcode *gc)
 
     setAdjustFunction(true);
 
+    THEROBOT->set_max_delta(max_delta);
+
     return true;
 }
 
@@ -841,4 +843,5 @@ void CartGridStrategy::reset_bed_level()
             grid[x + (current_grid_x_size * y)] = NAN;
         }
     }
+    THEROBOT->set_max_delta(0.0);
 }

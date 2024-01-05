@@ -47,7 +47,7 @@
 #define after_suspend_gcode_checksum      CHECKSUM("after_suspend_gcode")
 #define before_resume_gcode_checksum      CHECKSUM("before_resume_gcode")
 #define leave_heaters_on_suspend_checksum CHECKSUM("leave_heaters_on_suspend")
-#define laser_module_cluster_checksum 	  CHECKSUM("laser_module_cluster")
+#define laser_module_clustering_checksum 	  CHECKSUM("laser_module_clustering")
 
 extern SDFAT mounter;
 
@@ -97,6 +97,8 @@ void Player::on_module_loaded()
     std::replace( this->after_suspend_gcode.begin(), this->after_suspend_gcode.end(), '_', ' '); // replace _ with space
     std::replace( this->before_resume_gcode.begin(), this->before_resume_gcode.end(), '_', ' '); // replace _ with space
     this->leave_heaters_on = THEKERNEL->config->value(leave_heaters_on_suspend_checksum)->by_default(false)->as_bool();
+
+    this->laser_clustering = THEKERNEL->config->value(laser_module_clustering_checksum)->by_default(false)->as_bool();
 }
 
 void Player::on_halt(void* argument)
@@ -608,7 +610,7 @@ void Player::on_main_loop(void *argument)
                 if (len == 1) continue; // empty line
 
             	// Add laser cluster support when in laser mode
-            	if (THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 100) {
+            	if (this->laser_clustering && THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 100) {
             		// G1 X0.5 Y 0.8 S1:0:0.5:0.75:0:0.2
             		is_cluster = this->check_cluster(buf, &x_value, &y_value, &distance, &slope, &s_value);
                     min_value = fmin(min_distance, distance);
@@ -863,6 +865,7 @@ void Player::suspend_command(string parameters, StreamOutput *stream )
 
     // save current state
     THEROBOT->push_state();
+    current_motion_mode = THEROBOT->get_current_motion_mode();
 
     // execute optional gcode if defined
     if(!after_suspend_gcode.empty()) {
@@ -910,23 +913,25 @@ void Player::resume_command(string parameters, StreamOutput *stream )
     }
 
     if (this->goto_line == 0) {
-//    	float delta[Y_AXIS + 1];
-//    	delta[Y_AXIS]= 10;
-//    	THEROBOT->delta_move(delta, 1000, Y_AXIS + 1);
         // Restore position
         stream->printf("Restoring saved XYZ positions and state...\n");
-        // force absolute mode for restoring position, then set to the saved relative/absolute mode
+
         THEROBOT->absolute_mode = true;
-        {
-            // NOTE position was saved in WCS (for tool change which may change WCS expecially the Z)
-            char buf[128];
-            snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f", saved_position[0], saved_position[1], saved_position[2], THEROBOT->from_millimeters(1000));
-            struct SerialMessage message;
+
+        char buf[128];
+        snprintf(buf, sizeof(buf), "G1 X%.3f Y%.3f Z%.3f F%.3f", saved_position[0], saved_position[1], saved_position[2], THEROBOT->from_millimeters(1000));
+        struct SerialMessage message;
+        message.message = buf;
+        message.stream = &(StreamOutput::NullStream);
+        message.line = 0;
+        THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
+
+    	if (current_motion_mode > 1) {
+            snprintf(buf, sizeof(buf), "G%d", current_motion_mode - 1);
             message.message = buf;
-            message.stream = &(StreamOutput::NullStream);
             message.line = 0;
-            THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message );
-        }
+            THEKERNEL->call_event(ON_CONSOLE_LINE_RECEIVED, &message);
+    	}
     }
 
     THEROBOT->pop_state();

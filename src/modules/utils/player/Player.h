@@ -76,6 +76,7 @@ class Player : public Module {
         unsigned long played_lines;
         unsigned long goto_line;
         unsigned int playing_lines;
+        uint8_t current_motion_mode;
         float saved_position[3]; // only saves XYZ
         float slope;
         std::map<uint16_t, float> saved_temperatures;
@@ -87,5 +88,6 @@ class Player : public Module {
             bool leave_heaters_on:1;
             bool override_leave_heaters_on:1;
             bool inner_playing:1;
+            bool laser_clustering:1;
         };
 };

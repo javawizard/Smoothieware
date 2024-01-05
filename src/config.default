@@ -318,9 +318,6 @@ spindle.control_smoothing					0.1				# default 0.1. This value is low pass filte
 spindle.delay_s								3.0				# delay seconds before next motion after spindle turn on or off
 spindle.acc_ratio							1.635			# acceleration ratio
 spindle.alarm_pin							0.19^			# spindle alarm trigger pin
-spindle.stall_s								1.0				# how many seconds before report stall status
-spindle.stall_count_rpm						3000			# don't calculate stall when lower than this RPM
-spindle.stall_alarm_rpm						1500			# consider as stall alarm if lower than this RPM
 
 # Light
 # light.turn_off_min							0
@@ -383,6 +380,12 @@ coordinate.clearance_x -75.0			# X Machine coordinates for clearance
 coordinate.clearance_y -3.0				# Y Machine coordinates for clearance
 coordinate.clearance_z -3.0				# Z Machine coordinates for clearance
 
+soft_endstop.enable	True				# enable soft limit or not
+soft_endstop.x_min	-370.0				# Soft Limit X Min Machine Coordinate
+soft_endstop.y_min	-250.0				# Soft Limit Y Min Machine Coordinate
+soft_endstop.z_min	-135.0				# Soft Limit Z Min Machine Coordinate
+
+
 # Motion
 default_feed_rate 1000					# Feed rate when F parameter is not set (mm/min)
 default_seek_rate 3000					# Feed rate for G0 rapid mode (mm/min)
@@ -425,7 +428,7 @@ laser_module_offset_x -37.3				# Laser module X offset relative to spindle
 laser_module_offset_y 4.8				# Laser module Y offset relative to spindle
 laser_module_offset_z -45.0 			# Laser module Z offset relative to spindle 
 temperatureswitch.spindle.cooldown_power_laser 80.0		# cooldown power for laser module
-laser_module_cluster false				#
+laser_module_clustering false				#
 
 # Z-probe
 zprobe.slow_feedrate 1.5				# Z probe slow speed (mm/s)
@@ -441,6 +444,10 @@ temperatureswitch.spindle.cooldown_power_init  50.0			# Cooldown fan start power
 temperatureswitch.spindle.cooldown_power_step  10.0			# Cooldown fan start power increase step per degree
 temperatureswitch.spindle.cooldown_delay       180			# Stop cooldown after these seconds
 temperature_control.spindle.max_temp		60				# Alarm and halt machine when overheated
+
+spindle.stall_s								1.0				# how many seconds before report stall status
+spindle.stall_count_rpm						8000			# don't calculate stall when lower than this RPM
+spindle.stall_alarm_rpm						5000			# consider as stall alarm if lower than this RPM
 
 # wireless probe
 wp.min_voltage								3.6			# Wireless probe charge start voltage

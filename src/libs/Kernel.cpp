@@ -402,6 +402,13 @@ std::string Kernel::get_query_string()
         str.append(buf, n);
     }
 
+    // if auto leveling is active
+    if (robot->compensationTransform != nullptr) {
+        n = snprintf(buf, sizeof(buf), "|O:%1.3f", robot->get_max_delta());
+        if(n > sizeof(buf)) n = sizeof(buf);
+        str.append(buf, n);
+    }
+
     // if halted
     if (halted) {
         n = snprintf(buf, sizeof(buf), "|H:%d", halt_reason);

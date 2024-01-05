@@ -45,6 +45,8 @@ class Robot : public Module {
         float get_feed_rate() const;
         float get_s_value() const { return s_value; }
         void set_s_value(float s) { s_value= s; }
+        float get_max_delta() const { return max_delta; }
+        void set_max_delta(float delta) {max_delta = delta; }
         void  push_state();
         void  pop_state();
         void check_max_actuator_speeds();
@@ -62,6 +64,7 @@ class Robot : public Module {
         bool delta_move(const float delta[], float rate_mm_s, uint8_t naxis);
         uint8_t register_motor(StepperMotor*);
         uint8_t get_number_registered_motors() const {return n_motors; }
+        uint8_t get_current_motion_mode() const {return current_motion_mode; }
         void clearLaserOffset();
 
         BaseSolution* arm_solution;                           // Selected Arm solution ( millimeters to step calculation )
@@ -127,6 +130,7 @@ class Robot : public Module {
         wcs_t tool_offset; // used for multiple extruders, sets the tool offset for the current extruder applied first
         std::tuple<float, float, float, uint8_t> last_probe_position{0,0,0,0};
 
+        uint8_t current_motion_mode;
         using saved_state_t= std::tuple<float, float, bool, bool, bool, bool, uint8_t>; // save current feedrate and absolute mode, e absolute mode, inch mode, is_g123, current_wcs
         std::stack<saved_state_t> state_stack;               // saves state from M120
 
@@ -145,6 +149,7 @@ class Robot : public Module {
         float s_values[8];                                   // block S values
 		int   s_count;
         float arc_milestone[3];                              // used as start of an arc command
+        float max_delta;
 
         float laser_module_offset_x;
 		float laser_module_offset_y;

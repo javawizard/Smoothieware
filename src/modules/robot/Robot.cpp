@@ -96,13 +96,14 @@
 
 #define enable_checksum                    CHECKSUM("enable")
 #define halt_checksum                      CHECKSUM("halt")
-#define soft_endstop_checksum              CHECKSUM("soft_endstop")
 #define coordinate_checksum				   CHECKSUM("coordinate")
 #define anchor1_x_checksum		           CHECKSUM("anchor1_x")
 #define anchor1_y_checksum			       CHECKSUM("anchor1_y")
-#define xmax_checksum                      CHECKSUM("alpha_homing_retract_mm")
-#define ymax_checksum                      CHECKSUM("beta_homing_retract_mm")
-#define zmax_checksum                      CHECKSUM("gamma_homing_retract_mm")
+
+#define soft_endstop_checksum              CHECKSUM("soft_endstop")
+#define xmin_checksum                      CHECKSUM("x_min")
+#define ymin_checksum                      CHECKSUM("y_min")
+#define zmin_checksum                      CHECKSUM("z_min")
 
 #define PI 3.14159265358979323846F // force to be float, do not use M_PI
 
@@ -314,13 +315,12 @@ void Robot::load_config()
     soft_endstop_enabled= THEKERNEL->config->value(soft_endstop_checksum, enable_checksum)->by_default(true)->as_bool();
     soft_endstop_halt = THEKERNEL->config->value(soft_endstop_checksum, halt_checksum)->by_default(true)->as_bool();
 
-    soft_endstop_max[X_AXIS]= 0 - THEKERNEL->config->value(xmax_checksum)->by_default(1)->as_number();
-    soft_endstop_max[Y_AXIS]= 0 - THEKERNEL->config->value(ymax_checksum)->by_default(1)->as_number();
-    soft_endstop_max[Z_AXIS]= 0 - THEKERNEL->config->value(zmax_checksum)->by_default(1)->as_number();
-    soft_endstop_min[X_AXIS]= THEKERNEL->config->value(coordinate_checksum, anchor1_x_checksum)->by_default(-359)->as_number() - 12;
-    soft_endstop_min[Y_AXIS]= THEKERNEL->config->value(coordinate_checksum, anchor1_y_checksum)->by_default(-234)->as_number() - 15;
-    soft_endstop_min[Z_AXIS]= 0 - THEKERNEL->config->value(zmax_checksum)->by_default(1)->as_number() - 136;
-
+    soft_endstop_max[X_AXIS]= -1;
+    soft_endstop_max[Y_AXIS]= -1;
+    soft_endstop_max[Z_AXIS]= -1;
+    soft_endstop_min[X_AXIS] = THEKERNEL->config->value(soft_endstop_checksum, xmin_checksum)->by_default(-370.0F)->as_number();
+    soft_endstop_min[Y_AXIS] = THEKERNEL->config->value(soft_endstop_checksum, ymin_checksum)->by_default(-250.0F)->as_number();
+    soft_endstop_min[Z_AXIS] = THEKERNEL->config->value(soft_endstop_checksum, zmin_checksum)->by_default(-135.0F)->as_number();
 }
 
 uint8_t Robot::register_motor(StepperMotor *motor)
@@ -1017,10 +1017,12 @@ void Robot::on_gcode_received(void *argument)
     if( motion_mode != NONE) {
         is_g123= motion_mode != SEEK;
         process_move(gcode, motion_mode);
-
-    }else{
+        // THEKERNEL->streams->printf("GCode: [%s], mode:[%d]\n", gcode->get_command(), motion_mode);
+    } else {
         is_g123= false;
     }
+
+    current_motion_mode = motion_mode;
 
     next_command_is_MCS = false; // must be on same line as G0 or G1
 }
