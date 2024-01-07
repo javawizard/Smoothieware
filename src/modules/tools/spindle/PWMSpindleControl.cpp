@@ -71,7 +71,7 @@ void PWMSpindleControl::on_module_loaded()
     control_D_term = THEKERNEL->config->value(spindle_checksum, spindle_control_D_checksum)->by_default(0.0001f)->as_number();
 
     delay_s        = THEKERNEL->config->value(spindle_checksum, spindle_delay_s_checksum)->by_default(3)->as_number();
-    stall_s        = THEKERNEL->config->value(spindle_checksum, spindle_stall_s_checksum)->by_default(1)->as_number();
+    stall_s        = THEKERNEL->config->value(spindle_checksum, spindle_stall_s_checksum)->by_default(100)->as_number();
     stall_count_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_count_rpm_checksum)->by_default(8000)->as_number();
     stall_alarm_rpm = THEKERNEL->config->value(spindle_checksum, spindle_stall_alarm_rpm_checksum)->by_default(5000)->as_number();
     acc_ratio      = THEKERNEL->config->value(spindle_checksum, spindle_acc_ratio_checksum)->by_default(1.0f)->as_number();
@@ -338,11 +338,12 @@ void PWMSpindleControl::on_idle(void *argument)
 		return;
     }
     // check spindle stall
+    /*
     if (this->get_stall()) {
 		THEKERNEL->streams->printf("ALARM: Spindle stall triggered -  reset required\n");
 		THEKERNEL->call_event(ON_HALT, nullptr);
 		THEKERNEL->set_halt_reason(SPINDLE_STALL);
-    }
+    }*/
 
 }
 

@@ -319,6 +319,11 @@ spindle.delay_s								3.0				# delay seconds before next motion after spindle t
 spindle.acc_ratio							1.635			# acceleration ratio
 spindle.alarm_pin							0.19^			# spindle alarm trigger pin
 
+#spindle.stall_s								1.0				# how many seconds before report stall status
+#spindle.stall_count_rpm						8000			# don't calculate stall when lower than this RPM
+#spindle.stall_alarm_rpm						5000			# consider as stall alarm if lower than this RPM
+
+
 # Light
 # light.turn_off_min							0
 
@@ -444,10 +449,6 @@ temperatureswitch.spindle.cooldown_power_init  50.0			# Cooldown fan start power
 temperatureswitch.spindle.cooldown_power_step  10.0			# Cooldown fan start power increase step per degree
 temperatureswitch.spindle.cooldown_delay       180			# Stop cooldown after these seconds
 temperature_control.spindle.max_temp		60				# Alarm and halt machine when overheated
-
-spindle.stall_s								1.0				# how many seconds before report stall status
-spindle.stall_count_rpm						8000			# don't calculate stall when lower than this RPM
-spindle.stall_alarm_rpm						5000			# consider as stall alarm if lower than this RPM
 
 # wireless probe
 wp.min_voltage								3.6			# Wireless probe charge start voltage
