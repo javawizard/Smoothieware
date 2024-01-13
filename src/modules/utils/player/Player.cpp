@@ -588,6 +588,9 @@ void Player::on_main_loop(void *argument)
 
         char buf[130]; // lines up to 128 characters are allowed, anything longer is discarded
         bool discard = false;
+
+        // 2024
+        /*
         bool is_cluster = false;
         int cluster_index = 0;
         float x_value = 0.0, y_value = 0.0, sum_x_value = 0.0, sum_y_value = 0.0,
@@ -596,6 +599,7 @@ void Player::on_main_loop(void *argument)
         string clustered_gcode = "";
         float clustered_s_value[8];
         float clustered_distance[8];
+        */
 
         while (fgets(buf, sizeof(buf), this->current_file_handler) != NULL) {
 
@@ -609,6 +613,7 @@ void Player::on_main_loop(void *argument)
 
                 if (len == 1) continue; // empty line
 
+                /*
             	// Add laser cluster support when in laser mode
             	if (this->laser_clustering && THEKERNEL->get_laser_mode() && !THEROBOT->absolute_mode && played_lines > 100) {
             		// G1 X0.5 Y 0.8 S1:0:0.5:0.75:0:0.2
@@ -678,6 +683,7 @@ void Player::on_main_loop(void *argument)
                         min_distance = 10000.0;
             		}
             	}
+*/
 
                 if (this->current_stream != nullptr) {
                     this->current_stream->printf("%s", buf);
@@ -725,6 +731,7 @@ void Player::on_main_loop(void *argument)
     }
 }
 
+/*
 bool Player::check_cluster(const char *gcode_str, float *x_value, float *y_value, float *distance, float *slope, float *s_value)
 {
 	float new_slope = 0.0;
@@ -751,6 +758,7 @@ bool Player::check_cluster(const char *gcode_str, float *x_value, float *y_value
 
 	return is_cluster;
 }
+*/
 
 void Player::on_get_public_data(void *argument)
 {

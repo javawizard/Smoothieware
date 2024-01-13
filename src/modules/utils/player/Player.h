@@ -53,7 +53,8 @@ class Player : public Module {
         unsigned int crc16_ccitt(unsigned char *data, unsigned int len);
         int check_crc(int crc, unsigned char *data, unsigned int len);
 
-        bool check_cluster(const char *gcode_str, float *x_value, float *y_value, float *distance, float *slope, float *s_value);
+        // 2024
+        // bool check_cluster(const char *gcode_str, float *x_value, float *y_value, float *distance, float *slope, float *s_value);
 
         string filename;
         string last_filename;

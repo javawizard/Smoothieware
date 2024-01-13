@@ -228,8 +228,12 @@ void Robot::load_config()
     // default s value for laser
     this->s_value = THEKERNEL->config->value(laser_module_default_power_checksum)->by_default(0.8F)->as_number()
     					* THEKERNEL->config->value(laser_module_maximum_s_value_checksum)->by_default(1.0f)->as_number();
+
+    // 2024
+    /*
 	this->s_values[0] = this->s_value;
 	this->s_count = 1;
+	*/
 
 	this->laser_module_offset_x = THEKERNEL->config->value(laser_module_offset_x_checksum)->by_default(-38.0f)->as_number() ;
 	this->laser_module_offset_y = THEKERNEL->config->value(laser_module_offset_y_checksum)->by_default(5.0f)->as_number() ;
@@ -1133,7 +1137,16 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
             this->feed_rate = this->to_millimeters( gcode->get_value('F') );
     }
 
+    if(gcode->has_letter('S')) {
+    	s_value = gcode->get_value('S');
+    }
+
     // S is modal When specified on a G0/1/2/3 command
+    if(gcode->has_letter('S')) {
+    	s_value = gcode->get_value('S');
+    }
+
+    /*
 	s_count = 1;
 	int index = gcode->index_of_letter('S');
     if (index >= 0) {
@@ -1181,7 +1194,7 @@ void Robot::process_move(Gcode *gcode, enum MOTION_MODE_T motion_mode)
 				}
 			}
 		}
-	}
+	}*/
 
 
     // S is modal When specified on a G0/1/2/3 command
@@ -1561,7 +1574,9 @@ bool Robot::append_milestone(const float target[], float rate_mm_s, unsigned int
     // Append the block to the planner
     // NOTE that distance here should be either the distance travelled by the XYZ axis, or the E mm travel if a solo E move
     // NOTE this call will bock until there is room in the block queue, on_idle will continue to be called
-    if(THEKERNEL->planner->append_block( actuator_pos, n_motors, rate_mm_s, distance, auxilliary_move ? nullptr : unit_vec, acceleration, s_values, s_count, is_g123, line)) {
+    if(THEKERNEL->planner->append_block( actuator_pos, n_motors, rate_mm_s, distance, auxilliary_move ? nullptr : unit_vec, acceleration, s_value, is_g123, line)) {
+// 2024
+//    if(THEKERNEL->planner->append_block( actuator_pos, n_motors, rate_mm_s, distance, auxilliary_move ? nullptr : unit_vec, acceleration, s_values, s_count, is_g123, line)) {
         // this is the new compensated machine position
         memcpy(this->compensated_machine_position, transformed_target, n_motors * sizeof(float));
         return true;

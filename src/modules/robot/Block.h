@@ -70,7 +70,8 @@ class Block {
 
         static uint8_t n_actuators;
 
-        uint16_t s_values[8];
+        // 2024
+        // uint16_t s_values[8];
 
         struct {
             bool recalculate_flag:1;             // Planner flag to recalculate trapezoids on entry junction
@@ -80,8 +81,10 @@ class Block {
             bool is_g123:1;                      // set if this is a G1, G2 or G3
             volatile bool is_ticking:1;          // set when this block is being actively ticked by the stepticker
             volatile bool locked:1;              // set to true when the critical data is being updated, stepticker will have to skip if this is set
-            uint8_t  s_count:4;                  // number of laser intensity values
-            uint8_t  move_axis:3;                // axis of greatest movement
+
+            // 2024
+            // uint8_t  s_count:4;                  // number of laser intensity values
+            // uint8_t  move_axis:3;                // axis of greatest movement
             uint16_t s_value:12;                 // for laser 1.11 Fixed point
         };
 };

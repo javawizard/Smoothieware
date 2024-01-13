@@ -118,8 +118,9 @@ void Laser::on_module_loaded()
 
     // no point in updating the power more than the PWM frequency, but not faster than 1KHz
     ms_per_tick = 1000 / std::min(1000UL, 1000000 / period);
-    // THEKERNEL->slow_ticker->attach(std::min(1000UL, 1000000 / period), this, &Laser::set_proportional_power);
-    THEKERNEL->slow_ticker->attach(std::min(4000UL, 1000000 / period), this, &Laser::set_proportional_power);
+    // 2024
+    THEKERNEL->slow_ticker->attach(std::min(1000UL, 1000000 / period), this, &Laser::set_proportional_power);
+    // THEKERNEL->slow_ticker->attach(std::min(4000UL, 1000000 / period), this, &Laser::set_proportional_power);
     // THEKERNEL->slow_ticker->attach(1, this, &Laser::set_proportional_power);
 
 }
@@ -269,7 +270,8 @@ void Laser::on_gcode_received(void *argument)
 float Laser::current_speed_ratio(const Block *block) const
 {
     // find the primary moving actuator (the one with the most steps)
-	/*
+
+	// 2024
     size_t pm = 0;
     uint32_t max_steps = 0;
     for (size_t i = 0; i < THEROBOT->get_number_registered_motors(); i++) {
@@ -285,8 +287,8 @@ float Laser::current_speed_ratio(const Block *block) const
     float ratio = block->get_trapezoid_rate(pm) / block->nominal_rate;
 
     return ratio;
-    */
 
+    /*
     // find the primary moving actuator (the one with the most steps)
     size_t pm = block->move_axis;
     // figure out the ratio of its speed, from 0 to 1 based on where it is on the trapezoid,
@@ -294,6 +296,7 @@ float Laser::current_speed_ratio(const Block *block) const
     float ratio = block->get_trapezoid_rate(pm) / block->nominal_rate;
 
     return ratio;
+    */
 
 }
 
@@ -305,6 +308,13 @@ bool Laser::get_laser_power(float& power) const
     // Note to avoid a race condition where the block is being cleared we check the is_ready flag which gets cleared first,
     // as this is an interrupt if that flag is not clear then it cannot be cleared while this is running and the block will still be valid (albeit it may have finished)
     if (block != nullptr && block->is_ready && block->is_g123) {
+    	// 2024
+        float requested_power = (float)block->s_value / (1 << 11) / this->laser_maximum_s_value; // s_value is 1.11 Fixed point
+        float ratio = current_speed_ratio(block);
+        power = requested_power * ratio * scale;
+        return true;
+
+        /*
 		int axis = block->move_axis;
 		int shift_steps = block->tick_info[axis].steps_to_move / int(block->s_count);
 		int idx = block->tick_info[axis].step_count / shift_steps;
@@ -313,6 +323,7 @@ bool Laser::get_laser_power(float& power) const
         float ratio = current_speed_ratio(block);
         power = requested_power * ratio * scale;
         return true;
+        */
 
     }
 
